@@ -144,9 +144,22 @@ const DeliveryPage: React.FC = () => {
   React.useEffect(() => {
     // Disponibilizar função de refresh globalmente
     (window as any).refreshDeliveryProducts = refetchProducts;
+    // Também disponibilizar função de correção de produto
+    (window as any).fixDeliveryProduct = async (productId: string) => {
+      try {
+        console.log('🔧 Corrigindo produto via console:', productId);
+        // Note: We need to access fixProduct from the hook, but it's not exposed yet
+        // This will be added in a subsequent update
+        await refetchProducts(); // For now, just refresh
+        console.log('✅ Produtos atualizados');
+      } catch (err) {
+        console.error('❌ Erro ao corrigir produto:', err);
+      }
+    };
     
     return () => {
       delete (window as any).refreshDeliveryProducts;
+      delete (window as any).fixDeliveryProduct;
     };
   }, [refetchProducts]);
   

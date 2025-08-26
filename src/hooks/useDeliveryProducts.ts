@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { products as codeProducts } from '../data/products';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export interface DeliveryProduct {
@@ -168,6 +169,29 @@ export const useDeliveryProducts = () => {
     try {
       console.log('🚀 Criando produto:', product);
       
+      // Check if Supabase is properly configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl === 'your_supabase_url_here' || 
+          supabaseKey === 'your_supabase_anon_key_here' ||
+          supabaseUrl.includes('placeholder')) {
+        console.warn('⚠️ Supabase não configurado - criando produto localmente');
+        
+        // Create product locally in demo mode
+        const newProduct: DeliveryProduct = {
+          ...product,
+          id: crypto.randomUUID(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        
+        setProducts(prev => [...prev, newProduct]);
+        console.log('✅ Produto criado localmente:', newProduct);
+        return newProduct;
+      }
+      
       const { data, error } = await supabase
         .from('delivery_products')
         .insert([{
@@ -191,43 +215,165 @@ export const useDeliveryProducts = () => {
 
   const updateProduct = useCallback(async (id: string, updates: Partial<DeliveryProduct>) => {
     try {
+      console.log('🔄 Iniciando atualização do produto:', { id, updates });
+      
       console.log('✏️ Atualizando produto:', id, updates);
 
       // Check if Supabase is configured
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      if (!supabaseUrl || supabaseUrl.includes('placeholder')) {
-        throw new Error('Supabase não configurado. Configure as variáveis de ambiente para usar esta funcionalidade.');
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl === 'your_supabase_url_here' || 
+          supabaseKey === 'your_supabase_anon_key_here' ||
+          supabaseUrl.includes('placeholder')) {
+        console.warn('⚠️ Supabase não configurado - atualizando produto localmente');
+        
+        // Update product locally in demo mode
+        const existingProduct = products.find(p => p.id === id);
+        if (!existingProduct) {
+          throw new Error(`Produto ${id} não encontrado no estado local`);
+        }
+        
+        const updatedProduct: DeliveryProduct = {
+          ...existingProduct,
+          ...updates,
+          updated_at: new Date().toISOString()
+        };
+        
+        setProducts(prev => prev.map(p => p.id === id ? updatedProduct : p));
+        console.log('✅ Produto atualizado localmente:', updatedProduct);
+        return updatedProduct;
       }
 
-      // 1. First check if the product exists in the database
-      const { data: existingProduct, error: checkError } = await supabase
+      // 1. Verificar se o produto existe no banco
+      console.log('🔍 Verificando se produto existe no banco...', { id });
+      const checkTimeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: Verificação do produto demorou mais de 10 segundos')), 10000);
+      });
+      
+      const checkFetchPromise = supabase
         .from('delivery_products')
         .select('*')
         .eq('id', id)
-        .maybeSingle();
+        .single();
+      
+      let existingProduct, checkError;
+      
+      try {
+        const result = await Promise.race([
+          checkFetchPromise,
+          checkTimeoutPromise
+        ]);
+        existingProduct = result.data;
+        checkError = result.error;
+      } catch (err) {
+        console.error('❌ Erro ao verificar produto:', err);
+        
+        if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+          throw new Error('Erro de conectividade. Verifique sua internet e tente novamente.');
+        } else if (err instanceof Error && err.message.includes('Timeout')) {
+          throw new Error('Conexão lenta. Tente novamente em alguns segundos.');
+        }
+        throw err;
+      }
 
       if (checkError) {
-        console.error('❌ Erro ao verificar produto existente:', checkError);
+        if (checkError.code === 'PGRST116') {
+          console.warn('⚠️ Produto não encontrado no banco, criando novo...');
+          
+          // Se produto não existe no banco mas existe no estado local, criar no banco
+          const localProduct = products.find(p => p.id === id);
+          if (localProduct) {
+            console.log('🔄 Produto existe localmente, criando no banco...');
+            
+            const productToCreate = {
+              ...localProduct,
+              ...updates,
+              updated_at: new Date().toISOString()
+            };
+            
+            // Remove campos que podem causar problema na criação
+            const { created_at, ...createData } = productToCreate;
+            
+            const { data: createdProduct, error: createError } = await supabase
+              .from('delivery_products')
+              .insert([createData])
+              .select()
+              .single();
+              
+            if (createError) {
+              console.error('❌ Erro ao criar produto no banco:', createError);
+              throw new Error(`Erro ao sincronizar produto: ${createError.message}`);
+            }
+            
+            console.log('✅ Produto criado no banco:', createdProduct);
+            setProducts(prev => prev.map(p => p.id === id ? createdProduct : p));
+            return createdProduct;
+          } else {
+            throw new Error(`Produto ${id.slice(0, 8)}... não encontrado. Pode ter sido removido.`);
+          }
+        }
+        
+        console.error('❌ Erro ao verificar produto:', checkError);
         throw new Error(`Erro ao verificar produto: ${checkError.message}`);
       }
 
       if (!existingProduct) {
-        console.error('❌ Produto não encontrado no banco:', id);
-        console.log('🔍 Produtos disponíveis no estado local:', products.map(p => ({ id: p.id, name: p.name })));
+        // Mesmo tratamento que acima para PGRST116
+        const localProduct = products.find(p => p.id === id);
+        if (localProduct) {
+          console.log('🔄 Produto não existe no banco, criando...');
+          
+          const productToCreate = {
+            ...localProduct,
+            ...updates,
+            updated_at: new Date().toISOString()
+          };
+          
+          const { created_at, ...createData } = productToCreate;
+          
+          const { data: createdProduct, error: createError } = await supabase
+            .from('delivery_products')
+            .insert([createData])
+            .select()
+            .single();
+            
+          if (createError) {
+            throw new Error(`Erro ao criar produto: ${createError.message}`);
+          }
+          
+          setProducts(prev => prev.map(p => p.id === id ? createdProduct : p));
+          return createdProduct;
+        }
         
-        // Try to refresh products from database
-        console.log('🔄 Tentando recarregar produtos do banco...');
-        await fetchProducts();
-        
-        throw new Error(`Produto com ID ${id} não foi encontrado no banco de dados. O produto pode ter sido excluído ou criado apenas localmente. Tente recarregar a página.`);
+        throw new Error(`Produto ${id.slice(0, 8)}... não encontrado.`);
       }
 
       console.log('✅ Produto encontrado no banco:', existingProduct);
 
-      // 2. Prepare clean update data
-      const { created_at, updated_at, has_complements, ...cleanUpdates } = updates as any;
-
-      // 3. Remove undefined values and add updated_at
+      // 2. Preparar dados da atualização
+      const { 
+        created_at, 
+        updated_at, 
+        has_complements,
+        // Campos que podem não existir na tabela
+        complement_groups,
+        sizes,
+        availability,
+        scheduledDays,
+        original_price,
+        image,
+        price,
+        isActive,
+        ...cleanUpdates 
+      } = updates as any;
+      
+      // Mapear campos se necessário
+      if (updates.isActive !== undefined) {
+        cleanUpdates.is_active = updates.isActive;
+      }
+      
       const safeUpdate = Object.fromEntries(
         Object.entries({
           ...cleanUpdates,
@@ -235,57 +381,330 @@ export const useDeliveryProducts = () => {
         }).filter(([, value]) => value !== undefined)
       );
 
-      console.log('📝 Dados para atualização:', {
+      console.log('📝 Preparando atualização:', {
         id,
-        safeUpdate,
-        originalUpdates: updates
+        camposAtualizados: Object.keys(safeUpdate),
+        updateData: safeUpdate
       });
 
-      // 4. Perform the update
-      const { data, error } = await supabase
+      // 3. Verificar se há mudanças reais
+      const hasChanges = Object.keys(cleanUpdates).some(key => {
+        const oldValue = existingProduct[key];
+        const newValue = cleanUpdates[key];
+        console.log(`🔍 Comparando ${key}:`, { oldValue, newValue, changed: oldValue !== newValue });
+        return oldValue !== newValue;
+      });
+      
+      if (!hasChanges) {
+        console.log('ℹ️ Nenhuma mudança detectada, retornando produto existente');
+        return existingProduct;
+      }
+      
+      console.log('🔄 Mudanças detectadas, prosseguindo com atualização...');
+
+      // 4. Executar atualização
+      const updateTimeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: Atualização demorou mais de 15 segundos')), 15000);
+      });
+      
+      const updateFetchPromise = supabase
         .from('delivery_products')
         .update(safeUpdate)
         .eq('id', id)
         .select('*');
-
-      if (error) {
-        console.error('❌ Erro ao atualizar produto:', error);
-        throw new Error(`Erro ao atualizar produto: ${error.message || 'Erro desconhecido'}`);
+      
+      let updateData, updateError;
+      
+      try {
+        const result = await Promise.race([
+          updateFetchPromise,
+          updateTimeoutPromise
+        ]);
+        updateData = result.data;
+        updateError = result.error;
+      } catch (err) {
+        if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+          throw new Error('Erro de conectividade. Verifique sua internet.');
+        }
+        throw err;
       }
 
-      if (!data || data.length === 0) {
-        // No rows were updated - values were already the same
-        console.log('ℹ️ Nenhuma linha foi atualizada - valores já eram os mesmos');
+      if (updateError) {
+        console.error('❌ Erro ao atualizar produto:', {
+          id,
+          error: updateError,
+          code: updateError.code,
+          message: updateError.message
+        });
         
-        // Return the existing product with updates applied
+        if (updateError.code === 'PGRST116') {
+          throw new Error('Produto não encontrado durante atualização. Pode ter sido removido.');
+        } else if (updateError.code?.includes('unique') || updateError.message?.includes('unique')) {
+          throw new Error('Erro: Já existe outro produto com esses dados únicos (nome ou código).');
+        } else {
+          throw new Error(`Erro ao atualizar: ${updateError.message}`);
+        }
+      }
+
+      if (!updateData || updateData.length === 0) {
+        console.warn('⚠️ Nenhuma linha atualizada, mas produto existe. Sincronizando...');
+        
         const updatedProduct = {
           ...existingProduct,
           ...cleanUpdates,
           updated_at: new Date().toISOString()
         };
         
-        // Update local state
         setProducts(prev => prev.map(p => p.id === id ? updatedProduct : p));
-        
-        console.log('✅ Produto atualizado localmente (sem mudanças no banco)');
         return updatedProduct;
       }
 
-      const updatedProduct = data[0];
-      console.log('✅ Produto atualizado no banco:', updatedProduct);
+      const updatedProduct = updateData[0];
+      console.log('✅ Produto atualizado com sucesso:', updatedProduct.name);
 
-      // Update local state
       setProducts(prev => prev.map(p => p.id === id ? updatedProduct : p));
-      
-      console.log('✅ Estado local atualizado');
       return updatedProduct;
 
     } catch (err) {
       console.error('❌ Erro ao atualizar produto:', err);
+      
+      // Log adicional para debug
+      console.log('🔍 DEBUG - Estado atual:', {
+        productId: id,
+        localProductExists: !!products.find(p => p.id === id),
+        totalProducts: products.length,
+        updateData: updates
+      });
+      
       throw err;
     }
   }, [fetchProducts, products]);
+  // Nova função para diagnosticar e corrigir problemas com produto específico
+  const fixProduct = useCallback(async (productId: string) => {
+    try {
+      console.log('🔧 Iniciando correção para produto:', productId);
+      
+      // Check if Supabase is configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl.includes('placeholder') || 
+          supabaseKey.includes('placeholder')) {
+        throw new Error('Supabase não configurado');
+      }
+      
+      // 1. Tentar buscar produto do banco
+      const { data: dbProduct, error: dbError } = await supabase
+        .from('delivery_products')
+        .select('*')
+        .eq('id', productId)
+        .maybeSingle();
+      
+      // 2. Verificar produto no estado local
+      const localProduct = products.find(p => p.id === productId);
+      
+      console.log('🔍 Diagnóstico:', {
+        productId,
+        existsInDb: !!dbProduct,
+        existsLocally: !!localProduct,
+        dbError: dbError?.message,
+        localName: localProduct?.name,
+        dbName: dbProduct?.name
+      });
+      
+      if (dbError && dbError.code !== 'PGRST116') {
+        throw new Error(`Erro no banco: ${dbError.message}`);
+      }
+      
+      // 3. Se produto não existe no banco mas existe local, criar no banco
+      if (!dbProduct && localProduct) {
+        console.log('📝 Criando produto no banco a partir do estado local...');
+        
+        const { created_at, updated_at, ...createData } = localProduct;
+        
+        const { data: createdProduct, error: createError } = await supabase
+          .from('delivery_products')
+          .insert([{
+            ...createData,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }])
+          .select()
+          .single();
+        
+        if (createError) {
+          throw new Error(`Erro ao criar produto: ${createError.message}`);
+        }
+        
+        console.log('✅ Produto criado no banco:', createdProduct.name);
+        setProducts(prev => prev.map(p => p.id === productId ? createdProduct : p));
+        return createdProduct;
+      }
+      
+      // 4. Se produto existe no banco mas não local, adicionar ao estado
+      if (dbProduct && !localProduct) {
+        console.log('📥 Adicionando produto do banco ao estado local...');
+        setProducts(prev => [...prev, dbProduct]);
+        return dbProduct;
+      }
+      
+      // 5. Se ambos existem, sincronizar (usar dados do banco como fonte da verdade)
+      if (dbProduct && localProduct) {
+        console.log('🔄 Sincronizando produto (banco como fonte da verdade)...');
+        setProducts(prev => prev.map(p => p.id === productId ? dbProduct : p));
+        return dbProduct;
+      }
+      
+      throw new Error('Produto não encontrado em lugar nenhum');
+      
+    } catch (err) {
+      console.error('❌ Erro ao corrigir produto:', err);
+      throw err;
+    }
+  }, [products]);
 
+  // Nova função para diagnosticar problemas com produto específico
+  const debugProduct = useCallback(async (productId: string) => {
+    try {
+      console.log('🔍 DIAGNÓSTICO COMPLETO para produto:', productId);
+      
+      // 1. Verificar se existe no estado local
+      const localProduct = products.find(p => p.id === productId);
+      console.log('📱 Produto no estado local:', localProduct ? {
+        id: localProduct.id,
+        name: localProduct.name,
+        category: localProduct.category,
+        is_active: localProduct.is_active
+      } : 'NÃO ENCONTRADO');
+      
+      // 2. Verificar se Supabase está configurado
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const isConfigured = supabaseUrl && supabaseKey && 
+                          !supabaseUrl.includes('placeholder') &&
+                          !supabaseKey.includes('placeholder');
+      
+      console.log('🔧 Configuração Supabase:', {
+        isConfigured,
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseKey,
+        urlValid: !supabaseUrl?.includes('placeholder'),
+        keyValid: !supabaseKey?.includes('placeholder')
+      });
+      
+      if (!isConfigured) {
+        console.warn('⚠️ Supabase não configurado - modo demo ativo');
+        return;
+      }
+      
+      // 3. Verificar se existe no banco
+      const { data: dbProduct, error: dbError } = await supabase
+        .from('delivery_products')
+        .select('*')
+        .eq('id', productId)
+        .maybeSingle();
+      
+      console.log('🗄️ Produto no banco de dados:', dbProduct ? {
+        id: dbProduct.id,
+        name: dbProduct.name,
+        category: dbProduct.category,
+        is_active: dbProduct.is_active,
+        updated_at: dbProduct.updated_at
+      } : 'NÃO ENCONTRADO');
+      
+      if (dbError) {
+        console.error('❌ Erro ao consultar banco:', dbError);
+      }
+      
+      // 4. Verificar se há dessincronia
+      if (localProduct && dbProduct) {
+        const isInSync = localProduct.name === dbProduct.name && 
+                        localProduct.updated_at === dbProduct.updated_at;
+        console.log('🔄 Sincronização:', {
+          isInSync,
+          localUpdated: localProduct.updated_at,
+          dbUpdated: dbProduct.updated_at
+        });
+        
+        if (!isInSync) {
+          console.warn('⚠️ Produto desatualizado no estado local, sincronizando...');
+          setProducts(prev => prev.map(p => p.id === productId ? dbProduct : p));
+        }
+      }
+      
+      // 5. Verificar permissões da tabela
+      const { data: permissionsTest, error: permError } = await supabase
+        .from('delivery_products')
+        .select('count', { count: 'exact', head: true });
+      
+      console.log('🔐 Teste de permissões:', {
+        canRead: !permError,
+        totalProducts: permissionsTest || 0,
+        permissionError: permError?.message
+      });
+      
+      return {
+        local: !!localProduct,
+        database: !!dbProduct,
+        synchronized: localProduct && dbProduct && localProduct.updated_at === dbProduct.updated_at,
+        canAccess: !permError
+      };
+      
+    } catch (err) {
+      console.error('❌ Erro no diagnóstico:', err);
+      return null;
+    }
+  }, [products]);
+
+  // Nova função para forçar sincronização de um produto específico
+  const forceSync = useCallback(async (productId: string) => {
+    try {
+      console.log('🔄 Forçando sincronização para produto:', productId);
+      
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl.includes('placeholder') || 
+          supabaseKey.includes('placeholder')) {
+        throw new Error('Supabase não configurado');
+      }
+      
+      // Buscar produto do banco
+      const { data: dbProduct, error } = await supabase
+        .from('delivery_products')
+        .select('*')
+        .eq('id', productId)
+        .single();
+      
+      if (error) {
+        if (error.code === 'PGRST116') {
+          console.warn('⚠️ Produto não encontrado no banco, removendo do estado local');
+          setProducts(prev => prev.filter(p => p.id !== productId));
+          throw new Error('Produto foi removido do banco de dados');
+        }
+        throw error;
+      }
+      
+      // Atualizar estado local com dados do banco
+      setProducts(prev => {
+        const exists = prev.some(p => p.id === productId);
+        if (exists) {
+          return prev.map(p => p.id === productId ? dbProduct : p);
+        } else {
+          return [...prev, dbProduct];
+        }
+      });
+      
+      console.log('✅ Produto sincronizado:', dbProduct.name);
+      return dbProduct;
+      
+    } catch (err) {
+      console.error('❌ Erro ao forçar sincronização:', err);
+      throw err;
+    }
+  }, []);
   const syncWithDatabase = useCallback(async () => {
     console.log('🔄 Sincronizando produtos com banco de dados...');
     console.log('📊 Estado atual dos produtos:', products.length);
@@ -296,6 +715,22 @@ export const useDeliveryProducts = () => {
   const deleteProduct = useCallback(async (id: string) => {
     try {
       console.log('🗑️ Excluindo produto:', id);
+      
+      // Check if Supabase is configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl === 'your_supabase_url_here' || 
+          supabaseKey === 'your_supabase_anon_key_here' ||
+          supabaseUrl.includes('placeholder')) {
+        console.warn('⚠️ Supabase não configurado - excluindo produto localmente');
+        
+        // Delete product locally in demo mode
+        setProducts(prev => prev.filter(p => p.id !== id));
+        console.log('✅ Produto excluído localmente');
+        return;
+      }
       
       const { error } = await supabase
         .from('delivery_products')
@@ -404,6 +839,9 @@ export const useDeliveryProducts = () => {
     updateProduct,
     deleteProduct,
     refetch: fetchProducts,
-    syncWithDatabase
+    debugProduct,
+    forceSync,
+    syncWithDatabase,
+    fixProduct
   };
 };

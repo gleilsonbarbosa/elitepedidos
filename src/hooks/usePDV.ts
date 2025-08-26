@@ -185,24 +185,123 @@ export const usePDVProducts = () => {
 
   const updateProduct = useCallback(async (id: string, updates: Partial<PDVProduct>) => {
     try {
+      // Check if Supabase is configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl === 'your_supabase_url_here' || 
+          supabaseKey === 'your_supabase_anon_key_here' ||
+          supabaseUrl.includes('placeholder')) {
+        // Demo mode - update local state
+        const existingProduct = products.find(p => p.id === id);
+        
+        if (!existingProduct) {
+          // Create a simulated product if not found in demo mode
+          const simulatedProduct: PDVProduct = {
+            id,
+            code: updates.code || 'DEMO' + Date.now(),
+            name: updates.name || 'Produto Demo',
+            category: updates.category || 'outros',
+            is_weighable: updates.is_weighable || false,
+            unit_price: updates.unit_price || 0,
+            price_per_gram: updates.price_per_gram || undefined,
+            image_url: updates.image_url || '',
+            stock_quantity: updates.stock_quantity || 0,
+            min_stock: updates.min_stock || 0,
+            is_active: updates.is_active !== undefined ? updates.is_active : true,
+            barcode: updates.barcode || '',
+            description: updates.description || '',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            display_order: updates.display_order || 1
+          };
+          
+          setProducts(prev => [...prev, simulatedProduct]);
+          return simulatedProduct;
+        }
+        
+        const updatedProduct = { ...existingProduct, ...updates };
+        setProducts(prev => prev.map(p => p.id === id ? updatedProduct : p));
+        return updatedProduct;
+      }
+      
+      // First, check if the product exists
+      const { data: existingProduct, error: fetchError } = await supabase
+        .from('pdv_products')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (fetchError) {
+        throw new Error(`Erro ao buscar produto: ${fetchError.message}`);
+      }
+      
+      if (!existingProduct) {
+        throw new Error('Produto não encontrado');
+      }
+
+      // Remove properties that don't exist in pdv_products table schema
+      const {
+        complement_groups,
+        sizes,
+        availability,
+        scheduledDays,
+        original_price,
+        image,
+        has_complements,
+       price,
+        ...validUpdates
+      } = updates as any;
+      
+      // Check if there are any actual changes to make
+      const hasChanges = Object.keys(validUpdates).some(key => {
+        return existingProduct[key] !== validUpdates[key];
+      });
+
+      // If no changes are needed, return the existing product
+      if (!hasChanges) {
+        setProducts(prev => prev.map(p => p.id === id ? existingProduct : p));
+        return existingProduct;
+      }
+
       const { data, error } = await supabase
         .from('pdv_products')
-        .update(updates)
+        .update(validUpdates)
         .eq('id', id)
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
       
-      setProducts(prev => prev.map(p => p.id === id ? data : p));
-      return data;
+      if (!data || data.length === 0) {
+        // If update returns no rows but product exists, return existing product
+        setProducts(prev => prev.map(p => p.id === id ? existingProduct : p));
+        return existingProduct;
+      }
+      
+      const updatedProduct = data[0];
+      setProducts(prev => prev.map(p => p.id === id ? updatedProduct : p));
+      return updatedProduct;
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Erro ao atualizar produto');
     }
-  }, []);
+  }, [products, setProducts]);
 
   const deleteProduct = useCallback(async (id: string) => {
     try {
+      // Check if Supabase is configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl === 'your_supabase_url_here' || 
+          supabaseKey === 'your_supabase_anon_key_here' ||
+          supabaseUrl.includes('placeholder')) {
+        // Demo mode - remove from local state
+        setProducts(prev => prev.filter(p => p.id !== id));
+        return;
+      }
+      
       const { error } = await supabase
         .from('pdv_products')
         .update({ is_active: false })
@@ -214,7 +313,7 @@ export const usePDVProducts = () => {
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Erro ao excluir produto');
     }
-  }, []);
+  }, [setProducts]);
 
   const searchProducts = useCallback((query: string) => {
     if (!query.trim()) return products;

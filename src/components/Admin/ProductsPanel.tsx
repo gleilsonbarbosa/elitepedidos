@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Upload, X, Save, Package, Image as ImageIcon, GripVertical } from 'lucide-react';
+import { Plus, Edit, Trash2, Upload, X, Save, Package, Image as ImageIcon, GripVertical, RefreshCw, Wrench, Bug } from 'lucide-react';
 import { usePDVProducts } from '../../hooks/usePDV';
-import { useDeliveryProducts } from '../../hooks/useDeliveryProducts';
+import { useDeliveryProducts, DeliveryProduct } from '../../hooks/useDeliveryProducts';
 import { useImageUpload } from '../../hooks/useImageUpload';
 import { useProductScheduling } from '../../hooks/useProductScheduling';
 import ImageUploadModal from './ImageUploadModal';
@@ -203,6 +203,7 @@ const ProductsPanel: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showModal, setShowModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductFormData | null>(null);
   const [productImages, setProductImages] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState<ProductFormData>({
@@ -217,7 +218,7 @@ const ProductsPanel: React.FC = () => {
   });
   const [draggedGroupIndex, setDraggedGroupIndex] = useState<number | null>(null);
   const [draggedOptionIndex, setDraggedOptionIndex] = useState<{ groupIndex: number; optionIndex: number } | null>(null);
-  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const { error, fixProduct, debugProduct } = useProductScheduling();
   const [selectedProductForSchedule, setSelectedProductForSchedule] = useState<any | null>(null);
   
   const { getProductSchedule, saveProductSchedule } = useProductScheduling();
@@ -367,12 +368,32 @@ const ProductsPanel: React.FC = () => {
     }
     
     try {
+      console.log('💾 Iniciando salvamento:', {
+        productId: editingProduct?.id,
+        productName: editingProduct?.name,
+        isCreating: !editingProduct,
+        updates: editingProduct
+      });
+      
       let savedProduct;
       
       if (editingProduct) {
-        await updateProduct(editingProduct.id!, formData);
+        await updateDeliveryProduct(editingProduct.id!, formData);
       } else {
-        const newProduct = await createProduct(formData);
+        try {
+          const updatedProduct = await updateDeliveryProduct(editingProduct.id, editingProduct);
+          console.log('✅ Produto atualizado:', updatedProduct);
+        } catch (updateError) {
+          console.error('❌ Erro na atualização, tentando corrigir...', updateError);
+          
+          // Tentar corrigir o produto se a atualização falhou
+          const fixedProduct = await fixProduct(editingProduct.id);
+          
+          // Tentar atualizar novamente após correção
+          const updatedProduct = await updateDeliveryProduct(editingProduct.id, editingProduct);
+          console.log('✅ Produto corrigido e atualizado:', updatedProduct);
+        }
+        const newProduct = await createDeliveryProduct(formData);
         setEditingProduct(newProduct);
       }
       setShowModal(false);
@@ -1061,6 +1082,49 @@ const ProductsPanel: React.FC = () => {
                         Aplicar Grupos Padrão
                       </button>
                       <button
+                        onClick={async () => {
+                          try {
+                            console.log('🔧 Iniciando correção do produto:', product.id);
+                            await fixProduct(product.id);
+                            alert(`✅ Produto "${product.name}" corrigido com sucesso!`);
+                          } catch (err) {
+                            console.error('❌ Erro ao corrigir produto:', err);
+                            alert(`❌ Erro ao corrigir produto: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
+                          }
+                        }}
+                        className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                        title="Corrigir problemas de sincronização"
+                      >
+                        <Wrench size={16} />
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const diagnosis = await debugProduct(product.id);
+                            console.log('🔍 Diagnóstico:', diagnosis);
+                            
+                            let message = `Diagnóstico do produto "${product.name}":\n\n`;
+                            if (diagnosis) {
+                              message += `• Estado Local: ${diagnosis.local ? '✅ OK' : '❌ Não encontrado'}\n`;
+                              message += `• Banco de Dados: ${diagnosis.database ? '✅ OK' : '❌ Não encontrado'}\n`;
+                              message += `• Sincronizado: ${diagnosis.synchronized ? '✅ Sim' : '⚠️ Não'}\n`;
+                              message += `• Pode Acessar: ${diagnosis.canAccess ? '✅ Sim' : '❌ Não'}`;
+                            } else {
+                              message += 'Não foi possível obter diagnóstico.';
+                            }
+                            
+                            alert(message);
+                          } catch (err) {
+                            console.error('❌ Erro no diagnóstico:', err);
+                            alert('❌ Erro ao executar diagnóstico');
+                          }
+                        }}
+                        className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors"
+                        title="Diagnóstico do produto"
+                      >
+                        <Bug size={16} />
+                      </button>
+                      <button
                         type="button"
                         onClick={addComplementGroup}
                         className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
@@ -1271,6 +1335,20 @@ const ProductsPanel: React.FC = () => {
               >
                 <Save className="w-4 h-4" />
                 {editingProduct ? 'Atualizar' : 'Criar'} Produto
+              </button>
+            </div>
+            <div className="mt-2">
+              <button
+                onClick={async () => {
+                  try {
+                    await debugProduct('a0231308-b725-400b-be0c-7877ce3dabb2');
+                  } catch (err) {
+                    console.error('Debug error:', err);
+                  }
+                }}
+                className="text-xs bg-blue-500 text-white px-2 py-1 rounded"
+              >
+                Debug Produto Específico
               </button>
             </div>
           </div>

@@ -157,11 +157,18 @@ export const useImageUpload = () => {
         return null;
       }
 
-      const { data, error } = await supabase
+      // Add timeout and better error handling for fetch requests
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: Request took too long')), 8000);
+      });
+      
+      const fetchPromise = supabase
         .from('product_image_associations')
         .select('image_id, product_images(public_url)')
         .eq('product_id', productId)
         .maybeSingle();
+      
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
 
       if (error) {
         // Não logar erros de conectividade como erros críticos
@@ -180,8 +187,10 @@ export const useImageUpload = () => {
       return (data.product_images as any).public_url;
     } catch (err) {
       // Tratar erros de rede de forma mais silenciosa
-      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+      if (err instanceof TypeError && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
         console.warn('Problema de conectividade - imagens não disponíveis no momento');
+      } else if (err instanceof Error && err.message.includes('Timeout')) {
+        console.warn('Timeout na requisição - imagens não disponíveis no momento');
       } else {
         console.error('Erro ao buscar imagem:', err);
       }
