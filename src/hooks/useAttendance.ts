@@ -330,8 +330,15 @@ export const useAttendance = () => {
   const login = (username: string, password: string): boolean => {
     console.log('🔐 useAttendance - Tentativa de login:', { username, password: password ? '***' : 'vazio' });
     
-    // Verificar credenciais padrão primeiro
-    if (username === DEFAULT_CREDENTIALS.username && password === DEFAULT_CREDENTIALS.password) {
+    // Verificar usuários cadastrados
+    const user = users.find(u => 
+      u.username === username && 
+      u.password_hash === password && 
+      u.is_active
+    );
+
+    // Se não encontrou usuário cadastrado, verificar credenciais padrão
+    if (!user && username === DEFAULT_CREDENTIALS.username && password === DEFAULT_CREDENTIALS.password) {
       const adminUser = users.find(u => u.username === username) || DEFAULT_USERS[0];
       
       const newSession = {
@@ -345,13 +352,6 @@ export const useAttendance = () => {
       console.log('✅ useAttendance - Login bem-sucedido (credenciais padrão)');
       return true;
     }
-
-    // Verificar usuários cadastrados
-    const user = users.find(u => 
-      u.username === username && 
-      u.password_hash === password && 
-      u.is_active
-    );
 
     if (user) {
       const newSession = {

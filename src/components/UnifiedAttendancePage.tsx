@@ -45,14 +45,7 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
 
   // Check if user is admin
   const isAdmin = !operator || 
-                  operator.code?.toUpperCase() === 'ADMIN' || 
-                  operator.name?.toUpperCase().includes('ADMIN') ||
-                  operator.name?.toUpperCase() === 'ADMINISTRADOR' ||
-                  operator.username?.toUpperCase() === 'ADMIN' ||
-                  operator.username?.toUpperCase().includes('ADMIN') ||
-                  operator.role === 'admin' ||
-                  operator.username === 'admin' ||
-                  operator.name === 'admin';
+                  operator.code?.toUpperCase() === 'ADMIN';
 
   // Debug logging
   React.useEffect(() => {
@@ -117,7 +110,9 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg">
                   <User size={18} className="text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700">{operator.name}</span>
+                  <span className="text-sm font-medium text-gray-700" title={`Código: ${operator.code}`}>
+                    {operator.name}
+                  </span>
                 </div>
                 {onLogout && (
                   <button

@@ -6,12 +6,23 @@ interface UploadResult {
   path: string;
 }
 
+interface UploadedImage {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  created_at: string;
+}
 export const useImageUpload = () => {
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const uploadImage = async (file: File): Promise<UploadResult> => {
     setUploading(true);
+    setError(null);
+    setUploadProgress(0);
     
     try {
       // Validar tipo de arquivo
@@ -29,6 +40,7 @@ export const useImageUpload = () => {
       const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `products/${fileName}`;
 
+      setUploadProgress(25);
       // Upload para Supabase Storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('product-images')
@@ -38,11 +50,13 @@ export const useImageUpload = () => {
         throw uploadError;
       }
 
+      setUploadProgress(50);
       // Obter URL pública
       const { data: urlData } = supabase.storage
         .from('product-images')
         .getPublicUrl(filePath);
 
+      setUploadProgress(75);
       // Salvar metadata no banco
       const { data: imageData, error: dbError } = await supabase
         .from('product_images')
@@ -65,20 +79,47 @@ export const useImageUpload = () => {
         throw dbError;
       }
 
+      setUploadProgress(100);
       return {
         url: urlData.publicUrl,
         path: filePath
       };
     } catch (err) {
       console.error('Erro no upload:', err);
+      setError(err instanceof Error ? err.message : 'Erro desconhecido no upload');
       throw err;
     } finally {
       setUploading(false);
+      setTimeout(() => setUploadProgress(0), 1000);
     }
   };
 
+  const getUploadedImages = async (): Promise<UploadedImage[]> => {
+    try {
+      const { data, error } = await supabase
+        .from('product_images')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      return data.map(image => ({
+        id: image.id,
+        name: image.original_name,
+        url: image.public_url,
+        size: image.file_size,
+        created_at: image.created_at
+      }));
+    } catch (err) {
+      console.error('Erro ao buscar imagens:', err);
+      throw err;
+    }
+  };
   const deleteImage = async (imagePath: string): Promise<void> => {
     setDeleting(true);
+    setError(null);
     
     try {
       // Remover do storage
@@ -101,6 +142,7 @@ export const useImageUpload = () => {
       }
     } catch (err) {
       console.error('Erro ao deletar imagem:', err);
+      setError(err instanceof Error ? err.message : 'Erro desconhecido ao deletar');
       throw err;
     } finally {
       setDeleting(false);
@@ -109,6 +151,12 @@ export const useImageUpload = () => {
 
   const getProductImage = async (productId: string): Promise<string | null> => {
     try {
+      // Verificar se Supabase está configurado
+      if (!supabase) {
+        console.warn('Supabase não configurado');
+        return null;
+      }
+
       const { data, error } = await supabase
         .from('product_image_associations')
         .select('image_id, product_images(public_url)')
@@ -116,7 +164,12 @@ export const useImageUpload = () => {
         .maybeSingle();
 
       if (error) {
-        console.error('Erro ao buscar imagem do produto:', error);
+        // Não logar erros de conectividade como erros críticos
+        if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+          console.warn('Problema de conectividade ao buscar imagem:', error.message);
+        } else {
+          console.error('Erro ao buscar imagem do produto:', error);
+        }
         return null;
       }
 
@@ -126,7 +179,12 @@ export const useImageUpload = () => {
 
       return (data.product_images as any).public_url;
     } catch (err) {
-      console.error('Erro ao buscar imagem:', err);
+      // Tratar erros de rede de forma mais silenciosa
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        console.warn('Problema de conectividade - imagens não disponíveis no momento');
+      } else {
+        console.error('Erro ao buscar imagem:', err);
+      }
       return null;
     }
   };
@@ -158,10 +216,13 @@ export const useImageUpload = () => {
 
   return {
     uploadImage,
+    getUploadedImages,
     deleteImage,
     getProductImage,
     associateImageWithProduct,
     uploading,
+    uploadProgress,
+    error,
     deleting
   };
 };

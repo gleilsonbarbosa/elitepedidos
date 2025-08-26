@@ -303,9 +303,7 @@ const PDVMain: React.FC<PDVMainProps> = ({ onBack, operator }) => {
     }
 
     // Admin user always sees all menu items
-    if (operator.code?.toUpperCase() === 'ADMIN' || 
-        operator.name?.toUpperCase().includes('ADMIN') ||
-        operator.name?.toUpperCase() === 'ADMINISTRADOR') {
+    if (operator.code?.toUpperCase() === 'ADMIN') {
       setFilteredMenuCategories(menuCategories);
       return;
     }
@@ -407,7 +405,9 @@ const PDVMain: React.FC<PDVMainProps> = ({ onBack, operator }) => {
               {operator && (
                 <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg">
                   <User size={18} className="text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700">{operator.name}</span>
+                  <span className="text-sm font-medium text-gray-700" title={`Código: ${operator.code || 'N/A'}`}>
+                    {operator.name || operator.code || 'Operador'}
+                  </span>
                   <button
                     onClick={onBack}
                     className="ml-2 p-1 hover:bg-gray-200 rounded-full transition-colors"

@@ -29,9 +29,16 @@ const AttendancePage: React.FC = () => {
         if (data) {
           setPdvOperator(data);
           console.log('✅ PDV operator fetched:', data);
+        } else {
+          console.warn('⚠️ Nenhum operador ADMIN encontrado');
+          setPdvOperator(null);
         }
       } catch (error) {
         console.error('❌ Error in fetchPdvOperator:', error);
+        if (error instanceof TypeError && error.message === 'Failed to fetch') {
+          console.warn('⚠️ Erro de conexão ao buscar operador - usando modo offline');
+        }
+        setPdvOperator(null);
       }
     };
 
@@ -55,56 +62,55 @@ const AttendancePage: React.FC = () => {
     });
   }, [session]);
 
-  // Debug logging adicional
-  React.useEffect(() => {
-    console.log('🔍 AttendancePage - Dados completos:', {
-      session,
-      isAuthenticated: session.isAuthenticated,
-      hasUser: !!session.user,
-      userDetails: session.user
-    });
-  }, [session]);
-
-  // Se o atendente está logado, mostrar painel de atendimento
+  // Se está logado, mostrar sistema unificado
   if (session.isAuthenticated) {
-    console.log('✅ Usuário autenticado, renderizando UnifiedAttendancePage');
-    
-    // Wait for PDV operator to be loaded
-    if (!pdvOperator) {
-      return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Carregando operador...</p>
-          </div>
-        </div>
-      );
-    }
+    // Create operator based on attendance session user
+    const attendanceOperator = session.user ? {
+      id: session.user.id,
+      name: session.user.name,
+      code: session.user.username.toUpperCase(),
+      password_hash: '',
+      is_active: true,
+      permissions: session.user.permissions || {
+        can_cancel: false,
+        can_discount: false,
+        can_use_scale: false,
+        can_view_sales: true,
+        can_view_orders: true,
+        can_view_reports: false,
+        can_view_products: true,
+        can_view_operators: false,
+        can_manage_products: false,
+        can_manage_settings: false,
+        can_view_attendance: true,
+        can_view_cash_report: false,
+        can_view_sales_report: false,
+        can_view_cash_register: false,
+        can_view_expected_balance: false
+      },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      last_login: null
+    } : null;
 
     return (
       <UnifiedAttendancePage 
-        operator={pdvOperator}
+        operator={attendanceOperator}
         onLogout={logout}
       />
     );
   }
 
-  console.log('❌ Usuário não autenticado, renderizando AttendanceLogin');
   // Se não está logado, mostrar tela de login
   return (
     <AttendanceLogin 
       onLogin={(username, password) => {
-        console.log('🔐 Tentativa de login via AttendanceLogin:', { username });
+        console.log('🔐 AttendanceLogin - Tentativa de login:', { username });
         const success = login(username, password);
-        console.log('🔐 Resultado do login:', success);
+        console.log('🔐 AttendanceLogin - Resultado do login:', success);
         
-        // Forçar recarregamento dos usuários após login bem-sucedido
         if (success) {
-          console.log('🔄 Login bem-sucedido, recarregando usuários...');
-          // Pequeno delay para garantir que o estado foi atualizado
-          setTimeout(() => {
-            window.location.reload();
-          }, 100);
+          console.log('✅ AttendanceLogin - Login bem-sucedido');
         }
         
         return success;

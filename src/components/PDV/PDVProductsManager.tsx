@@ -42,6 +42,11 @@ const PDVProductsManager: React.FC = () => {
   // Carregar imagens dos produtos
   React.useEffect(() => {
     const loadProductImages = async () => {
+      // Verificar se há produtos para carregar
+      if (filteredProducts.length === 0) {
+        return;
+      }
+
       const images: Record<string, string> = {};
       
       for (const product of filteredProducts) {
@@ -51,14 +56,22 @@ const PDVProductsManager: React.FC = () => {
             images[product.id] = savedImage;
           }
         } catch (error) {
-          console.warn(`Erro ao carregar imagem do produto ${product.name}:`, error);
+          // Apenas logar se não for erro de conectividade
+          if (!(error instanceof TypeError && error.message.includes('Failed to fetch'))) {
+            console.warn(`Erro ao carregar imagem do produto ${product.name}:`, error);
+          }
         }
       }
       
       setProductImages(images);
     };
 
-    loadProductImages();
+    // Adicionar delay para evitar múltiplas chamadas simultâneas
+    const timeoutId = setTimeout(() => {
+      loadProductImages();
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
   }, [filteredProducts, getProductImage]);
 
   const formatPrice = (price: number) => {
@@ -115,18 +128,8 @@ const PDVProductsManager: React.FC = () => {
       if (isCreating) {
         const { id, created_at, updated_at, ...productData } = editingProduct;
         const newProduct = await createProduct(productData);
-        
-        // Salvar imagem se houver
-        if (editingProduct.image_url && !editingProduct.image_url.includes('pexels.com')) {
-          await saveImageToProduct(editingProduct.image_url, newProduct.id);
-        }
       } else {
         await updateProduct(editingProduct.id, editingProduct);
-        
-        // Salvar imagem se houver
-        if (editingProduct.image_url && !editingProduct.image_url.includes('pexels.com')) {
-          await saveImageToProduct(editingProduct.image_url, editingProduct.id);
-        }
       }
       
       setEditingProduct(null);

@@ -240,23 +240,23 @@ const ProductsPanel: React.FC = () => {
   // Carregar imagens dos produtos
   useEffect(() => {
     const loadProductImages = async () => {
-     try {
-       // Skip image loading if there are no products
-       if (deliveryProducts.length === 0) return;
-       
-       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-       
-       // Check if Supabase is properly configured
-       if (!supabaseUrl || !supabaseKey ||
-           supabaseUrl.includes('placeholder') || 
-           supabaseKey.includes('placeholder') ||
-           supabaseUrl === 'your_supabase_url_here' ||
-           supabaseKey === 'your_supabase_anon_key_here') {
-         console.warn('⚠️ Supabase not configured, skipping image loading');
-         return;
-       }
+      // Skip image loading if there are no products
+      if (deliveryProducts.length === 0) return;
+      
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      // Check if Supabase is properly configured
+      if (!supabaseUrl || !supabaseKey ||
+          supabaseUrl.includes('placeholder') || 
+          supabaseKey.includes('placeholder') ||
+          supabaseUrl === 'your_supabase_url_here' ||
+          supabaseKey === 'your_supabase_anon_key_here') {
+        console.warn('⚠️ Supabase not configured, skipping image loading');
+        return;
+      }
 
+     try {
        console.log('🔄 Carregando imagens dos produtos...');
        const images: Record<string, string> = {};
        let successCount = 0;
@@ -291,10 +291,8 @@ const ProductsPanel: React.FC = () => {
      }
     };
 
-    // Only load images if we have products and Supabase is configured
-    if (deliveryProducts.length > 0) {
-      loadProductImages();
-    }
+    // Only load images if we have products
+    loadProductImages();
   }, [deliveryProducts, getProductImage]);
 
   const resetForm = () => {
@@ -661,20 +659,230 @@ const ProductsPanel: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-8 text-center">
-      <Package size={48} className="mx-auto text-gray-300 mb-4" />
-      <h3 className="text-lg font-medium text-gray-600 mb-2">
-        Painel de Produtos em Desenvolvimento
-      </h3>
-      <p className="text-gray-500">
-        Esta funcionalidade está sendo desenvolvida. Use o PDV para gerenciar produtos.
-      </p>
-      <button
-        onClick={() => window.location.href = '/pdv'}
-        className="mt-4 bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-colors"
-      >
-        Ir para PDV
-      </button>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+            <Package size={24} className="text-purple-600" />
+            Gerenciar Produtos do Delivery
+          </h2>
+          <p className="text-gray-600">Configure produtos, preços, complementos e disponibilidade</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={handleRefreshProducts}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+          >
+            <Package size={16} />
+            Atualizar
+          </button>
+          <button
+            onClick={handleCreate}
+            className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+          >
+            <Plus size={20} />
+            Novo Produto
+          </button>
+        </div>
+      </div>
+
+      {/* Search and Filters */}
+      <div className="bg-white rounded-xl shadow-sm p-4">
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="flex-1">
+            <div className="relative">
+              <Package size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar produtos..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+          </div>
+
+          <div className="lg:w-64">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="all">Todas as Categorias</option>
+              <option value="acai">Açaí</option>
+              <option value="combo">Combos</option>
+              <option value="milkshake">Milkshakes</option>
+              <option value="vitamina">Vitaminas</option>
+              <option value="sorvetes">Sorvetes</option>
+              <option value="bebidas">Bebidas</option>
+              <option value="complementos">Complementos</option>
+              <option value="sobremesas">Sobremesas</option>
+              <option value="outros">Outros</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Products List */}
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-800">
+            Produtos do Delivery ({filteredProducts.length})
+          </h3>
+          <p className="text-gray-600 text-sm">
+            Gerencie todos os produtos disponíveis no sistema de delivery
+          </p>
+        </div>
+
+        {loading ? (
+          <div className="p-8 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Carregando produtos...</p>
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="p-8 text-center">
+            <Package size={48} className="mx-auto text-gray-300 mb-4" />
+            <h3 className="text-lg font-medium text-gray-600 mb-2">
+              {searchTerm || selectedCategory !== 'all' 
+                ? 'Nenhum produto encontrado' 
+                : 'Nenhum produto cadastrado'
+              }
+            </h3>
+            <p className="text-gray-500 mb-4">
+              {searchTerm || selectedCategory !== 'all'
+                ? 'Tente ajustar os filtros de busca'
+                : 'Clique em "Novo Produto" para adicionar o primeiro produto'
+              }
+            </p>
+            <button
+              onClick={handleCreate}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 mx-auto"
+            >
+              <Plus size={16} />
+              Criar Primeiro Produto
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Produto</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Categoria</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Preço</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Status</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Programação</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredProducts.map((product) => (
+                  <tr key={product.id} className="hover:bg-gray-50">
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+                          {productImages[product.id] ? (
+                            <img 
+                              src={productImages[product.id]} 
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : product.image_url ? (
+                            <img 
+                              src={product.image_url} 
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <Package size={24} className="text-gray-400" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-800">{product.name}</div>
+                          <div className="text-sm text-gray-500 line-clamp-1">{product.description}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        {product.category}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div>
+                        <div className="font-semibold text-green-600">
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL'
+                          }).format(product.price)}
+                        </div>
+                        {product.original_price && product.original_price > product.price && (
+                          <div className="text-sm text-gray-500 line-through">
+                            {new Intl.NumberFormat('pt-BR', {
+                              style: 'currency',
+                              currency: 'BRL'
+                            }).format(product.original_price)}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        product.is_active
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {product.is_active ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-2">
+                        {getProductSchedule(product.id)?.enabled ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                            Programado
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            Sempre
+                          </span>
+                        )}
+                        <button
+                          onClick={() => {
+                            setSelectedProductForSchedule(product);
+                            setShowScheduleModal(true);
+                          }}
+                          className="text-blue-600 hover:text-blue-800 text-xs"
+                        >
+                          Configurar
+                        </button>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleEdit(product)}
+                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                          title="Editar produto"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(product)}
+                          className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                          title="Excluir produto"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {/* Modal */}
       {showModal && (

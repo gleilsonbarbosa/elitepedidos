@@ -1,386 +1,66 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Calendar, Download, Printer, Filter, ChevronDown, ChevronUp, DollarSign, TrendingUp, TrendingDown, Clock, RefreshCw, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { usePDVCashRegister } from '../../hooks/usePDVCashRegister';
 import { usePermissions } from '../../hooks/usePermissions';
 import PermissionGuard from '../PermissionGuard';
-import { 
-  Calendar, Download, Printer, RefreshCw, 
-  DollarSign, TrendingUp, TrendingDown, 
-  Clock, ShoppingCart, Truck, 
-  Search, Filter, ArrowDownCircle, 
-  ArrowUpCircle, ChevronDown, ChevronUp,
-  CreditCard, User
-} from 'lucide-react';
 
-interface CashReportProps {
-  onBack?: () => void;
-}
-
-interface CashSummary {
-  date_range: {
-    start_date: string;
-    end_date: string;
-  };
-  totals: {
-    opening_amount: number;
-    closing_amount: number;
+interface CashRegisterWithSummary {
+  id: string;
+  opening_amount: number;
+  closing_amount: number | null;
+  difference: number | null;
+  opened_at: string;
+  closed_at: string | null;
+  operator_id: string | null;
+  operator_name?: string;
+  summary?: {
     sales_total: number;
     delivery_total: number;
     other_income_total: number;
     total_expense: number;
     expected_balance: number;
-    difference: number;
-    sales_count: number;
-    delivery_count: number;
   };
-  payment_methods: Record<string, {
-    pdv_total: number;
-    pdv_count: number;
-    delivery_total: number;
-    delivery_count: number;
-    other_total: number;
-    other_count: number;
-    expense_total: number;
-    expense_count: number;
-  }>;
-  entries: Array<{
-    id: string;
-    date: string;
-    type: 'income' | 'expense';
-    source: 'pdv' | 'delivery' | 'manual';
-    description: string;
-    payment_method: string;
-    amount: number;
-    operator_name?: string;
-  }>;
 }
 
-const PDVCashReportWithDateFilter: React.FC<CashReportProps> = ({ onBack }) => {
+interface CashEntry {
+  id: string;
+  type: 'income' | 'expense';
+  amount: number;
+  description: string;
+  payment_method: string;
+  created_at: string;
+}
+
+const PDVCashReportWithDateFilter: React.FC = () => {
+  const { operators } = usePDVCashRegister();
   const { hasPermission } = usePermissions();
-  const [startDate, setStartDate] = useState<string>(() => {
-    const today = new Date();
-    today.setDate(today.getDate() - 7);
-    return today.toISOString().split('T')[0];
+  const [registers, setRegisters] = useState<CashRegisterWithSummary[]>([]);
+  const [entries, setEntries] = useState<{ [registerId: string]: CashEntry[] }>({});
+  const [expandedRegisters, setExpandedRegisters] = useState<Set<string>>(new Set());
+  const [startDate, setStartDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 7);
+    return date.toISOString().split('T')[0];
   });
-  const [endDate, setEndDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0];
-  });
-  const [operatorId, setOperatorId] = useState<string>('');
-  const [operators, setOperators] = useState<Array<{id: string, name: string}>>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [report, setReport] = useState<CashSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [printMode, setPrintMode] = useState<boolean>(false);
-  const [expandedSections, setExpandedSections] = useState({
-    summary: true,
-    paymentMethods: true,
-    transactions: true
-  });
-  const [filterType, setFilterType] = useState<'all' | 'income' | 'expense'>('all');
-  const [filterPayment, setFilterPayment] = useState<string>('all');
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [detailedEntries, setDetailedEntries] = useState<Array<any>>([]);
-  const printRef = useRef<HTMLDivElement>(null);
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedOperator, setSelectedOperator] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>('all');
+  const [reportLoading, setReportLoading] = useState(false);
+  const [supabaseConfigured, setSupabaseConfigured] = useState(true);
 
-  // Load operators for filter
+  // Check Supabase configuration
   useEffect(() => {
-    const fetchOperators = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('pdv_operators')
-          .select('id, name')
-          .order('name');
-        
-        if (error) throw error;
-        setOperators(data || []);
-      } catch (err) {
-        console.error('Error fetching operators:', err);
-      }
-    };
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     
-    fetchOperators();
+    const isConfigured = supabaseUrl && supabaseKey && 
+                        supabaseUrl !== 'your_supabase_url_here' && 
+                        supabaseKey !== 'your_supabase_anon_key_here' &&
+                        !supabaseUrl.includes('placeholder');
+    
+    setSupabaseConfigured(isConfigured);
   }, []);
-
-  // Generate report when parameters change
-  useEffect(() => {
-    if (startDate && endDate) {
-      generateReport();
-    }
-  }, []);
-
-  const generateReport = async () => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      console.log('Generating report for period:', { startDate, endDate, operatorId });
-      
-      // Get all cash registers in the date range
-      const { data: registers, error: registersError } = await supabase
-        .from('pdv_cash_registers')
-        .select(`
-          id,
-          opening_amount,
-          closing_amount,
-          difference,
-          opened_at,
-          closed_at,
-          operator_id,
-          pdv_operators(name)
-        `)
-        .gte('opened_at', `${startDate}T00:00:00`)
-        .lte('opened_at', `${endDate}T23:59:59`)
-        .order('opened_at');
-      
-      if (registersError) throw registersError;
-      
-      if (!registers || registers.length === 0) {
-        setLoading(false);
-        setError('Nenhum caixa encontrado no período selecionado');
-        return;
-      }
-      
-      // Get all entries for these registers
-      const registerIds = registers.map(r => r.id);
-      const { data: entries, error: entriesError } = await supabase
-        .from('pdv_cash_entries')
-        .select('*')
-        .in('register_id', registerIds)
-        .order('created_at');
-      
-      if (entriesError) throw entriesError;
-      
-      // Process data for report
-      const summary: CashSummary = {
-        date_range: {
-          start_date: startDate,
-          end_date: endDate
-        },
-        totals: {
-          opening_amount: 0,
-          closing_amount: 0,
-          sales_total: 0,
-          delivery_total: 0,
-          other_income_total: 0,
-          total_expense: 0,
-          expected_balance: 0,
-          difference: 0,
-          sales_count: 0,
-          delivery_count: 0
-        },
-        payment_methods: {},
-        entries: []
-      };
-      
-      // Calculate totals
-      summary.totals.opening_amount = registers.reduce((sum, r) => sum + (r.opening_amount || 0), 0);
-      summary.totals.closing_amount = registers.reduce((sum, r) => sum + (r.closing_amount || 0), 0);
-      summary.totals.difference = registers.reduce((sum, r) => sum + (r.difference || 0), 0);
-      
-      // Process entries
-      if (entries) {
-        entries.forEach(entry => {
-          // Determine source
-          let source: 'pdv' | 'delivery' | 'manual' = 'manual';
-          if (entry.description.includes('Venda #')) {
-            source = 'pdv';
-            summary.totals.sales_total += entry.amount;
-            summary.totals.sales_count++;
-          } else if (entry.description.includes('Delivery #')) {
-            source = 'delivery';
-            summary.totals.delivery_total += entry.amount;
-            summary.totals.delivery_count++;
-          } else if (entry.type === 'income') {
-            summary.totals.other_income_total += entry.amount;
-          } else if (entry.type === 'expense') {
-            summary.totals.total_expense += entry.amount;
-          }
-          
-          // Initialize payment method if not exists
-          if (!summary.payment_methods[entry.payment_method]) {
-            summary.payment_methods[entry.payment_method] = {
-              pdv_total: 0,
-              pdv_count: 0,
-              delivery_total: 0,
-              delivery_count: 0,
-              other_total: 0,
-              other_count: 0,
-              expense_total: 0,
-              expense_count: 0
-            };
-          }
-          
-          // Update payment method totals
-          if (source === 'pdv' && entry.type === 'income') {
-            summary.payment_methods[entry.payment_method].pdv_total += entry.amount;
-            summary.payment_methods[entry.payment_method].pdv_count++;
-          } else if (source === 'delivery' && entry.type === 'income') {
-            summary.payment_methods[entry.payment_method].delivery_total += entry.amount;
-            summary.payment_methods[entry.payment_method].delivery_count++;
-          } else if (source === 'manual' && entry.type === 'income') {
-            summary.payment_methods[entry.payment_method].other_total += entry.amount;
-            summary.payment_methods[entry.payment_method].other_count++;
-          } else if (entry.type === 'expense') {
-            summary.payment_methods[entry.payment_method].expense_total += entry.amount;
-            summary.payment_methods[entry.payment_method].expense_count++;
-          }
-          
-          // Find operator name
-          const register = registers.find(r => r.id === entry.register_id);
-          const operatorName = register?.pdv_operators?.name || 'Sistema';
-          
-          // Add to entries list
-          summary.entries.push({
-            id: entry.id,
-            date: entry.created_at,
-            type: entry.type,
-            source,
-            description: entry.description,
-            payment_method: entry.payment_method,
-            amount: entry.amount,
-            operator_name: operatorName
-          });
-        });
-      }
-      
-      // Calculate expected balance
-      summary.totals.expected_balance = summary.totals.opening_amount + 
-        summary.totals.sales_total + 
-        summary.totals.delivery_total + 
-        summary.totals.other_income_total - 
-        summary.totals.total_expense;
-      
-      setReport(summary);
-    } catch (err) {
-      console.error('Error generating report:', err);
-      setError('Erro ao gerar relatório. Tente novamente.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchDetailedEntriesForDate = async (date: string) => {
-    setLoading(true);
-    try {
-      // Format date for query
-      const queryDate = new Date(date).toISOString().split('T')[0];
-      
-      // Get cash register for this date
-      const { data: registers, error: registersError } = await supabase
-        .from('pdv_cash_registers')
-        .select('id')
-        .gte('opened_at', `${queryDate}T00:00:00`)
-        .lte('opened_at', `${queryDate}T23:59:59`);
-      
-      if (registersError) throw registersError;
-      
-      if (!registers || registers.length === 0) {
-        setDetailedEntries([]);
-        setLoading(false);
-        return;
-      }
-      
-      // Get all entries for this register
-      const registerId = registers[0].id;
-      const { data: entries, error: entriesError } = await supabase
-        .from('pdv_cash_entries')
-        .select('*')
-        .eq('register_id', registerId)
-        .order('created_at');
-      
-      if (entriesError) throw entriesError;
-      
-      setDetailedEntries(entries || []);
-    } catch (err) {
-      console.error('Error fetching detailed entries:', err);
-      setDetailedEntries([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePrint = () => {
-    setPrintMode(true);
-    setTimeout(() => {
-      window.print();
-      setPrintMode(false);
-    }, 100);
-  };
-
-  const handleExport = () => {
-    if (!report) return;
-    
-    // Create CSV content
-    const headers = ['Data/Hora', 'Tipo', 'Canal', 'Descrição', 'Forma Pgto', 'Valor', 'Operador'];
-    
-    // Filter entries based on current filters
-    const filteredEntries = report.entries.filter(entry => {
-      if (filterType !== 'all' && entry.type !== filterType) return false;
-      if (filterPayment !== 'all' && entry.payment_method !== filterPayment) return false;
-      if (searchTerm && !entry.description.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-      return true;
-    });
-    
-    const rows = filteredEntries.map(entry => [
-      new Date(entry.date).toLocaleString('pt-BR'),
-      entry.type === 'income' ? 'Entrada' : 'Saída',
-      entry.source === 'pdv' ? 'PDV' : entry.source === 'delivery' ? 'Delivery' : 'Manual',
-      entry.description,
-      getPaymentMethodLabel(entry.payment_method),
-      formatPrice(entry.type === 'income' ? entry.amount : -entry.amount),
-      entry.operator_name || '-'
-    ]);
-    
-    // Add summary rows
-    const summaryRows = [
-      ['', '', '', '', '', ''],
-      ['RESUMO DO CAIXA', '', '', '', '', ''],
-      ['Período', `${new Date(startDate).toLocaleDateString('pt-BR')} a ${new Date(endDate).toLocaleDateString('pt-BR')}`, '', '', '', ''],
-      ['', '', '', '', '', ''],
-      ['Tipo', '', '', '', '', 'Valor'],
-      ['Abertura de Caixa', '', '', '', '', formatPrice(report.totals.opening_amount)],
-      ['Vendas PDV', '', '', '', '', formatPrice(report.totals.sales_total)],
-      ['Vendas Delivery', '', '', '', '', formatPrice(report.totals.delivery_total)],
-      ['Outras Entradas', '', '', '', '', formatPrice(report.totals.other_income_total)],
-      ['Saídas', '', '', '', '', formatPrice(report.totals.total_expense)],
-      ['Saldo Esperado', '', '', '', '', formatPrice(report.totals.expected_balance)],
-      ['Fechamento', '', '', '', '', formatPrice(report.totals.closing_amount)],
-      ['Diferença', '', '', '', '', formatPrice(report.totals.difference)]
-    ];
-    
-    // Add payment method summary
-    const paymentRows = [
-      ['', '', '', '', '', ''],
-      ['RESUMO POR FORMA DE PAGAMENTO', '', '', '', '', ''],
-      ['Forma', 'PDV', 'Delivery', 'Outras Entradas', 'Saídas', 'Total']
-    ];
-    
-    Object.entries(report.payment_methods).forEach(([method, data]) => {
-      const total = data.pdv_total + data.delivery_total + data.other_total - data.expense_total;
-      paymentRows.push([
-        getPaymentMethodLabel(method),
-        formatPrice(data.pdv_total),
-        formatPrice(data.delivery_total),
-        formatPrice(data.other_total),
-        formatPrice(data.expense_total),
-        formatPrice(total)
-      ]);
-    });
-    
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(',')),
-      ...summaryRows.map(row => row.join(',')),
-      ...paymentRows.map(row => row.join(','))
-    ].join('\n');
-    
-    // Create and download file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `relatorio-caixa-${startDate}-${endDate}.csv`;
-    link.click();
-  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -389,758 +69,704 @@ const PDVCashReportWithDateFilter: React.FC<CashReportProps> = ({ onBack }) => {
     }).format(price);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('pt-BR');
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  const getPaymentMethodLabel = (method: string) => {
-    const labels: Record<string, string> = {
+  const getPaymentMethodName = (method: string) => {
+    const methodNames: Record<string, string> = {
       'dinheiro': 'Dinheiro',
       'pix': 'PIX',
       'cartao_credito': 'Cartão de Crédito',
       'cartao_debito': 'Cartão de Débito',
       'voucher': 'Voucher',
-      'misto': 'Pagamento Misto'
+      'misto': 'Pagamento Misto',
+      'outros': 'Outros'
     };
-    return labels[method] || method;
+    
+    return methodNames[method] || method;
   };
 
-  const getEntryTypeIcon = (type: string) => {
-    return type === 'income' ? 
-      <ArrowDownCircle size={16} className="text-green-500" /> : 
-      <ArrowUpCircle size={16} className="text-red-500" />;
+  const loadReport = async () => {
+    setReportLoading(true);
+    try {
+      if (!supabaseConfigured) {
+        // Mock data for demonstration
+        const mockRegisters: CashRegisterWithSummary[] = [
+          {
+            id: 'mock-register-1',
+            opening_amount: 100.00,
+            closing_amount: 450.00,
+            difference: 5.00,
+            opened_at: new Date().toISOString(),
+            closed_at: new Date().toISOString(),
+            operator_id: 'mock-operator-1',
+            operator_name: 'Administrador',
+            summary: {
+              sales_total: 300.00,
+              delivery_total: 50.00,
+              other_income_total: 0.00,
+              total_expense: 5.00,
+              expected_balance: 445.00
+            }
+          }
+        ];
+        setRegisters(mockRegisters);
+        setReportLoading(false);
+        return;
+      }
+
+      console.log('📊 Carregando relatório de caixa por período:', { startDate, endDate, selectedOperator, statusFilter });
+
+      // Buscar registros de caixa no período
+      let query = supabase
+        .from('pdv_cash_registers')
+        .select(`
+          *,
+          pdv_operators!operator_id(name)
+        `)
+        .gte('opened_at', `${startDate}T00:00:00`)
+        .lte('opened_at', `${endDate}T23:59:59`)
+        .order('opened_at', { ascending: false });
+
+      if (selectedOperator) {
+        query = query.eq('operator_id', selectedOperator);
+      }
+
+      const { data: registersData, error: registersError } = await query;
+
+      if (registersError) {
+        console.error('❌ Erro ao buscar registros de caixa:', registersError);
+        throw registersError;
+      }
+
+      console.log(`✅ ${registersData?.length || 0} registros de caixa encontrados`);
+
+      // Processar dados e buscar resumos
+      const processedRegisters = await Promise.all((registersData || []).map(async (register) => {
+        try {
+          // Buscar resumo do caixa
+          const { data: summaryData, error: summaryError } = await supabase
+            .rpc('get_pdv_cash_summary', { p_register_id: register.id })
+            .single();
+
+          if (summaryError) {
+            console.warn(`⚠️ Erro ao buscar resumo para caixa ${register.id}:`, summaryError);
+          }
+
+          return {
+            ...register,
+            operator_name: register.pdv_operators?.name || 'Operador',
+            summary: summaryData?.success ? summaryData.data : {
+              sales_total: 0,
+              delivery_total: 0,
+              other_income_total: 0,
+              total_expense: 0,
+              expected_balance: register.opening_amount || 0
+            }
+          };
+        } catch (err) {
+          console.error(`❌ Erro ao processar caixa ${register.id}:`, err);
+          return {
+            ...register,
+            operator_name: register.pdv_operators?.name || 'Operador',
+            summary: {
+              sales_total: 0,
+              delivery_total: 0,
+              other_income_total: 0,
+              total_expense: 0,
+              expected_balance: register.opening_amount || 0
+            }
+          };
+        }
+      }));
+
+      // Filtrar por status
+      const filteredData = processedRegisters.filter(register => {
+        if (statusFilter === 'open') return !register.closed_at;
+        if (statusFilter === 'closed') return register.closed_at;
+        return true;
+      });
+
+      setRegisters(filteredData);
+    } catch (error) {
+      console.error('❌ Erro ao carregar relatório:', error);
+      alert('Erro ao carregar relatório de caixa');
+    } finally {
+      setReportLoading(false);
+    }
   };
 
-  const getEntryTypeLabel = (type: string) => {
-    return type === 'income' ? 'Entrada' : 'Saída';
+  const loadCashEntries = async (registerId: string) => {
+    try {
+      console.log('🔄 Carregando movimentações para o caixa:', registerId);
+      
+      if (!supabaseConfigured) {
+        // Mock entries for demonstration
+        const mockEntries: CashEntry[] = [
+          {
+            id: 'mock-entry-1',
+            type: 'income',
+            amount: 25.50,
+            description: 'Venda #1001',
+            payment_method: 'dinheiro',
+            created_at: new Date().toISOString()
+          },
+          {
+            id: 'mock-entry-2',
+            type: 'income',
+            amount: 18.00,
+            description: 'Delivery #2001',
+            payment_method: 'pix',
+            created_at: new Date().toISOString()
+          }
+        ];
+        
+        setEntries(prev => ({
+          ...prev,
+          [registerId]: mockEntries
+        }));
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('pdv_cash_entries')
+        .select('*')
+        .eq('register_id', registerId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Erro ao carregar movimentações:', error);
+        throw error;
+      }
+
+      console.log(`✅ ${data?.length || 0} movimentações carregadas para o caixa ${registerId}`);
+      
+      setEntries(prev => ({
+        ...prev,
+        [registerId]: data || []
+      }));
+    } catch (error) {
+      console.error('❌ Erro ao carregar movimentações:', error);
+      // Set empty array on error to avoid infinite loading
+      setEntries(prev => ({
+        ...prev,
+        [registerId]: []
+      }));
+    }
   };
 
-  const handleDateClick = (date: string) => {
-    if (selectedDate === date) {
-      setSelectedDate(null);
-      setDetailedEntries([]);
+  const toggleRegisterExpansion = (registerId: string) => {
+    const newExpanded = new Set(expandedRegisters);
+    if (newExpanded.has(registerId)) {
+      newExpanded.delete(registerId);
     } else {
-      setSelectedDate(date);
-      fetchDetailedEntriesForDate(date);
+      newExpanded.add(registerId);
+      // Load entries when expanding
+      if (!entries[registerId]) {
+        loadCashEntries(registerId);
+      }
     }
+    setExpandedRegisters(newExpanded);
   };
 
-  const getSourceIcon = (source: string) => {
-    switch (source) {
-      case 'pdv':
-        return <ShoppingCart size={16} className="text-blue-500" />;
-      case 'delivery':
-        return <Truck size={16} className="text-purple-500" />;
-      default:
-        return <DollarSign size={16} className="text-green-500" />;
-    }
+  const handlePrint = () => {
+    window.print();
   };
 
-  const getSourceLabel = (source: string) => {
-    switch (source) {
-      case 'pdv':
-        return 'PDV';
-      case 'delivery':
-        return 'Delivery';
-      default:
-        return 'Manual';
-    }
+  const handleExport = () => {
+    if (registers.length === 0) return;
+
+    const csvContent = [
+      ['Relatório de Caixa por Período - Elite Açaí'],
+      ['Período', `${new Date(startDate).toLocaleDateString('pt-BR')} a ${new Date(endDate).toLocaleDateString('pt-BR')}`],
+      [''],
+      ['Caixa', 'Operador', 'Abertura', 'Fechamento', 'Vendas PDV', 'Vendas Delivery', 'Outras Entradas', 'Saídas', 'Saldo Esperado', 'Valor Fechamento', 'Diferença', 'Status'],
+      ...registers.map(register => [
+        `#${register.id.slice(-8)}`,
+        register.operator_name || 'N/A',
+        formatPrice(register.opening_amount),
+        register.closed_at ? formatDateTime(register.closed_at) : 'Aberto',
+        formatPrice(register.summary?.sales_total || 0),
+        formatPrice(register.summary?.delivery_total || 0),
+        formatPrice(register.summary?.other_income_total || 0),
+        formatPrice(register.summary?.total_expense || 0),
+        formatPrice(register.summary?.expected_balance || 0),
+        register.closing_amount ? formatPrice(register.closing_amount) : 'N/A',
+        register.difference ? formatPrice(register.difference) : 'N/A',
+        register.closed_at ? 'Fechado' : 'Aberto'
+      ]),
+      [''],
+      ['Gerado em', new Date().toLocaleString('pt-BR')]
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `relatorio-caixa-periodo-${startDate}-${endDate}.csv`;
+    link.click();
   };
 
-  const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
-  };
+  useEffect(() => {
+    loadReport();
+  }, []);
 
-  const filterEntries = (entry: CashSummary['entries'][0]) => {
-    // Filter by type
-    if (filterType !== 'all' && entry.type !== filterType) {
-      return false;
-    }
+  const totalSummary = registers.reduce((acc, register) => {
+    const summary = register.summary || {
+      sales_total: 0,
+      delivery_total: 0,
+      other_income_total: 0,
+      total_expense: 0,
+      expected_balance: 0
+    };
     
-    // Filter by payment method
-    if (filterPayment !== 'all' && entry.payment_method !== filterPayment) {
-      return false;
-    }
-    
-    // Filter by search term
-    if (searchTerm && !entry.description.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
-    }
-    
-    return true;
-  };
+    return {
+      opening_amount: acc.opening_amount + register.opening_amount,
+      sales_total: acc.sales_total + summary.sales_total,
+      delivery_total: acc.delivery_total + summary.delivery_total,
+      other_income_total: acc.other_income_total + summary.other_income_total,
+      total_expense: acc.total_expense + summary.total_expense,
+      expected_balance: acc.expected_balance + summary.expected_balance,
+      closing_amount: acc.closing_amount + (register.closing_amount || 0),
+      difference: acc.difference + (register.difference || 0)
+    };
+  }, {
+    opening_amount: 0,
+    sales_total: 0,
+    delivery_total: 0,
+    other_income_total: 0,
+    total_expense: 0,
+    expected_balance: 0,
+    closing_amount: 0,
+    difference: 0
+  });
 
   return (
-    <PermissionGuard hasPermission={hasPermission('can_view_cash_report')} showMessage={true}>
-      <div className={`space-y-6 ${printMode ? 'print:bg-white print:p-0' : ''}`}>
-        {/* Header - Hide in print mode */}
-        {!printMode && (
-          <div className="flex items-center justify-between print:hidden">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-                <Calendar size={24} className="text-blue-600" />
-                Relatório de Caixa por Período
-              </h2>
-              <p className="text-gray-600">Resumo completo das movimentações por período</p>
-            </div>
-            
-            <div className="flex gap-2">
-              <button
-                onClick={handlePrint}
-                className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <Printer size={16} />
-                Imprimir
-              </button>
-              <button
-                onClick={handleExport}
-                disabled={!report}
-                className="bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <Download size={16} />
-                Exportar CSV
-              </button>
+    <PermissionGuard hasPermission={hasPermission('can_view_cash_report') || hasPermission('can_view_cash_register')} showMessage={true}>
+      <div className="space-y-6">
+        {/* Supabase Configuration Warning */}
+        {!supabaseConfigured && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+            <div className="flex items-center gap-3">
+              <div className="bg-yellow-100 rounded-full p-2">
+                <AlertCircle size={20} className="text-yellow-600" />
+              </div>
+              <div>
+                <h3 className="font-medium text-yellow-800">Modo Demonstração</h3>
+                <p className="text-yellow-700 text-sm">
+                  Supabase não configurado. Exibindo dados de demonstração.
+                </p>
+              </div>
             </div>
           </div>
         )}
 
-      {/* Print Header - Only show in print mode */}
-      {printMode && (
-        <div className="print-header">
-          <h1 className="text-2xl font-bold text-center">Relatório de Caixa - Elite Açaí</h1>
-          <p className="text-center text-gray-600">
-            Período: {new Date(startDate).toLocaleDateString('pt-BR')} a {new Date(endDate).toLocaleDateString('pt-BR')}
-          </p>
-          <p className="text-center text-gray-500 text-sm">Gerado em: {new Date().toLocaleString('pt-BR')}</p>
-          <hr className="my-4" />
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+              <Calendar size={24} className="text-blue-600" />
+              Relatório de Caixa por Período
+            </h2>
+            <p className="text-gray-600">Análise detalhada dos caixas por período</p>
+          </div>
+          
+          <div className="flex gap-2">
+            <button
+              onClick={handlePrint}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <Printer size={16} />
+              Imprimir
+            </button>
+            <button
+              onClick={handleExport}
+              disabled={registers.length === 0}
+              className="bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+            >
+              <Download size={16} />
+              Exportar CSV
+            </button>
+          </div>
         </div>
-      )}
 
-      {/* Date Selector - Hide in print mode */}
-      {!printMode && (
+        {/* Filters */}
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <div className="flex flex-col md:flex-row gap-4 items-end">
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+          <div className="flex items-center gap-2 mb-4">
+            <Filter size={20} className="text-gray-500" />
+            <h3 className="text-lg font-semibold text-gray-800">Filtros</h3>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Data Inicial
               </label>
-              <div className="relative">
-                <Calendar size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
             
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Data Final
               </label>
-              <div className="relative">
-                <Calendar size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
             
-            <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
                 Operador
               </label>
-              <div className="relative">
-                <User size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <select
-                  value={operatorId}
-                  onChange={(e) => setOperatorId(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Todos os operadores</option>
-                  {operators.map(op => (
-                    <option key={op.id} value={op.id}>{op.name}</option>
-                  ))}
-                </select>
+              <select
+                value={selectedOperator}
+                onChange={(e) => setSelectedOperator(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Todos os operadores</option>
+                {operators.map(operator => (
+                  <option key={operator.id} value={operator.id}>
+                    {operator.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Status
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as 'all' | 'open' | 'closed')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="all">Todos</option>
+                <option value="open">Abertos</option>
+                <option value="closed">Fechados</option>
+              </select>
+            </div>
+          </div>
+          
+          <div className="mt-4">
+            <button
+              onClick={loadReport}
+              disabled={reportLoading}
+              className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white rounded-lg transition-colors flex items-center gap-2"
+            >
+              {reportLoading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Carregando...
+                </>
+              ) : (
+                <>
+                  <RefreshCw size={16} />
+                  Aplicar Filtros
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        {registers.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Valor de Abertura</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {formatPrice(totalSummary.opening_amount)}
+                  </p>
+                </div>
+                <DollarSign className="w-8 h-8 text-gray-500" />
               </div>
             </div>
             
-            <div className="w-full md:w-auto">
-              <button
-                onClick={generateReport}
-                className="bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white px-6 py-2 rounded-lg transition-colors flex items-center gap-2 w-full md:w-auto justify-center"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Carregando...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw size={16} />
-                    Gerar Relatório
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div ref={printRef}>
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        ) : error ? (
-          <div className="bg-white rounded-xl shadow-sm p-8 text-center">
-            <Clock size={48} className="mx-auto text-gray-300 mb-4" />
-            <p className="text-red-600 font-medium">{error}</p>
-            <p className="text-gray-500 mt-2">Tente ajustar o período de busca</p>
-          </div>
-        ) : !report ? (
-          <div className="bg-white rounded-xl shadow-sm p-8 text-center">
-            <Calendar size={48} className="mx-auto text-gray-300 mb-4" />
-            <p className="text-gray-500">Selecione um período e clique em "Gerar Relatório"</p>
-          </div>
-        ) : (
-          <>
-            {/* Financial Summary */}
             <div className="bg-white rounded-xl shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4 cursor-pointer" 
-                   onClick={() => toggleSection('summary')}>
-                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <DollarSign size={20} className="text-green-600" />
-                  Resumo Financeiro do Período
-                </h3>
-                {expandedSections.summary ? 
-                  <ChevronUp size={20} className="text-gray-500" /> : 
-                  <ChevronDown size={20} className="text-gray-500" />}
-              </div>
-
-              {expandedSections.summary && (
-                <>
-                  <div className="text-sm text-gray-500 mb-4">
-                    Período: {new Date(startDate).toLocaleDateString('pt-BR')} a {new Date(endDate).toLocaleDateString('pt-BR')}
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="bg-blue-100 rounded-full p-2">
-                          <ShoppingCart size={20} className="text-blue-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-blue-800">Vendas PDV</h4>
-                          <p className="text-sm text-blue-600">{report.totals.sales_count} vendas</p>
-                        </div>
-                      </div>
-                      <p className="text-xl font-bold text-blue-700 text-right">
-                        {formatPrice(report.totals.sales_total)}
-                      </p>
-                    </div>
-
-                    <div className="bg-purple-50 rounded-lg p-4 border border-purple-100">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="bg-purple-100 rounded-full p-2">
-                          <Truck size={20} className="text-purple-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-purple-800">Vendas Delivery</h4>
-                          <p className="text-sm text-purple-600">{report.totals.delivery_count} vendas</p>
-                        </div>
-                      </div>
-                      <p className="text-xl font-bold text-purple-700 text-right">
-                        {formatPrice(report.totals.delivery_total)}
-                      </p>
-                    </div>
-
-                    <div className="bg-green-50 rounded-lg p-4 border border-green-100">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="bg-green-100 rounded-full p-2">
-                          <ArrowDownCircle size={20} className="text-green-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-green-800">Entradas Manuais</h4>
-                          <p className="text-sm text-green-600">Entradas não relacionadas a vendas</p>
-                        </div>
-                      </div>
-                      <p className="text-xl font-bold text-green-700 text-right">
-                        {formatPrice(report.totals.other_income_total)}
-                      </p>
-                    </div>
-
-                    <div className="bg-red-50 rounded-lg p-4 border border-red-100">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="bg-red-100 rounded-full p-2">
-                          <ArrowUpCircle size={20} className="text-red-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-red-800">Saídas</h4>
-                          <p className="text-sm text-red-600">Despesas e retiradas</p>
-                        </div>
-                      </div>
-                      <p className="text-xl font-bold text-red-700 text-right">
-                        {formatPrice(report.totals.total_expense)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                    <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="bg-gray-100 rounded-full p-2">
-                          <DollarSign size={20} className="text-gray-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-gray-800">Abertura de Caixa</h4>
-                          <p className="text-sm text-gray-600">Valor inicial</p>
-                        </div>
-                      </div>
-                      <p className="text-xl font-bold text-gray-700 text-right">
-                        {formatPrice(report.totals.opening_amount)}
-                      </p>
-                    </div>
-
-                    <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-100">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="bg-yellow-100 rounded-full p-2">
-                          <DollarSign size={20} className="text-yellow-600" />
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-yellow-800">Saldo Esperado</h4>
-                          <p className="text-sm text-yellow-600">Abertura + Entradas - Saídas</p>
-                        </div>
-                      </div>
-                      <p className="text-xl font-bold text-yellow-700 text-right">
-                        {formatPrice(report.totals.expected_balance)}
-                      </p>
-                    </div>
-
-                    <div className={`rounded-lg p-4 border ${
-                      report.totals.difference > 0
-                        ? 'bg-green-50 border-green-100'
-                        : report.totals.difference < 0
-                        ? 'bg-red-50 border-red-100'
-                        : 'bg-blue-50 border-blue-100'
-                    }`}>
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className={`rounded-full p-2 ${
-                          report.totals.difference > 0
-                            ? 'bg-green-100'
-                            : report.totals.difference < 0
-                            ? 'bg-red-100'
-                            : 'bg-blue-100'
-                        }`}>
-                          <DollarSign size={20} className={
-                            report.totals.difference > 0
-                              ? 'text-green-600'
-                              : report.totals.difference < 0
-                              ? 'text-red-600'
-                              : 'text-blue-600'
-                          } />
-                        </div>
-                        <div>
-                          <h4 className={`font-medium ${
-                            report.totals.difference > 0
-                              ? 'text-green-800'
-                              : report.totals.difference < 0
-                              ? 'text-red-800'
-                              : 'text-blue-800'
-                          }`}>
-                            Diferença
-                          </h4>
-                          <p className={`text-sm ${
-                            report.totals.difference > 0
-                              ? 'text-green-600'
-                              : report.totals.difference < 0
-                              ? 'text-red-600'
-                              : 'text-blue-600'
-                          }`}>
-                            {report.totals.difference > 0 
-                              ? 'Sobra de caixa'
-                              : report.totals.difference < 0
-                              ? 'Falta no caixa'
-                              : 'Fechamento exato'}
-                          </p>
-                        </div>
-                      </div>
-                      <p className={`text-xl font-bold text-right ${
-                        report.totals.difference > 0
-                          ? 'text-green-700'
-                          : report.totals.difference < 0
-                          ? 'text-red-700'
-                          : 'text-blue-700'
-                      }`}>
-                        {formatPrice(report.totals.difference)}
-                      </p>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Payment Methods Summary */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4 cursor-pointer" 
-                   onClick={() => toggleSection('paymentMethods')}>
-                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <CreditCard size={20} className="text-purple-600" />
-                  Resumo por Forma de Pagamento
-                </h3>
-                {expandedSections.paymentMethods ? 
-                  <ChevronUp size={20} className="text-gray-500" /> : 
-                  <ChevronDown size={20} className="text-gray-500" />}
-              </div>
-
-              {expandedSections.paymentMethods && (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">Forma de Pagamento</th>
-                        <th className="text-right py-3 px-4 font-medium text-gray-700">Vendas PDV</th>
-                        <th className="text-right py-3 px-4 font-medium text-gray-700">Vendas Delivery</th>
-                        <th className="text-right py-3 px-4 font-medium text-gray-700">Entradas Manuais</th>
-                        <th className="text-right py-3 px-4 font-medium text-gray-700">Saídas</th>
-                        <th className="text-right py-3 px-4 font-medium text-gray-700">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {Object.entries(report.payment_methods).map(([method, data]) => {
-                        const total = data.pdv_total + data.delivery_total + data.other_total - data.expense_total;
-                        return (
-                          <tr key={method} className="hover:bg-gray-50">
-                            <td className="py-3 px-4">
-                              <span className="font-medium">{getPaymentMethodLabel(method)}</span>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              {data.pdv_total > 0 ? (
-                                <span className="text-green-600 font-medium">{formatPrice(data.pdv_total)}</span>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              {data.delivery_total > 0 ? (
-                                <span className="text-green-600 font-medium">{formatPrice(data.delivery_total)}</span>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              {data.other_total > 0 ? (
-                                <span className="text-green-600 font-medium">{formatPrice(data.other_total)}</span>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              {data.expense_total > 0 ? (
-                                <span className="text-red-600 font-medium">{formatPrice(data.expense_total)}</span>
-                              ) : (
-                                <span className="text-gray-400">-</span>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <span className={`font-semibold ${total >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {formatPrice(total)}
-                              </span>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      <tr className="bg-gray-50 font-semibold">
-                        <td className="py-3 px-4">TOTAL</td>
-                        <td className="py-3 px-4 text-right text-green-600">
-                          {formatPrice(report.totals.sales_total)}
-                        </td>
-                        <td className="py-3 px-4 text-right text-green-600">
-                          {formatPrice(report.totals.delivery_total)}
-                        </td>
-                        <td className="py-3 px-4 text-right text-green-600">
-                          {formatPrice(report.totals.other_income_total)}
-                        </td>
-                        <td className="py-3 px-4 text-right text-red-600">
-                          {formatPrice(report.totals.total_expense)}
-                        </td>
-                        <td className="py-3 px-4 text-right text-green-600">
-                          {formatPrice(report.totals.sales_total + report.totals.delivery_total + 
-                                      report.totals.other_income_total - report.totals.total_expense)}
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total de Vendas</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {formatPrice(totalSummary.sales_total + totalSummary.delivery_total)}
+                  </p>
                 </div>
-              )}
-            </div>
-
-            {/* Detailed Transactions */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <div className="flex items-center justify-between mb-4 cursor-pointer"
-                   onClick={() => toggleSection('transactions')}>
-                <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-                  <Clock size={20} className="text-blue-600" />
-                  Movimentações Detalhadas
-                </h3>
-                {expandedSections.transactions ? 
-                  <ChevronUp size={20} className="text-gray-500" /> : 
-                  <ChevronDown size={20} className="text-gray-500" />}
+                <TrendingUp className="w-8 h-8 text-green-500" />
               </div>
+            </div>
+            
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Saldo Esperado</p>
+                  <p className="text-2xl font-bold text-blue-600">
+                    {formatPrice(totalSummary.expected_balance)}
+                  </p>
+                </div>
+                <DollarSign className="w-8 h-8 text-blue-500" />
+              </div>
+            </div>
+            
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Diferença Total</p>
+                  <p className={`text-2xl font-bold ${totalSummary.difference >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {formatPrice(totalSummary.difference)}
+                  </p>
+                </div>
+                {totalSummary.difference >= 0 ? (
+                  <TrendingUp className="w-8 h-8 text-green-500" />
+                ) : (
+                  <TrendingDown className="w-8 h-8 text-red-500" />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
-              {expandedSections.transactions && (
-                <>
-                  {!printMode && (
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      <div className="relative">
-                        <Filter size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                        <select
-                          value={filterType}
-                          onChange={(e) => setFilterType(e.target.value as 'all' | 'income' | 'expense')}
-                          className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="all">Todos os tipos</option>
-                          <option value="income">Apenas entradas</option>
-                          <option value="expense">Apenas saídas</option>
-                        </select>
+        {/* Cash Registers List */}
+        <div className="bg-white rounded-xl shadow-sm">
+          <div className="p-6 border-b border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-800">Registros de Caixa</h3>
+            <p className="text-gray-600 text-sm">
+              {registers.length} registro(s) encontrado(s) no período
+            </p>
+          </div>
+          
+          {reportLoading ? (
+            <div className="p-8 text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Carregando relatório...</p>
+            </div>
+          ) : registers.length === 0 ? (
+            <div className="p-8 text-center">
+              <DollarSign size={48} className="mx-auto text-gray-300 mb-4" />
+              <h3 className="text-lg font-medium text-gray-600 mb-2">
+                Nenhum registro encontrado
+              </h3>
+              <p className="text-gray-500">
+                Não há registros de caixa para o período e filtros selecionados.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-200">
+              {registers.map((register) => (
+                <div key={register.id} className="p-6">
+                  <div 
+                    className="flex items-center justify-between cursor-pointer hover:bg-gray-50 rounded-lg p-2 transition-colors"
+                    onClick={() => toggleRegisterExpansion(register.id)}
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-6">
+                        <div>
+                          <p className="font-medium text-gray-900">
+                            Caixa #{register.id.slice(-8)}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Operador: {register.operator_name}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Aberto: {formatDateTime(register.opened_at)}
+                          </p>
+                          {register.closed_at && (
+                            <p className="text-sm text-gray-600">
+                              Fechado: {formatDateTime(register.closed_at)}
+                            </p>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                          <div>
+                            <p className="text-xs text-gray-500">Abertura</p>
+                            <p className="font-medium">{formatPrice(register.opening_amount)}</p>
+                          </div>
+                          
+                          <div>
+                            <p className="text-xs text-gray-500">Vendas PDV</p>
+                            <p className="font-medium text-green-600">
+                              {formatPrice(register.summary?.sales_total || 0)}
+                            </p>
+                          </div>
+                          
+                          <div>
+                            <p className="text-xs text-gray-500">Delivery</p>
+                            <p className="font-medium text-blue-600">
+                              {formatPrice(register.summary?.delivery_total || 0)}
+                            </p>
+                          </div>
+                          
+                          <div>
+                            <p className="text-xs text-gray-500">Saldo Esperado</p>
+                            <p className="font-medium">
+                              {formatPrice(register.summary?.expected_balance || 0)}
+                            </p>
+                          </div>
+                          
+                          {register.closed_at && (
+                            <>
+                              <div>
+                                <p className="text-xs text-gray-500">Fechamento</p>
+                                <p className="font-medium">{formatPrice(register.closing_amount || 0)}</p>
+                              </div>
+                              
+                              <div>
+                                <p className="text-xs text-gray-500">Diferença</p>
+                                <p className={`font-medium ${(register.difference || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                  {formatPrice(register.difference || 0)}
+                                </p>
+                              </div>
+                            </>
+                          )}
+                        </div>
                       </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                        register.closed_at 
+                          ? 'bg-gray-100 text-gray-800' 
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {register.closed_at ? 'Fechado' : 'Aberto'}
+                      </span>
                       
-                      <div className="relative">
-                        <CreditCard size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                        <select
-                          value={filterPayment}
-                          onChange={(e) => setFilterPayment(e.target.value)}
-                          className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="all">Todas as formas</option>
-                          <option value="dinheiro">Dinheiro</option>
-                          <option value="pix">PIX</option>
-                          <option value="cartao_credito">Cartão de Crédito</option>
-                          <option value="cartao_debito">Cartão de Débito</option>
-                          <option value="voucher">Voucher</option>
-                        </select>
-                      </div>
+                      {expandedRegisters.has(register.id) ? (
+                        <ChevronUp size={20} className="text-gray-400" />
+                      ) : (
+                        <ChevronDown size={20} className="text-gray-400" />
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Expanded Details */}
+                  {expandedRegisters.has(register.id) && (
+                    <div className="mt-6 pl-6 border-l-2 border-blue-200 bg-gray-50 rounded-lg p-4">
+                      <h4 className="font-medium text-gray-900 mb-4 flex items-center gap-2">
+                        <Clock size={18} className="text-blue-600" />
+                        Movimentações Detalhadas
+                      </h4>
                       
-                      <div className="relative">
-                        <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                        <input
-                          type="text"
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          placeholder="Buscar descrição..."
-                          className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
+                      {entries[register.id] ? (
+                        entries[register.id].length > 0 ? (
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead className="bg-white">
+                                <tr>
+                                  <th className="text-left py-3 px-4 font-medium text-gray-700 border-b">Data/Hora</th>
+                                  <th className="text-left py-3 px-4 font-medium text-gray-700 border-b">Tipo</th>
+                                  <th className="text-left py-3 px-4 font-medium text-gray-700 border-b">Descrição</th>
+                                  <th className="text-left py-3 px-4 font-medium text-gray-700 border-b">Método</th>
+                                  <th className="text-right py-3 px-4 font-medium text-gray-700 border-b">Valor</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200">
+                                {entries[register.id].map((entry) => (
+                                  <tr key={entry.id} className="hover:bg-white">
+                                    <td className="py-3 px-4 text-sm text-gray-900">
+                                      {formatDateTime(entry.created_at)}
+                                    </td>
+                                    <td className="py-3 px-4">
+                                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                        entry.type === 'income' 
+                                          ? 'bg-green-100 text-green-800' 
+                                          : 'bg-red-100 text-red-800'
+                                      }`}>
+                                        {entry.type === 'income' ? 'Entrada' : 'Saída'}
+                                      </span>
+                                    </td>
+                                    <td className="py-3 px-4 text-sm text-gray-900">
+                                      {entry.description}
+                                    </td>
+                                    <td className="py-3 px-4 text-sm text-gray-600">
+                                      {getPaymentMethodName(entry.payment_method)}
+                                    </td>
+                                    <td className="py-3 px-4 text-sm text-right">
+                                      <span className={`font-medium ${
+                                        entry.type === 'income' ? 'text-green-600' : 'text-red-600'
+                                      }`}>
+                                        {entry.type === 'income' ? '+' : '-'}
+                                        {formatPrice(entry.amount)}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        ) : (
+                          <div className="text-center py-8 text-gray-500">
+                            <Clock size={32} className="mx-auto text-gray-300 mb-2" />
+                            <p>Nenhuma movimentação registrada para este caixa.</p>
+                            <p className="text-sm text-gray-400 mt-1">
+                              As movimentações aparecerão aqui quando forem registradas.
+                            </p>
+                          </div>
+                        )
+                      ) : (
+                        <div className="text-center py-4">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                          <p className="text-sm text-gray-600">Carregando movimentações...</p>
+                        </div>
+                      )}
                     </div>
                   )}
-
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="text-left py-3 px-4 font-medium text-gray-700">Data/Hora</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-700">Tipo</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-700">Canal</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-700">Descrição</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-700">Forma Pgto</th>
-                          <th className="text-right py-3 px-4 font-medium text-gray-700">Valor</th>
-                          <th className="text-left py-3 px-4 font-medium text-gray-700">Operador</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {report.entries.filter(filterEntries).length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="py-4 text-center text-gray-500">
-                              Nenhuma movimentação encontrada com os filtros selecionados.
-                            </td>
-                          </tr>
-                        ) : (
-                          report.entries.filter(filterEntries).map((entry) => (
-                            <tr key={entry.id} className="hover:bg-gray-50">
-                              <td className="py-3 px-4">
-                                <span className="text-sm">{formatDate(entry.date)}</span>
-                                <button
-                                  onClick={() => handleDateClick(entry.date)} 
-                                  className="text-xs bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 px-2 py-1 rounded mt-1 inline-flex items-center gap-1"
-                                >
-                                  {selectedDate === entry.date ? (
-                                    <>
-                                      <ChevronUp size={12} />
-                                      Ocultar detalhes
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ChevronDown size={12} />
-                                      Ver detalhes
-                                    </>
-                                  )}
-                                </button>
-                              </td>
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-2">
-                                  {getEntryTypeIcon(entry.type)}
-                                  <span className={`text-sm font-medium ${
-                                    entry.type === 'income' ? 'text-green-600' : 'text-red-600'
-                                  }`}>
-                                    {getEntryTypeLabel(entry.type)}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-2">
-                                  {getSourceIcon(entry.source)}
-                                  <span className="text-sm">{getSourceLabel(entry.source)}</span>
-                                </div>
-                              </td>
-                              <td className="py-3 px-4">
-                                <span className="text-sm">{entry.description}</span>
-                              </td>
-                              <td className="py-3 px-4">
-                                <span className="text-sm">{getPaymentMethodLabel(entry.payment_method)}</span>
-                              </td>
-                              <td className="py-3 px-4 text-right">
-                                <span className={`font-semibold ${
-                                  entry.type === 'income' ? 'text-green-600' : 'text-red-600'
-                                }`}>
-                                  {entry.type === 'income' ? '+' : '-'}
-                                  {formatPrice(entry.amount)}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4">
-                                <span className="text-sm">{entry.operator_name || '-'}</span>
-                              </td>
-                            </tr>
-                          )).slice(0, 100) // Limit to 100 entries for performance
-                        )}
-                        {selectedDate && (
-                          <tr>
-                            <td colSpan={7} className="px-6 py-4">
-                              <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                <h4 className="font-medium text-gray-800 mb-3">Detalhes do Caixa - {new Date(selectedDate).toLocaleDateString('pt-BR')}</h4>
-                                
-                                {loading ? (
-                                  <div className="flex items-center justify-center py-4">
-                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                                    <span className="ml-2 text-gray-600">Carregando detalhes...</span>
-                                  </div>
-                                ) : detailedEntries.length === 0 ? (
-                                  <p className="text-gray-500 text-center py-2">Nenhuma movimentação encontrada para este caixa.</p>
-                                ) : (
-                                  <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                      <thead className="bg-gray-100">
-                                        <tr>
-                                          <th className="px-3 py-2 text-left">Hora</th>
-                                          <th className="px-3 py-2 text-left">Tipo</th>
-                                          <th className="px-3 py-2 text-left">Descrição</th>
-                                          <th className="px-3 py-2 text-left">Forma Pgto</th>
-                                          <th className="px-3 py-2 text-right">Valor</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="divide-y divide-gray-200">
-                                        {detailedEntries.map((entry) => (
-                                          <tr key={entry.id} className="hover:bg-gray-50">
-                                            <td className="px-3 py-2">
-                                              {new Date(entry.created_at).toLocaleTimeString('pt-BR')}
-                                            </td>
-                                            <td className="px-3 py-2">
-                                              <div className="flex items-center gap-1">
-                                                {entry.type === 'income' ? (
-                                                  <ArrowDownCircle size={14} className="text-green-500" />
-                                                ) : (
-                                                  <ArrowUpCircle size={14} className="text-red-500" />
-                                                )}
-                                                <span className={entry.type === 'income' ? 'text-green-600' : 'text-red-600'}>
-                                                  {entry.type === 'income' ? 'Entrada' : 'Saída'}
-                                                </span>
-                                              </div>
-                                            </td>
-                                            <td className="px-3 py-2">{entry.description}</td>
-                                            <td className="px-3 py-2">{getPaymentMethodLabel(entry.payment_method)}</td>
-                                            <td className="px-3 py-2 text-right font-medium">
-                                              <span className={entry.type === 'income' ? 'text-green-600' : 'text-red-600'}>
-                                                {entry.type === 'income' ? '+' : '-'}{formatPrice(entry.amount)}
-                                              </span>
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
+                </div>
+              ))}
             </div>
-          </>
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* Print Styles */}
-      <style jsx>{`
-        @media print {
-          @page {
-            size: portrait;
-            margin: 10mm;
+        {/* Print Styles */}
+        <style jsx>{`
+          @media print {
+            @page {
+              size: portrait;
+              margin: 10mm;
+            }
+            
+            body {
+              font-family: Arial, sans-serif;
+              color: #000;
+              background: #fff;
+            }
+            
+            .print\\:hidden {
+              display: none !important;
+            }
+            
+            table {
+              width: 100%;
+              border-collapse: collapse;
+            }
+            
+            th, td {
+              border: 1px solid #ddd;
+              padding: 8px;
+              text-align: left;
+            }
+            
+            th {
+              background-color: #f2f2f2;
+            }
           }
-          
-          body {
-            font-family: Arial, sans-serif;
-            color: #000;
-            background: #fff;
-          }
-          
-          .print\\:hidden {
-            display: none !important;
-          }
-          
-          table {
-            width: 100%;
-            border-collapse: collapse;
-          }
-          
-          th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-          }
-          
-          th {
-            background-color: #f2f2f2;
-          }
-          
-          .print-header {
-            text-align: center;
-            margin-bottom: 20px;
-          }
-          
-          .print-header h1 {
-            font-size: 24px;
-            margin-bottom: 5px;
-          }
-          
-          .print-header p {
-            font-size: 14px;
-            color: #666;
-          }
-        }
-      `}</style>
-    </div>
+        `}</style>
+      </div>
     </PermissionGuard>
   );
 };

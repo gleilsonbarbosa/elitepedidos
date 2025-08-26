@@ -55,7 +55,7 @@ const Footer: React.FC<FooterProps> = ({ storeSettings }) => {
                 <p className="font-medium text-white mb-1">Loja 2</p>
                 <p className="text-sm">Rua Dois, 2130‑A</p>
                 <p className="text-sm">Residencial 1 - Cágado</p>
-                <p className="text-sm text-green-400">16h às 23h</p>
+                <p className="text-sm text-green-400">17h às 23h</p>
               </div>
             </div>
           </div>

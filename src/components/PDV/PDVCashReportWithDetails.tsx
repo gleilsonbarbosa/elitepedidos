@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Download, Printer, Filter, ChevronDown, ChevronUp, DollarSign, TrendingUp, TrendingDown, Clock } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 import { usePDVCashRegister } from '../../hooks/usePDVCashRegister';
 import { usePermissions } from '../../hooks/usePermissions';
 import PermissionGuard from '../PermissionGuard';
@@ -90,14 +91,32 @@ const PDVCashReportWithDetails: React.FC = () => {
 
   const loadCashEntries = async (registerId: string) => {
     try {
-      // This would need to be implemented in the hook
-      // For now, we'll use a placeholder
+      console.log('🔄 Carregando movimentações para o caixa:', registerId);
+      
+      const { data, error } = await supabase
+        .from('pdv_cash_entries')
+        .select('*')
+        .eq('register_id', registerId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Erro ao carregar movimentações:', error);
+        throw error;
+      }
+
+      console.log(`✅ ${data?.length || 0} movimentações carregadas para o caixa ${registerId}`);
+      
+      setEntries(prev => ({
+        ...prev,
+        [registerId]: data || []
+      }));
+    } catch (error) {
+      console.error('Erro ao carregar movimentações:', error);
+      // Set empty array on error to avoid infinite loading
       setEntries(prev => ({
         ...prev,
         [registerId]: []
       }));
-    } catch (error) {
-      console.error('Erro ao carregar movimentações:', error);
     }
   };
 
@@ -410,15 +429,7 @@ const PDVCashReportWithDetails: React.FC = () => {
                       Movimentações do Caixa
                     </h4>
                     
-                    {/* Placeholder for entries - in a real implementation, this would fetch from the database */}
-                    <div className="text-center py-4 text-gray-500">
-                      <p>O histórico detalhado de movimentações está disponível no menu "Caixa" principal.</p>
-                      <p className="text-sm text-gray-400 mt-2">
-                        Para visualizar todas as movimentações, acesse o menu "Caixas" e selecione o caixa desejado.
-                      </p>
-                    </div>
-                    {/* Commented out until we have proper data fetching for historical entries
-                    {entries[register.id]?.length > 0 ? (
+                    {entries[register.id] && entries[register.id].length > 0 ? (
                       <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
                           <thead className="bg-gray-50">
@@ -459,7 +470,7 @@ const PDVCashReportWithDetails: React.FC = () => {
                                   {entry.description}
                                 </td>
                                 <td className="px-4 py-2 text-sm text-gray-600">
-                                  {entry.payment_method}
+                                  {getPaymentMethodName(entry.payment_method)}
                                 </td>
                                 <td className="px-4 py-2 text-sm text-right">
                                   <span className={`font-medium ${
@@ -474,8 +485,14 @@ const PDVCashReportWithDetails: React.FC = () => {
                           </tbody>
                         </table>
                       </div>
-                    ) : null}
-                    */}
+                    ) : (
+                      <div className="text-center py-4 text-gray-500">
+                        <p>Nenhuma movimentação registrada para este caixa.</p>
+                        <p className="text-sm text-gray-400 mt-2">
+                          As movimentações aparecerão aqui quando forem registradas.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -537,5 +554,20 @@ const PDVCashReportWithDetails: React.FC = () => {
     </PermissionGuard>
   );
 };
+
+// Helper function to get payment method display name
+function getPaymentMethodName(method: string) {
+  const methodNames: Record<string, string> = {
+    'dinheiro': 'Dinheiro',
+    'pix': 'PIX',
+    'cartao_credito': 'Cartão de Crédito',
+    'cartao_debito': 'Cartão de Débito',
+    'voucher': 'Voucher',
+    'misto': 'Pagamento Misto',
+    'outros': 'Outros'
+  };
+  
+  return methodNames[method] || method;
+}
 
 export default PDVCashReportWithDetails;

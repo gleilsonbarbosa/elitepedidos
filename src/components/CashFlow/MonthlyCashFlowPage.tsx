@@ -73,9 +73,9 @@ const MonthlyCashFlowPage: React.FC = () => {
   const [reportLoading, setReportLoading] = useState(false);
   const [supabaseConfigured, setSupabaseConfigured] = useState(true);
 
-  // 🔐 CREDENCIAIS DE ACESSO
-  const CREDENTIALS = {
-    username: 'admin',
+  // 🔐 CREDENCIAIS DE ACESSO SUPABASE
+  const SUPABASE_CREDENTIALS = {
+    email: 'admin@eliteacai.com',
     password: 'elite2024'
   };
 
@@ -97,19 +97,46 @@ const MonthlyCashFlowPage: React.FC = () => {
     setError('');
     setLoading(true);
 
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      if (!supabaseConfigured) {
+        // Fallback para modo demonstração
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (username === 'admin' && password === 'elite2024') {
+          setIsAuthenticated(true);
+          setError('');
+        } else {
+          setError('Credenciais inválidas');
+        }
+        setLoading(false);
+        return;
+      }
 
-    if (username === CREDENTIALS.username && password === CREDENTIALS.password) {
-      setIsAuthenticated(true);
-      setError('');
-    } else {
-      setError('Credenciais inválidas');
+      // Autenticação com Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: username.includes('@') ? username : SUPABASE_CREDENTIALS.email,
+        password: password
+      });
+
+      if (error) {
+        console.error('❌ Erro de autenticação:', error);
+        setError('Credenciais inválidas ou erro de autenticação');
+      } else {
+        console.log('✅ Autenticado com sucesso:', data.user?.email);
+        setIsAuthenticated(true);
+        setError('');
+      }
+    } catch (err) {
+      console.error('❌ Erro durante login:', err);
+      setError('Erro durante autenticação');
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   const handleLogout = () => {
+    if (supabaseConfigured) {
+      supabase.auth.signOut();
+    }
     setIsAuthenticated(false);
     setUsername('');
     setPassword('');
@@ -308,7 +335,7 @@ const MonthlyCashFlowPage: React.FC = () => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="Digite seu usuário"
+                  placeholder={supabaseConfigured ? "Digite seu email" : "Digite seu usuário"}
                   required
                 />
               </div>
@@ -354,7 +381,7 @@ const MonthlyCashFlowPage: React.FC = () => {
 
           <div className="mt-6 text-center">
             <p className="text-xs text-gray-500 mb-2">
-              Credenciais: admin / elite2024
+              {supabaseConfigured ? 'Use: admin@eliteacai.com / elite2024' : 'Credenciais: admin / elite2024'}
             </p>
             <button
               onClick={() => navigate('/pdv')}

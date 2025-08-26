@@ -203,6 +203,17 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
   };
 
   const handleCloseSale = (sale: TableSale) => {
+    // Verificar se a venda tem itens e valor maior que zero
+    if (!sale.items || sale.items.length === 0) {
+      alert('❌ Não é possível fechar uma mesa sem itens. Adicione produtos antes de fechar a mesa.');
+      return;
+    }
+    
+    if (sale.total_amount <= 0) {
+      alert('❌ Não é possível fechar uma mesa com valor zero. Adicione produtos com valor antes de fechar a mesa.');
+      return;
+    }
+    
     setSaleToClose(sale);
     setShowPaymentModal(true);
   };

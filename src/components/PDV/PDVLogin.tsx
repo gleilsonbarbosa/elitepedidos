@@ -28,24 +28,25 @@ const PDVLogin: React.FC<PDVLoginProps> = ({ onLogin }) => {
     try {
       // Check for hardcoded admin credentials for demo purposes
       if (code.toUpperCase() === 'ADMIN' && password === 'elite2024') {
-        const { data, error } = await supabase
-          .from('pdv_operators')
-          .select('*')
-          .eq('code', 'ADMIN')
-          .single();
-        
-        if (data) {
-          // Login successful with hardcoded credentials
-          await supabase
+        // Handle admin login separately
+        try {
+          const { data, error } = await supabase
             .from('pdv_operators')
-            .update({ last_login: new Date().toISOString() })
-            .eq('id', data.id);
+            .select('*')
+            .eq('code', 'ADMIN')
+            .single();
           
-          onLogin(data);
-          return true;
-        } else {
-          // Try to create admin user if it doesn't exist
-          try {
+          if (data) {
+            // Login successful with hardcoded credentials
+            await supabase
+              .from('pdv_operators')
+              .update({ last_login: new Date().toISOString() })
+              .eq('id', data.id);
+            
+            onLogin(data);
+            return true;
+          } else {
+            // Try to create admin user if it doesn't exist
             const { data: newAdmin, error: createError } = await supabase
               .from('pdv_operators')
               .insert([{
@@ -80,11 +81,10 @@ const PDVLogin: React.FC<PDVLoginProps> = ({ onLogin }) => {
               onLogin(newAdmin);
               return true;
             }
-          } catch (createErr) {
-            console.error('Error in admin creation:', createErr);
-            setError('Erro ao criar usuário administrador');
-            return false;
           }
+        } catch (adminError) {
+          console.error('Error in admin login:', adminError);
+          setError('Erro ao fazer login como administrador');
         }
         return false;
       }
@@ -103,21 +103,20 @@ const PDVLogin: React.FC<PDVLoginProps> = ({ onLogin }) => {
         return;
       }
 
-      // Verificar senha
-      const { data: authData, error: authError } = await supabase.rpc(
-        'verify_operator_password',
-        {
-          operator_code: code.trim(),
-          password_to_check: password
-        }
-      );
-
-      // Check if authentication failed
-      if (authError || !authData) {
+      // Verificar senha - comparação direta para simplificar
+      if (data.password_hash !== password) {
         setError('Senha incorreta');
         setLoading(false);
         return;
       }
+
+      console.log('✅ Login bem-sucedido para operador:', {
+        id: data.id,
+        name: data.name,
+        code: data.code,
+        is_active: data.is_active,
+        permissions: data.permissions
+      });
 
       // Atualizar último login
       await supabase

@@ -21,7 +21,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'neighborhoods' | 'hours' | 'pdv' | 'users' | 'sales' | 'orders' | 'cash' | 'tables' | 'history' | 'reports' | 'sales_report' | 'daily_report'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'neighborhoods' | 'hours' | 'users'>('products');
   const scale = useScale();
   const { storeSettings } = useStoreHours();
 
@@ -33,26 +33,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
         return <NeighborhoodsPanel />;
       case 'hours':
         return <StoreHoursPanel />; 
-      case 'pdv':
-        return <UnifiedAttendancePage />;
       case 'users':
         return <AttendanceUsersPanel />;
-      case 'sales':
-        return <PDVSalesScreen scaleHook={scale} storeSettings={storeSettings} />;
-      case 'orders':
-        return <AttendantPanel storeSettings={storeSettings} />;
-      case 'cash':
-        return <CashRegisterMenu />;
-      case 'tables':
-        return <TableSalesPanel storeId={1} operatorName="Administrador" />;
-      case 'history':
-        return <SalesHistoryPanel storeId={1} />;
-      case 'reports':
-        return <PDVReports />;
-      case 'sales_report':
-        return <PDVSalesReport />;
-      case 'daily_report':
-        return <PDVDailyCashReport />;
       default:
         return <ProductsPanel />;
     }
@@ -88,7 +70,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
         {/* Tabs */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-            {/* Gestão Básica */}
             <button
               onClick={() => setActiveTab('products')}
               className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
@@ -98,7 +79,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
               }`}
             >
               <Package size={20} />
-              <span className="text-sm">Produtos</span>
+              <span className="text-sm">Produtos Delivery</span>
             </button>
             <button
               onClick={() => setActiveTab('neighborhoods')}
@@ -132,111 +113,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
             >
               <Users size={20} />
               <span className="text-sm">Usuários</span>
-            </button>
-            
-            {/* Operações */}
-            <button
-              onClick={() => setActiveTab('sales')}
-              className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
-                activeTab === 'sales'
-                  ? 'bg-emerald-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <Calculator size={20} />
-              <span className="text-sm">Vendas PDV</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('orders')}
-              className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
-                activeTab === 'orders'
-                  ? 'bg-purple-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <Truck size={20} />
-              <span className="text-sm">Pedidos</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('cash')}
-              className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
-                activeTab === 'cash'
-                  ? 'bg-yellow-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <DollarSign size={20} />
-              <span className="text-sm">Caixas</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('tables')}
-              className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
-                activeTab === 'tables'
-                  ? 'bg-cyan-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <Users size={20} />
-              <span className="text-sm">Mesas</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('history')}
-              className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
-                activeTab === 'history'
-                  ? 'bg-teal-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <ShoppingBag size={20} />
-              <span className="text-sm">Histórico</span>
-            </button>
-            
-            {/* Relatórios */}
-            <button
-              onClick={() => setActiveTab('reports')}
-              className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
-                activeTab === 'reports'
-                  ? 'bg-orange-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <BarChart3 size={20} />
-              <span className="text-sm">Relatórios</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('sales_report')}
-              className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
-                activeTab === 'sales_report'
-                  ? 'bg-pink-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <FileText size={20} />
-              <span className="text-sm">Vendas</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('daily_report')}
-              className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
-                activeTab === 'daily_report'
-                  ? 'bg-slate-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <FileText size={20} />
-              <span className="text-sm">Caixa Diário</span>
-            </button>
-            
-            {/* PDV Unificado */}
-            <button
-              onClick={() => setActiveTab('pdv')}
-              className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
-                activeTab === 'pdv'
-                  ? 'bg-red-600 text-white shadow-lg'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              <Settings size={20} />
-              <span className="text-sm">PDV Completo</span>
             </button>
           </div>
         </div>

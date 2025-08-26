@@ -51,14 +51,20 @@ export const usePDVCashRegister = () => {
       
       if (operatorsError) {
         console.error('Erro ao buscar operadores:', operatorsError);
-        throw operatorsError;
+        if (operatorsError.message === 'Failed to fetch') {
+          console.warn('⚠️ Erro de conexão ao buscar operadores - usando modo offline');
+        } else {
+          throw operatorsError;
+        }
       }
       
       setOperators(operatorsData || []);
       console.log(`✅ Carregados ${operatorsData?.length || 0} operadores`);
     } catch (err) {
       console.error('Erro ao carregar operadores:', err);
-      // Don't throw here to avoid breaking the main flow
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        console.warn('⚠️ Erro de conexão ao carregar operadores - continuando sem operadores');
+      }
       setOperators([]);
     }
   }, []);
@@ -351,7 +357,30 @@ export const usePDVCashRegister = () => {
       }
     } catch (err) {
       console.error('Erro ao carregar caixa:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao carregar caixa');
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        setError('Erro de conexão: Verifique se o Supabase está configurado corretamente ou se há problemas de rede.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Erro ao carregar caixa');
+      }
+      
+      // Set fallback values when connection fails
+      setCurrentRegister(null);
+      setEntries([]);
+      setSummary({
+        opening_amount: 0,
+        sales_total: 0,
+        total_income: 0,
+        other_income_total: 0,
+        total_expense: 0,
+        expected_balance: 0,
+        actual_balance: 0,
+        difference: 0,
+        sales_count: 0,
+        delivery_total: 0,
+        delivery_count: 0,
+        total_all_sales: 0,
+        sales: {}
+      });
     } finally {
       setLoading(false);
     }
@@ -648,7 +677,11 @@ export const usePDVCashRegister = () => {
       return processedData;
     } catch (err) {
       console.error('Erro ao carregar relatório de caixa:', err);
-      setError(err instanceof Error ? err.message : 'Erro desconhecido ao carregar relatório');
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        setError('Erro de conexão: Não foi possível carregar o relatório. Verifique sua conexão com o banco de dados.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Erro desconhecido ao carregar relatório');
+      }
       return [];
     }
   }, []);

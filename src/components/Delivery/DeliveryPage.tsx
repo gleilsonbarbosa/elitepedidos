@@ -5,7 +5,6 @@ import Footer from './Footer';
 import ProductCard from './ProductCard';
 import ProductModal from './ProductModal';
 import Cart from './Cart';
-import AcaiChatbot from '../Chatbot/AcaiChatbot'; 
 import IARecommender from './IARecommender';
 import StoreStatusBanner from './StoreStatusBanner';
 import CheckoutModal from './CheckoutModal';
@@ -32,7 +31,6 @@ import {
 const DeliveryPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<Product['category'] | 'all' | 'today'>('today');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [showChatbot, setShowChatbot] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   
   // Customer state for recommendations
@@ -564,12 +562,6 @@ const DeliveryPage: React.FC = () => {
           setIsCartOpen(false);
           setShowCheckout(true);
         }}
-      />
-      
-      {/* Chatbot */}
-      <AcaiChatbot 
-        isOpen={showChatbot} 
-        onClose={() => setShowChatbot(false)}
       />
       
       {/* Checkout Modal */}

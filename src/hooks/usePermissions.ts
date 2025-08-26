@@ -6,10 +6,9 @@ export const usePermissions = (operator?: PDVOperator | null) => {
     console.log('🔍 Verificando permissão:', {
       permission,
       operator: operator ? {
-        username: operator.username,
         name: operator.name,
         code: operator.code,
-        role: operator.role
+        id: operator.id
       } : 'No operator',
       hasOperator: !!operator
     });
@@ -21,14 +20,7 @@ export const usePermissions = (operator?: PDVOperator | null) => {
     }
 
     // Verificar se é admin por diferentes critérios
-    const isAdmin = operator.code?.toUpperCase() === 'ADMIN' || 
-                    operator.name?.toUpperCase().includes('ADMIN') ||
-                    operator.name?.toUpperCase() === 'ADMINISTRADOR' ||
-                    operator.username?.toUpperCase() === 'ADMIN' ||
-                    operator.username?.toUpperCase().includes('ADMIN') ||
-                    operator.role === 'admin' ||
-                    operator.username === 'admin' ||
-                    operator.name === 'admin';
+    const isAdmin = operator.code?.toUpperCase() === 'ADMIN';
 
     if (isAdmin) {
       console.log('✅ Usuário é admin - permissão concedida');

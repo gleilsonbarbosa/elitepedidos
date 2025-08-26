@@ -58,9 +58,7 @@ const PDVPage: React.FC = () => {
 
   // Check if user is admin
   const isAdmin = !loggedInOperator || 
-                  loggedInOperator.code?.toUpperCase() === 'ADMIN' ||
-                  loggedInOperator.name?.toUpperCase().includes('ADMIN') ||
-                  loggedInOperator.name?.toUpperCase() === 'ADMINISTRADOR';
+                  loggedInOperator.code?.toUpperCase() === 'ADMIN';
 
   // Check Supabase configuration on mount
   React.useEffect(() => {
@@ -76,7 +74,11 @@ const PDVPage: React.FC = () => {
   }, []);
 
   const handleLogin = (operator: PDVOperator) => {
-    console.log('✅ Login PDV bem-sucedido:', operator.name);
+    console.log('✅ Login PDV bem-sucedido:', {
+      id: operator.id,
+      name: operator.name,
+      code: operator.code
+    });
     setLoggedInOperator(operator);
     localStorage.setItem('pdv_operator', JSON.stringify(operator));
   };
@@ -94,22 +96,6 @@ const PDVPage: React.FC = () => {
 
   // Definir abas disponíveis baseado nas permissões
   const availableTabs = [
-    {
-      id: 'sales' as const,
-      label: 'Vendas',
-      icon: Calculator,
-      color: 'bg-green-600',
-      permission: 'can_view_sales',
-      description: 'Sistema de vendas'
-    },
-    {
-      id: 'cash' as const,
-      label: 'Caixas',
-      icon: DollarSign,
-      color: 'bg-yellow-500',
-      permission: 'can_view_cash_register',
-      description: 'Controle de caixa'
-    },
     {
       id: 'operators' as const,
       label: 'Operadores',
@@ -143,36 +129,12 @@ const PDVPage: React.FC = () => {
       description: 'Relatório de vendas'
     },
     {
-      id: 'reports' as const,
-      label: 'Outros Relatórios',
-      icon: FileText,
-      color: 'bg-pink-600',
-      permission: 'can_view_reports',
-      description: 'Relatórios gerais'
-    },
-    {
       id: 'daily_report' as const,
       label: 'Relatório Diário',
       icon: Calendar,
       color: 'bg-blue-600',
       permission: 'can_view_cash_report',
       description: 'Relatório do dia'
-    },
-    {
-      id: 'detailed_report' as const,
-      label: 'Relatório Detalhado',
-      icon: FileText,
-      color: 'bg-indigo-600',
-      permission: 'can_view_cash_report',
-      description: 'Histórico completo'
-    },
-    {
-      id: 'period_report' as const,
-      label: 'Relatório por Período',
-      icon: BarChart3,
-      color: 'bg-purple-600',
-      permission: 'can_view_cash_report',
-      description: 'Análise por período'
     },
     {
       id: 'daily_delivery_report' as const,
@@ -196,10 +158,6 @@ const PDVPage: React.FC = () => {
 
   const renderContent = () => {
     switch (activeTab) {
-      case 'sales':
-        return <PDVSalesScreen operator={loggedInOperator} scaleHook={scale} storeSettings={storeSettings} />;
-      case 'cash':
-        return <CashRegisterMenu operator={loggedInOperator} />;
       case 'operators':
         return <PDVOperators />;
       case 'products':
@@ -212,10 +170,6 @@ const PDVPage: React.FC = () => {
         return <PDVReports />;
       case 'daily_report':
         return <PDVDailyCashReport />;
-      case 'detailed_report':
-        return <PDVCashReportWithDetails />;
-      case 'period_report':
-        return <PDVCashReportWithDateFilter />;
       case 'daily_delivery_report':
         return <PDVDailyDeliveryReport />;
       case 'cash_flow':
@@ -223,7 +177,7 @@ const PDVPage: React.FC = () => {
         window.location.href = '/fluxo-caixa';
         return null;
       default:
-        return <PDVSalesScreen operator={loggedInOperator} scaleHook={scale} storeSettings={storeSettings} />;
+        return <PDVOperators />;
     }
   };
 
@@ -257,7 +211,9 @@ const PDVPage: React.FC = () => {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg">
                 <User size={18} className="text-gray-600" />
-                <span className="text-sm font-medium text-gray-700">{loggedInOperator.name}</span>
+                <span className="text-sm font-medium text-gray-700" title={`Código: ${loggedInOperator.code}`}>
+                  {loggedInOperator.name}
+                </span>
               </div>
               <button
                 onClick={() => navigate('/')}
