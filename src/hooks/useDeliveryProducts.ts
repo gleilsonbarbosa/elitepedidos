@@ -364,7 +364,6 @@ export const useDeliveryProducts = () => {
         scheduledDays,
         original_price,
         image,
-        price,
         isActive,
         ...cleanUpdates 
       } = updates as any;
@@ -374,6 +373,16 @@ export const useDeliveryProducts = () => {
         cleanUpdates.is_active = updates.isActive;
       }
       
+     // Garantir que o campo price seja incluído se fornecido
+     if (updates.price !== undefined) {
+       cleanUpdates.price = updates.price;
+     }
+     
+     // Garantir que original_price seja incluído se fornecido
+     if (updates.original_price !== undefined) {
+       cleanUpdates.original_price = updates.original_price;
+     }
+     
       const safeUpdate = Object.fromEntries(
         Object.entries({
           ...cleanUpdates,

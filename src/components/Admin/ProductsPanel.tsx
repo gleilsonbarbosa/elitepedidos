@@ -241,18 +241,91 @@ const ProductsPanel: React.FC = () => {
   // Carregar imagens dos produtos
   useEffect(() => {
     const loadProductImages = async () => {
+      try {
+        // Skip if Supabase is not configured
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+        if (!supabaseUrl || !supabaseKey || 
+            supabaseUrl.includes('placeholder') || 
+            supabaseKey.includes('placeholder')) {
+          console.warn('⚠️ Supabase não configurado - usando imagens padrão dos produtos');
+          return;
+        }
+
+        // Verificar se há produtos para carregar
+        if (filteredProducts.length === 0) {
+          return;
+        }
+
+        const images: Record<string, string> = {};
+        
+        // Process products with timeout and error handling for each
+        const imagePromises = filteredProducts.map(async (product) => {
+          try {
+            // Set timeout for each individual request
+            const timeoutPromise = new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout')), 3000)
+            );
+            
+            const imagePromise = getProductImage(product.id);
+            
+            const savedImage = await Promise.race([imagePromise, timeoutPromise]) as string | null;
+            
+            if (savedImage) {
+              images[product.id] = savedImage;
+            }
+          } catch (error) {
+            // Handle network errors gracefully for individual products
+            if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+              console.warn(`⚠️ Erro de rede ao carregar imagem do produto ${product.name} - usando fallback`);
+            } else if (error instanceof Error && error.message === 'Timeout') {
+              console.warn(`⏰ Timeout ao carregar imagem do produto ${product.name}`);
+            } else {
+              console.warn(`⚠️ Erro ao carregar imagem do produto ${product.name}:`, error);
+            }
+            // Don't add to images object, will use product's default image
+          }
+        });
+
+        // Wait for all image loading attempts to complete
+        await Promise.allSettled(imagePromises);
+        
+        setProductImages(images);
+      } catch (error) {
+        // Handle any other unexpected errors
+        console.error('❌ Erro geral ao carregar imagens dos produtos:', error);
+        return;
+      }
+
+      // Skip image loading if Supabase is not configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl.includes('placeholder') || 
+          supabaseKey.includes('placeholder')) {
+        console.warn('⚠️ Supabase não configurado - pulando carregamento de imagens');
+        return;
+      }
+
+      // Skip image loading if no products to load
+      if (filteredProducts.length === 0) {
+        return;
+      }
+
       // Skip image loading if there are no products
       if (deliveryProducts.length === 0) return;
       
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl2 = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey2 = import.meta.env.VITE_SUPABASE_ANON_KEY;
       
       // Check if Supabase is properly configured
-      if (!supabaseUrl || !supabaseKey ||
-          supabaseUrl.includes('placeholder') || 
-          supabaseKey.includes('placeholder') ||
-          supabaseUrl === 'your_supabase_url_here' ||
-          supabaseKey === 'your_supabase_anon_key_here') {
+      if (!supabaseUrl2 || !supabaseKey2 ||
+          supabaseUrl2.includes('placeholder') || 
+          supabaseKey2.includes('placeholder') ||
+          supabaseUrl2 === 'your_supabase_url_here' ||
+          supabaseKey2 === 'your_supabase_anon_key_here') {
         console.warn('⚠️ Supabase not configured, skipping image loading');
         return;
       }
@@ -273,6 +346,12 @@ const ProductsPanel: React.FC = () => {
            }
          } catch (error) {
            errorCount++;
+          // Handle network connectivity errors gracefully
+          if (error instanceof TypeError && error.message === 'Failed to fetch') {
+            console.warn(`⚠️ Erro de conectividade ao carregar imagem do produto ${product.name} - continuando sem imagem`);
+          } else {
+            console.warn(`⚠️ Erro ao carregar imagem do produto ${product.name}:`, error);
+           }
            // Handle network errors gracefully
            if (error instanceof TypeError && error.message === 'Failed to fetch') {
              console.warn(`⚠️ Network error loading image for ${product.name}, using fallback`);
@@ -292,9 +371,13 @@ const ProductsPanel: React.FC = () => {
      }
     };
 
-    // Only load images if we have products
-    loadProductImages();
-  }, [deliveryProducts, getProductImage]);
+    // Adicionar delay para evitar múltiplas chamadas simultâneas
+    const timeoutId = setTimeout(() => {
+      loadProductImages();
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [filteredProducts, getProductImage]);
 
   const resetForm = () => {
     setFormData({
@@ -427,6 +510,7 @@ const ProductsPanel: React.FC = () => {
           if (document.body.contains(successMessage)) {
             document.body.removeChild(successMessage);
           }
+          // Continue with next product instead of breaking the loop
         }, 3000);
         
       } catch (error) {
@@ -886,6 +970,49 @@ const ProductsPanel: React.FC = () => {
                           <Edit size={16} />
                         </button>
                         <button
+                          onClick={async () => {
+                            try {
+                              console.log('🔧 Iniciando correção do produto:', product.id);
+                              await fixProduct(product.id);
+                              alert(`✅ Produto "${product.name}" corrigido com sucesso!`);
+                            } catch (err) {
+                              console.error('❌ Erro ao corrigir produto:', err);
+                              alert(`❌ Erro ao corrigir produto: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
+                            }
+                          }}
+                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                          title="Corrigir problemas de sincronização"
+                        >
+                          <Wrench size={16} />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const diagnosis = await debugProduct(product.id);
+                              console.log('🔍 Diagnóstico:', diagnosis);
+                              
+                              let message = `Diagnóstico do produto "${product.name}":\n\n`;
+                              if (diagnosis) {
+                                message += `• Estado Local: ${diagnosis.local ? '✅ OK' : '❌ Não encontrado'}\n`;
+                                message += `• Banco de Dados: ${diagnosis.database ? '✅ OK' : '❌ Não encontrado'}\n`;
+                                message += `• Sincronizado: ${diagnosis.synchronized ? '✅ Sim' : '⚠️ Não'}\n`;
+                                message += `• Pode Acessar: ${diagnosis.canAccess ? '✅ Sim' : '❌ Não'}`;
+                              } else {
+                                message += 'Não foi possível obter diagnóstico.';
+                              }
+                              
+                              alert(message);
+                            } catch (err) {
+                              console.error('❌ Erro no diagnóstico:', err);
+                              alert('❌ Erro ao executar diagnóstico');
+                            }
+                          }}
+                          className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors"
+                          title="Diagnóstico do produto"
+                        >
+                          <Bug size={16} />
+                        </button>
+                        <button
                           onClick={() => handleDelete(product)}
                           className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
                           title="Excluir produto"
@@ -1077,49 +1204,6 @@ const ProductsPanel: React.FC = () => {
                       >
                         <Package className="w-4 h-4" />
                         Aplicar Grupos Padrão
-                      </button>
-                      <button
-                        onClick={async () => {
-                          try {
-                            console.log('🔧 Iniciando correção do produto:', product.id);
-                            await fixProduct(product.id);
-                            alert(`✅ Produto "${product.name}" corrigido com sucesso!`);
-                          } catch (err) {
-                            console.error('❌ Erro ao corrigir produto:', err);
-                            alert(`❌ Erro ao corrigir produto: ${err instanceof Error ? err.message : 'Erro desconhecido'}`);
-                          }
-                        }}
-                        className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                        title="Corrigir problemas de sincronização"
-                      >
-                        <Wrench size={16} />
-                      </button>
-                      <button
-                        onClick={async () => {
-                          try {
-                            const diagnosis = await debugProduct(product.id);
-                            console.log('🔍 Diagnóstico:', diagnosis);
-                            
-                            let message = `Diagnóstico do produto "${product.name}":\n\n`;
-                            if (diagnosis) {
-                              message += `• Estado Local: ${diagnosis.local ? '✅ OK' : '❌ Não encontrado'}\n`;
-                              message += `• Banco de Dados: ${diagnosis.database ? '✅ OK' : '❌ Não encontrado'}\n`;
-                              message += `• Sincronizado: ${diagnosis.synchronized ? '✅ Sim' : '⚠️ Não'}\n`;
-                              message += `• Pode Acessar: ${diagnosis.canAccess ? '✅ Sim' : '❌ Não'}`;
-                            } else {
-                              message += 'Não foi possível obter diagnóstico.';
-                            }
-                            
-                            alert(message);
-                          } catch (err) {
-                            console.error('❌ Erro no diagnóstico:', err);
-                            alert('❌ Erro ao executar diagnóstico');
-                          }
-                        }}
-                        className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors"
-                        title="Diagnóstico do produto"
-                      >
-                        <Bug size={16} />
                       </button>
                       <button
                         type="button"
