@@ -44,12 +44,23 @@ const OrderTrackingPage: React.FC = () => {
           .eq('id', orderId)
           .single();
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Erro ao buscar pedido:', error);
+          throw error;
+        }
+        
+        if (!data || !data.id) {
+          console.error('❌ Pedido não encontrado ou sem ID válido');
+          setOrder(null);
+          return;
+        }
+        
         setOrder(data);
-        console.log('✅ Pedido carregado:', data?.id);
-        setCustomerName(data.customer_name);
+        console.log('✅ Pedido carregado:', data.id);
+        setCustomerName(data.customer_name || '');
       } catch (error) {
         console.error('Erro ao carregar pedido:', error);
+        setOrder(null);
       } finally {
         setLoading(false);
       }
@@ -66,10 +77,15 @@ const OrderTrackingPage: React.FC = () => {
           .eq('id', orderId)
           .single();
 
+        if (error || !data || !data.id) {
+          console.warn('⚠️ Erro ou dados inválidos ao recarregar pedido:', error);
+          return;
+        }
+        
         // Só atualizar se houver mudanças
-        if (data && (!order || data.updated_at !== order.updated_at)) {
+        if (!order || data.updated_at !== order.updated_at) {
           setOrder(data);
-          setCustomerName(data.customer_name);
+          setCustomerName(data.customer_name || '');
         }
       } catch (error) {
         console.error('Erro ao recarregar pedido:', error);

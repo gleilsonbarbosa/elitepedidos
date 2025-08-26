@@ -209,6 +209,93 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
     };
   };
 
+  const generateWhatsAppMessage = () => {
+    // Validate order data
+    if (!order || !order.id) {
+      console.error('Dados do pedido não disponíveis para gerar mensagem', order);
+      return encodeURIComponent('Erro ao gerar mensagem: Dados do pedido não disponíveis.');
+    }
+
+    let message = `🆕 *NOVO PEDIDO RECEBIDO - ELITE AÇAÍ*\n\n`;
+    message += `📋 *Pedido #${order.id.slice(-8)}*\n`;
+    message += `🕐 Recebido: ${new Date(order.created_at).toLocaleString('pt-BR')}\n`;
+    message += `📊 Status: ${getStatusLabel(order.status || 'pending')}\n\n`;
+    
+    message += `👤 *CLIENTE:*\n`;
+    message += `Nome: ${order.customer_name || 'Não informado'}\n`;
+    message += `📱 Telefone: ${order.customer_phone}\n`;
+    message += `📍 Endereço: ${order.customer_address || 'Não informado'}\n`;
+    message += `🏘️ Bairro: ${order.customer_neighborhood}\n`;
+    if (order.customer_complement) {
+      message += `🏠 Complemento: ${order.customer_complement}\n`;
+    }
+    
+    // Adicionar link do Google Maps para localização
+    const fullAddress = `${order.customer_address || ''}, ${order.customer_neighborhood || ''}`.trim();
+    const encodedAddress = encodeURIComponent(fullAddress);
+    message += `📍 *LOCALIZAÇÃO:*\n`;
+    message += `https://www.google.com/maps/search/?api=1&query=${encodedAddress}\n`;
+    message += `\n`;
+    
+    message += `🛒 *ITENS DO PEDIDO:*\n`;
+    (order.items || []).forEach((item, index) => {
+      message += `${index + 1}. ${item.product_name}\n`;
+      if (item.selected_size) {
+        message += `   Tamanho: ${item.selected_size}\n`;
+      }
+      message += `   Qtd: ${item.quantity}x - ${formatPrice(item.total_price)}\n`;
+      
+      if (Array.isArray(item.complements) && item.complements.length > 0) {
+        message += `   *Complementos:*\n`;
+        item.complements.forEach(comp => {
+          message += `   • ${comp.name}`;
+          if (comp.price > 0) {
+            message += ` (+${formatPrice(comp.price)})`;
+          }
+          message += `\n`;
+        });
+      }
+      
+      if (item.observations) {
+        message += `   *Obs:* ${item.observations}\n`;
+      }
+      message += `\n`;
+    });
+    
+    message += `💰 *VALORES:*\n`;
+    const subtotal = order.total_price - (order.delivery_fee || 0);
+    message += `Subtotal: ${formatPrice(subtotal)}\n`;
+    if (order.delivery_fee && order.delivery_fee > 0) {
+      message += `Taxa de entrega: ${formatPrice(order.delivery_fee)}\n`;
+    }
+    message += `*TOTAL: ${formatPrice(order.total_price)}*\n\n`;
+    
+    message += `💳 *PAGAMENTO:*\n`;
+    message += `Forma: ${getPaymentMethodLabel(order.payment_method)}\n`;
+    if (order.change_for) {
+      message += `Troco para: ${formatPrice(order.change_for)}\n`;
+    }
+    if (order.payment_method === 'pix') {
+      message += `\n📱 *DADOS PIX:*\n`;
+      message += `Chave: 85989041010\n`;
+      message += `Nome: Grupo Elite\n`;
+      message += `Valor: ${formatPrice(order.total_price)}\n`;
+    }
+    message += `\n`;
+    
+    message += `⚠️ *AÇÃO NECESSÁRIA:*\n`;
+    message += `• Confirmar recebimento do pedido\n`;
+    message += `• Iniciar preparo dos itens\n`;
+    if (order.payment_method === 'pix') {
+      message += `• Aguardar comprovante do PIX\n`;
+    }
+    message += `\n`;
+    
+    message += `📱 Sistema de Atendimento - Elite Açaí`;
+    
+    return encodeURIComponent(message);
+  };
+
   return (
     <>
       {/* Modal Interface - Hidden on print */}
@@ -221,86 +308,9 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    // Gerar mensagem do pedido para WhatsApp da loja
-                    let message = `🆕 *NOVO PEDIDO RECEBIDO - ELITE AÇAÍ*\n\n`;
-                    message += `📋 *Pedido #${order.id.slice(-8)}*\n`;
-                    message += `🕐 Recebido: ${new Date(order.created_at).toLocaleString('pt-BR')}\n`;
-                    message += `📊 Status: ${getStatusLabel(order.status)}\n\n`;
-                    
-                    message += `👤 *CLIENTE:*\n`;
-                    message += `Nome: ${order.customer_name}\n`;
-                    message += `📱 Telefone: ${order.customer_phone}\n`;
-                    message += `📍 Endereço: ${order.customer_address}\n`;
-                    message += `🏘️ Bairro: ${order.customer_neighborhood}\n`;
-                    if (order.customer_complement) {
-                      message += `🏠 Complemento: ${order.customer_complement}\n`;
-                    }
-                    
-                    // Adicionar link do Google Maps para localização
-                    const fullAddress = `${order.customer_address}, ${order.customer_neighborhood}`;
-                    const encodedAddress = encodeURIComponent(fullAddress);
-                    message += `📍 *LOCALIZAÇÃO:*\n`;
-                    message += `https://www.google.com/maps/search/?api=1&query=${encodedAddress}\n`;
-                    message += `\n`;
-                    
-                    message += `🛒 *ITENS DO PEDIDO:*\n`;
-                    order.items.forEach((item, index) => {
-                      message += `${index + 1}. ${item.product_name}\n`;
-                      if (item.selected_size) {
-                        message += `   Tamanho: ${item.selected_size}\n`;
-                      }
-                      message += `   Qtd: ${item.quantity}x - ${formatPrice(item.total_price)}\n`;
-                      
-                      if (item.complements && item.complements.length > 0) {
-                        message += `   *Complementos:*\n`;
-                        item.complements.forEach(comp => {
-                          message += `   • ${comp.name}`;
-                          if (comp.price > 0) {
-                            message += ` (+${formatPrice(comp.price)})`;
-                          }
-                          message += `\n`;
-                        });
-                      }
-                      
-                      if (item.observations) {
-                        message += `   *Obs:* ${item.observations}\n`;
-                      }
-                      message += `\n`;
-                    });
-                    
-                    message += `💰 *VALORES:*\n`;
-                    const subtotal = order.total_price - (order.delivery_fee || 0);
-                    message += `Subtotal: ${formatPrice(subtotal)}\n`;
-                    if (order.delivery_fee && order.delivery_fee > 0) {
-                      message += `Taxa de entrega: ${formatPrice(order.delivery_fee)}\n`;
-                    }
-                    message += `*TOTAL: ${formatPrice(order.total_price)}*\n\n`;
-                    
-                    message += `💳 *PAGAMENTO:*\n`;
-                    message += `Forma: ${getPaymentMethodLabel(order.payment_method)}\n`;
-                    if (order.change_for) {
-                      message += `Troco para: ${formatPrice(order.change_for)}\n`;
-                    }
-                    if (order.payment_method === 'pix') {
-                      message += `\n📱 *DADOS PIX:*\n`;
-                      message += `Chave: 85989041010\n`;
-                      message += `Nome: Grupo Elite\n`;
-                      message += `Valor: ${formatPrice(order.total_price)}\n`;
-                    }
-                    message += `\n`;
-                    
-                    message += `⚠️ *AÇÃO NECESSÁRIA:*\n`;
-                    message += `• Confirmar recebimento do pedido\n`;
-                    message += `• Iniciar preparo dos itens\n`;
-                    if (order.payment_method === 'pix') {
-                      message += `• Aguardar comprovante do PIX\n`;
-                    }
-                    message += `\n`;
-                    
-                    message += `📱 Sistema de Atendimento - Elite Açaí`;
-                    
+                    const message = generateWhatsAppMessage();
                     // Abrir WhatsApp da loja
-                    window.open(`https://wa.me/5585989041010?text=${encodeURIComponent(message)}`, '_blank');
+                    window.open(`https://wa.me/5585989041010?text=${message}`, '_blank');
                   }}
                   className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
                   title="Enviar pedido para WhatsApp da loja"

@@ -61,7 +61,7 @@ const AttendanceUsersPanel: React.FC = () => {
 
   const handleCreate = () => {
     setEditingUser({
-      id: '',
+      id: Date.now().toString(), // Generate temporary ID
       username: '',
       password_hash: '',
       name: '',

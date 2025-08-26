@@ -136,10 +136,11 @@ const CashRegisterMenu: React.FC = () => {
       if (result.success) {
         // Criar objeto do caixa fechado com todos os dados necessários
         setClosedRegister({
-          ...currentRegister,
+          ...(currentRegister || {}),
           closing_amount: closingAmount,
           closed_at: new Date().toISOString(),
-          difference: closingAmount - (summary?.expected_balance || 0)
+          difference: closingAmount - (summary?.expected_balance || 0),
+          id: currentRegister?.id || 'unknown'
         });
         
         if (shouldPrint) {

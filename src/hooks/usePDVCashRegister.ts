@@ -40,6 +40,15 @@ export const usePDVCashRegister = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Helper function to validate register data
+  const validateRegister = (register: any): PDVCashRegister | null => {
+    if (!register || !register.id) {
+      console.warn('⚠️ Invalid register data:', register);
+      return null;
+    }
+    return register as PDVCashRegister;
+  };
+
   const fetchOperators = useCallback(async () => {
     try {
       console.log('👥 Buscando operadores...');

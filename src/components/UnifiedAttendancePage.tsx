@@ -51,19 +51,19 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
   React.useEffect(() => {
     console.log('🔍 UnifiedAttendancePage - Estado completo:', {
       operator: operator ? {
-        id: operator.id,
-        username: operator.username,
-        name: operator.name,
-        code: operator.code,
-        role: operator.role,
-        permissions: operator.permissions
+        id: operator.id || 'no-id',
+        username: operator.username || 'no-username',
+        name: operator.name || 'no-name', 
+        code: operator.code || 'no-code',
+        role: operator.role || 'no-role',
+        permissions: operator.permissions || {}
       } : 'No operator',
       isAdmin,
       activeTab,
       isCashRegisterOpen,
       pendingOrdersCount
     });
-  }, [operator, isAdmin]);
+  }, [operator, isAdmin, activeTab, isCashRegisterOpen, pendingOrdersCount]);
 
   const settings = storeSettings || localStoreSettings;
   

@@ -130,46 +130,48 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
       
       if (newOrders.length > 0) {
         // Pegar o pedido mais recente
-        const latestOrder = newOrders.sort((a, b) => 
+        const latestOrder = newOrders.filter(order => order && order.id).sort((a, b) => 
           new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
         )[0];
         
-        setNewOrder(latestOrder);
+        if (latestOrder) {
+          setNewOrder(latestOrder);
         
-        console.log('🖨️ Verificando configuração de impressão automática:', {
-          auto_print_enabled: printerSettings.auto_print_enabled,
-          auto_print_delivery: printerSettings.auto_print_delivery,
-          newOrderId: latestOrder.id
-        });
+          console.log('🖨️ Verificando configuração de impressão automática:', {
+            auto_print_enabled: printerSettings.auto_print_enabled,
+            auto_print_delivery: printerSettings.auto_print_delivery,
+            newOrderId: latestOrder.id
+          });
         
-        // Imprimir automaticamente se configurado
-        if (printerSettings.auto_print_enabled && latestOrder.status === 'pending') {
-          console.log('🖨️ Imprimindo pedido automaticamente:', latestOrder.id);
-          setShowPrintPreview(true);
+          // Imprimir automaticamente se configurado
+          if (printerSettings.auto_print_enabled && latestOrder.status === 'pending') {
+            console.log('🖨️ Imprimindo pedido automaticamente:', latestOrder.id);
+            setShowPrintPreview(true);
           
-          // Mostrar notificação de impressão automática
-          const printNotification = document.createElement('div');
-          printNotification.className = 'fixed top-4 left-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
-          printNotification.innerHTML = `
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
-            </svg>
-            Imprimindo pedido #${latestOrder.id.slice(-8)} automaticamente
-          `;
-          document.body.appendChild(printNotification);
+            // Mostrar notificação de impressão automática
+            const printNotification = document.createElement('div');
+            printNotification.className = 'fixed top-4 left-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
+            printNotification.innerHTML = `
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+              </svg>
+              Imprimindo pedido #${latestOrder.id.slice(-8)} automaticamente
+            `;
+            document.body.appendChild(printNotification);
           
-          setTimeout(() => {
-            if (document.body.contains(printNotification)) {
-              document.body.removeChild(printNotification);
-            }
-          }, 4000);
-        }
+            setTimeout(() => {
+              if (document.body.contains(printNotification)) {
+                document.body.removeChild(printNotification);
+              }
+            }, 4000);
+          }
         
-        // Verificar se o som está habilitado
-        if (soundEnabled) {
-          playNewOrderSound(latestOrder);
-        } else {
-          console.log('🔕 Som de notificação desabilitado nas configurações');
+          // Verificar se o som está habilitado
+          if (soundEnabled) {
+            playNewOrderSound(latestOrder);
+          } else {
+            console.log('🔕 Som de notificação desabilitado nas configurações');
+          }
         }
       }
     }

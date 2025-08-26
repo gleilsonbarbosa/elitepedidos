@@ -203,8 +203,12 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
     }
 
     try {
+      if (!operator?.id) {
+        console.warn('⚠️ Operador não identificado, usando valor padrão');
+      }
+      
       const saleData = {
-        operator_id: operator?.id,
+        operator_id: operator?.id || null,
         customer_name: paymentInfo.customerName,
         customer_phone: paymentInfo.customerPhone,
         subtotal: getSubtotal(),
@@ -220,7 +224,7 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
         is_cancelled: false
       };
 
-      const saleItems = items.map(item => ({
+      const saleItems = items.filter(item => item && item.product && item.product.id).map(item => ({
         product_id: item.product.id,
         product_code: item.product.code,
         product_name: item.product.name,
@@ -232,7 +236,15 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
         subtotal: item.subtotal
       }));
 
+      if (saleItems.length === 0) {
+        throw new Error('Nenhum item válido encontrado para a venda');
+      }
+
       const createdSale = await createSale(saleData, saleItems);
+      
+      if (!createdSale) {
+        throw new Error('Falha ao criar venda: dados inválidos retornados');
+      }
       
       // Salvar dados da venda para impressão
       setLastSaleData({

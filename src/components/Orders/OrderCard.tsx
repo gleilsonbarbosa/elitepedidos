@@ -65,7 +65,13 @@ const OrderCard: React.FC<OrderCardProps> = ({
   ];
 
   const generateWhatsAppLink = () => {
-    const customerPhone = order.customer_phone.replace(/\D/g, '');
+    // Add null checks for order data
+    if (!order || !order.id) {
+      console.error('❌ Order data is null or missing ID');
+      return '#';
+    }
+    
+    const customerPhone = (order.customer_phone || '').replace(/\D/g, '');
     const phoneWithCountryCode = customerPhone.startsWith('55') ? customerPhone : `55${customerPhone}`;
     
     const statusMessages = {
@@ -78,7 +84,7 @@ const OrderCard: React.FC<OrderCardProps> = ({
       cancelled: 'Seu pedido foi cancelado. Entre em contato conosco para mais informações.'
     };
     
-    let message = `Olá ${order.customer_name}! 👋\n\n`;
+    let message = `Olá ${order.customer_name || 'Cliente'}! 👋\n\n`;
     message += `Sobre seu pedido #${order.id.slice(-8)}:\n\n`;
     message += `📋 Status: ${statusMessages[order.status] || 'Atualizando status do seu pedido.'}\n\n`;
     message += `💰 Total: ${formatPrice(order.total_price)}\n`;

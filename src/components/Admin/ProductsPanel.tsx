@@ -354,13 +354,19 @@ const ProductsPanel: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Validate form data instead of editingProduct
+    if (!formData.name.trim() || !formData.category) {
+      alert('Por favor, preencha todos os campos obrigatórios');
+      return;
+    }
+    
     console.log('🚀 Iniciando salvamento do produto:', {
-      editingProduct: !!editingProduct,
+      isEditing: !!editingProduct,
       formData,
       productId: editingProduct?.id
     });
 
-    // Validate that we have a valid product ID for updates
+    // For updates, validate that we have a valid product ID
     if (editingProduct && (!editingProduct.id || editingProduct.id.startsWith('temp-'))) {
       alert('Erro: ID do produto inválido. Tente recarregar a página e criar o produto novamente.');
       setShowModal(false);
@@ -370,32 +376,23 @@ const ProductsPanel: React.FC = () => {
     try {
       console.log('💾 Iniciando salvamento:', {
         productId: editingProduct?.id,
-        productName: editingProduct?.name,
+        productName: formData.name,
         isCreating: !editingProduct,
-        updates: editingProduct
+        updates: formData
       });
       
       let savedProduct;
       
-      if (editingProduct) {
-        await updateDeliveryProduct(editingProduct.id!, formData);
+      if (!editingProduct) {
+        // Creating new product
+        savedProduct = await createDeliveryProduct(formData);
+        console.log('✅ Novo produto criado:', savedProduct);
       } else {
-        try {
-          const updatedProduct = await updateDeliveryProduct(editingProduct.id, editingProduct);
-          console.log('✅ Produto atualizado:', updatedProduct);
-        } catch (updateError) {
-          console.error('❌ Erro na atualização, tentando corrigir...', updateError);
-          
-          // Tentar corrigir o produto se a atualização falhou
-          const fixedProduct = await fixProduct(editingProduct.id);
-          
-          // Tentar atualizar novamente após correção
-          const updatedProduct = await updateDeliveryProduct(editingProduct.id, editingProduct);
-          console.log('✅ Produto corrigido e atualizado:', updatedProduct);
-        }
-        const newProduct = await createDeliveryProduct(formData);
-        setEditingProduct(newProduct);
+        // Updating existing product
+        savedProduct = await updateDeliveryProduct(editingProduct.id, formData);
+        console.log('✅ Produto atualizado:', savedProduct);
       }
+      
       setShowModal(false);
       resetForm();
       

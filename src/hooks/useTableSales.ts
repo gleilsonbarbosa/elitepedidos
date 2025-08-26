@@ -1,8 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { RestaurantTable, TableSale, TableCartItem } from '../types/table-sales';
 
-export const useTableSales = (storeId: 1 | 2) => {
+interface UseTableSalesReturn {
+  tables: RestaurantTable[];
+  loading: boolean;
+  error: string | null;
+  stats: {
+    total: number;
+    free: number;
+    occupied: number;
+    waitingBill: number;
+    cleaning: number;
+  };
+  createTableSale: (tableId: string, customerName: string, customerCount: number) => Promise<void>;
+  closeSale: (saleId: string, paymentType: string, changeAmount?: number) => Promise<void>;
+  getSaleDetails: (saleId: string) => Promise<TableSale | null>;
+  updateTableStatus: (tableId: string, status: 'livre' | 'ocupada' | 'aguardando_conta' | 'limpeza') => Promise<void>;
+  refetch: () => Promise<void>;
+  addItemToSale: (saleId: string, item: TableCartItem) => Promise<void>;
+  deleteItemFromSale: (itemId: string, saleId: string) => Promise<void>;
+}
+
+export const useTableSales = (
+  storeId: 1 | 2,
+  currentRegister?: any,
+  addCashEntry?: (entry: any) => Promise<void>
+): UseTableSalesReturn => {
   const [tables, setTables] = useState<RestaurantTable[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -11,177 +35,126 @@ export const useTableSales = (storeId: 1 | 2) => {
   const salesTableName = storeId === 1 ? 'store1_table_sales' : 'store2_table_sales';
   const itemsTableName = storeId === 1 ? 'store1_table_sale_items' : 'store2_table_sale_items';
 
-  // Fetch tables
-  const fetchTables = async () => {
+  const fetchTables = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
+
       const { data, error } = await supabase
         .from(tableName)
-        .select('*')
-        .eq('is_active', true)
+        .select(`
+          *,
+          current_sale:current_sale_id(
+            id,
+            sale_number,
+            customer_name,
+            customer_count,
+            subtotal,
+            discount_amount,
+            total_amount,
+            payment_type,
+            change_amount,
+            status,
+            opened_at,
+            closed_at,
+            ${itemsTableName}!sale_id(*)
+          )
+        `)
         .order('number');
 
       if (error) throw error;
-      setTables(data || []);
+
+      // Process the data to flatten the current_sale relationship
+      const processedTables = (data || []).map(table => ({
+        ...table,
+        current_sale: Array.isArray(table.current_sale) && table.current_sale.length > 0 
+          ? table.current_sale[0] 
+          : table.current_sale
+      }));
+
+      setTables(processedTables);
     } catch (err) {
-      console.error('Erro ao carregar mesas:', err);
-      setError(err instanceof Error ? err.message : 'Erro desconhecido');
+      console.error('Erro ao buscar mesas:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao carregar mesas');
     } finally {
       setLoading(false);
     }
-  };
+  }, [tableName, salesTableName, itemsTableName]);
 
-  // Create new table sale
-  const createTableSale = async (
-    tableId: string, 
-    customerName?: string, 
-    customerCount: number = 1
-  ): Promise<string | null> => {
+  const createTableSale = async (tableId: string, customerName: string, customerCount: number) => {
     try {
       const { data, error } = await supabase
         .from(salesTableName)
-        .insert({
+        .insert([{
           table_id: tableId,
-          operator_name: 'Operador',
-          customer_name: customerName || '',
+          operator_name: 'Sistema',
+          customer_name: customerName,
           customer_count: customerCount,
-          status: 'aberta'
-        })
+          subtotal: 0,
+          discount_amount: 0,
+          total_amount: 0,
+          status: 'aberta',
+          cash_register_id: currentRegister?.id
+        }])
         .select()
         .single();
 
       if (error) throw error;
 
-      // Update table status to occupied
-      await supabase
+      // Update table status to occupied and link the sale
+      const { error: updateError } = await supabase
         .from(tableName)
-        .update({ 
+        .update({
           status: 'ocupada',
           current_sale_id: data.id
         })
         .eq('id', tableId);
 
+      if (updateError) throw updateError;
+
       await fetchTables();
-      return data.id;
     } catch (err) {
       console.error('Erro ao criar venda:', err);
       throw err;
     }
   };
 
-  // Add item to sale
-  const addItemToSale = async (
-    saleId: string,
-    item: {
-      product_code: string;
-      product_name: string;
-      quantity: number;
-      weight_kg?: number;
-      unit_price?: number;
-      price_per_gram?: number;
-      discount_amount: number;
-      subtotal: number;
-      notes?: string;
-    }
-  ) => {
+  const closeSale = async (saleId: string, paymentType: string, changeAmount: number = 0) => {
     try {
-      const { error } = await supabase
-        .from(itemsTableName)
-        .insert({
-          sale_id: saleId,
-          product_code: item.product_code,
-          product_name: item.product_name,
-          quantity: item.quantity,
-          weight_kg: item.weight_kg,
-          unit_price: item.unit_price,
-          price_per_gram: item.price_per_gram,
-          discount_amount: item.discount_amount,
-          subtotal: item.subtotal,
-          notes: item.notes
-        });
-
-      if (error) throw error;
-
-      // Update sale totals
-      await updateSaleTotals(saleId);
-    } catch (err) {
-      console.error('Erro ao adicionar item:', err);
-      throw err;
-    }
-  };
-
-  // Update sale totals
-  const updateSaleTotals = async (saleId: string) => {
-    try {
-      const { data: items, error } = await supabase
-        .from(itemsTableName)
-        .select('subtotal')
-        .eq('sale_id', saleId);
-
-      if (error) throw error;
-
-      const subtotal = items.reduce((sum, item) => sum + Number(item.subtotal), 0);
-
-      const { error: updateError } = await supabase
+      // Update sale status to closed
+      const { data: updatedSale, error: updateError } = await supabase
         .from(salesTableName)
         .update({
-          subtotal: subtotal,
-          total_amount: subtotal,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', saleId);
-      
-      if (updateError) throw updateError;
-    } catch (err) {
-      console.error('Erro ao atualizar totais:', err);
-      throw err;
-    }
-  };
-
-  // Delete item from sale
-  const deleteItemFromSale = async (itemId: string, saleId: string) => {
-    try {
-      const { error } = await supabase
-        .from(itemsTableName)
-        .delete()
-        .eq('id', itemId);
-
-      if (error) throw error;
-
-      // Update sale totals after deleting item
-      await updateSaleTotals(saleId);
-    } catch (err) {
-      console.error('Erro ao excluir item:', err);
-      throw err;
-    }
-  };
-  // Close sale
-  const closeSale = async (
-    saleId: string,
-    paymentType: 'dinheiro' | 'cartao_credito' | 'cartao_debito' | 'pix' | 'voucher' | 'misto',
-    changeAmount: number = 0
-  ) => {
-    try {
-      const { error } = await supabase
-        .from(salesTableName)
-        .update({
-          status: 'fechada',
           payment_type: paymentType,
           change_amount: changeAmount,
+          status: 'fechada',
           closed_at: new Date().toISOString()
         })
-        .eq('id', saleId);
+        .eq('id', saleId)
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
-      // Update table status to cleaning
-      await supabase
+      // Get the table associated with this sale
+      const { data: tableData, error: tableError } = await supabase
         .from(tableName)
-        .update({ 
+        .select('*')
+        .eq('current_sale_id', saleId)
+        .single();
+
+      if (tableError) throw tableError;
+
+      // Update table status to cleaning and remove current sale
+      const { error: tableUpdateError } = await supabase
+        .from(tableName)
+        .update({
           status: 'limpeza',
           current_sale_id: null
         })
-        .eq('current_sale_id', saleId);
+        .eq('id', tableData.id);
+
+      if (tableUpdateError) throw tableUpdateError;
 
       await fetchTables();
     } catch (err) {
@@ -190,47 +163,42 @@ export const useTableSales = (storeId: 1 | 2) => {
     }
   };
 
-  // Get sale details
   const getSaleDetails = async (saleId: string): Promise<TableSale | null> => {
     try {
-      const { data: sale, error: saleError } = await supabase
+      const { data, error } = await supabase
         .from(salesTableName)
-        .select('*')
+        .select(`
+          *,
+          items:${itemsTableName}!sale_id(*)
+        `)
         .eq('id', saleId)
         .single();
 
-      if (saleError) throw saleError;
+      if (error) throw error;
 
-      const { data: items, error: itemsError } = await supabase
-        .from(itemsTableName)
-        .select('*')
-        .eq('sale_id', saleId)
-        .order('created_at');
-
-      if (itemsError) throw itemsError;
-
-      return {
-        ...sale,
-        items: items || []
-      };
+      return data;
     } catch (err) {
-      console.error('Erro ao carregar detalhes da venda:', err);
+      console.error('Erro ao buscar detalhes da venda:', err);
       return null;
     }
   };
 
-  // Update table status
-  const updateTableStatus = async (
-    tableId: string, 
-    status: 'livre' | 'ocupada' | 'aguardando_conta' | 'limpeza'
-  ) => {
+  const updateTableStatus = async (tableId: string, status: 'livre' | 'ocupada' | 'aguardando_conta' | 'limpeza') => {
     try {
+      const updateData: any = { status };
+      
+      // If setting to free, also clear current sale
+      if (status === 'livre') {
+        updateData.current_sale_id = null;
+      }
+
       const { error } = await supabase
         .from(tableName)
-        .update({ status })
+        .update(updateData)
         .eq('id', tableId);
 
       if (error) throw error;
+
       await fetchTables();
     } catch (err) {
       console.error('Erro ao atualizar status da mesa:', err);
@@ -238,35 +206,100 @@ export const useTableSales = (storeId: 1 | 2) => {
     }
   };
 
-  // Refetch data
-  const refetch = () => {
-    fetchTables();
+  const addItemToSale = async (saleId: string, item: TableCartItem) => {
+    try {
+      // Add item to sale
+      const { error: itemError } = await supabase
+        .from(itemsTableName)
+        .insert([{
+          sale_id: saleId,
+          ...item
+        }]);
+
+      if (itemError) throw itemError;
+
+      // Recalculate sale totals
+      await recalculateSaleTotal(saleId);
+      await fetchTables();
+    } catch (err) {
+      console.error('Erro ao adicionar item:', err);
+      throw err;
+    }
+  };
+
+  const deleteItemFromSale = async (itemId: string, saleId: string) => {
+    try {
+      // Delete the item
+      const { error: deleteError } = await supabase
+        .from(itemsTableName)
+        .delete()
+        .eq('id', itemId);
+
+      if (deleteError) throw deleteError;
+
+      // Recalculate sale totals
+      await recalculateSaleTotal(saleId);
+      await fetchTables();
+    } catch (err) {
+      console.error('Erro ao excluir item:', err);
+      throw err;
+    }
+  };
+
+  const recalculateSaleTotal = async (saleId: string) => {
+    try {
+      // Get all items for this sale
+      const { data: items, error: itemsError } = await supabase
+        .from(itemsTableName)
+        .select('*')
+        .eq('sale_id', saleId);
+
+      if (itemsError) throw itemsError;
+
+      // Calculate totals
+      const subtotal = (items || []).reduce((sum, item) => sum + item.subtotal, 0);
+      
+      // Update sale totals
+      const { error: updateError } = await supabase
+        .from(salesTableName)
+        .update({
+          subtotal: subtotal,
+          total_amount: subtotal // No discount for now
+        })
+        .eq('id', saleId);
+
+      if (updateError) throw updateError;
+    } catch (err) {
+      console.error('Erro ao recalcular total:', err);
+      throw err;
+    }
+  };
+
+  const calculateStats = (tables: RestaurantTable[]) => {
+    return {
+      total: tables.length,
+      free: tables.filter(t => t.status === 'livre').length,
+      occupied: tables.filter(t => t.status === 'ocupada').length,
+      waitingBill: tables.filter(t => t.status === 'aguardando_conta').length,
+      cleaning: tables.filter(t => t.status === 'limpeza').length
+    };
   };
 
   useEffect(() => {
     fetchTables();
-  }, [storeId]);
-
-  // Calculate statistics
-  const stats = {
-    total: tables.length,
-    free: tables.filter(t => t.status === 'livre').length,
-    occupied: tables.filter(t => t.status === 'ocupada').length,
-    waitingBill: tables.filter(t => t.status === 'aguardando_conta').length,
-    cleaning: tables.filter(t => t.status === 'limpeza').length
-  };
+  }, [fetchTables]);
 
   return {
     tables,
     loading,
     error,
-    stats,
+    stats: calculateStats(tables),
     createTableSale,
-    addItemToSale,
-    deleteItemFromSale,
     closeSale,
     getSaleDetails,
     updateTableStatus,
-    refetch
+    refetch: fetchTables,
+    addItemToSale,
+    deleteItemFromSale
   };
 };

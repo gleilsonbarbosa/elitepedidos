@@ -270,73 +270,77 @@ const NeighborhoodsPanel: React.FC = () => {
             </div>
 
             <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nome do Bairro *
-                </label>
-                <input
-                  type="text"
-                  value={editingNeighborhood.name}
-                  onChange={(e) => setEditingNeighborhood({
-                    ...editingNeighborhood,
-                    name: e.target.value
-                  })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="Ex: Centro"
-                />
-              </div>
+              <form onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nome do Bairro *
+                    </label>
+                    <input
+                      type="text"
+                      value={editingNeighborhood.name}
+                      onChange={(e) => setEditingNeighborhood({
+                        ...editingNeighborhood,
+                        name: e.target.value
+                      })}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Ex: Centro"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Taxa de Entrega (R$) *
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editingNeighborhood.delivery_fee}
-                  onChange={(e) => setEditingNeighborhood({
-                    ...editingNeighborhood,
-                    delivery_fee: parseFloat(e.target.value) || 0
-                  })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="5.00"
-                />
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Taxa de Entrega (R$) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editingNeighborhood.delivery_fee}
+                      onChange={(e) => setEditingNeighborhood({
+                        ...editingNeighborhood,
+                        delivery_fee: parseFloat(e.target.value) || 0
+                      })}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="5.00"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Tempo de Entrega (minutos) *
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={editingNeighborhood.delivery_time}
-                  onChange={(e) => setEditingNeighborhood({
-                    ...editingNeighborhood,
-                    delivery_time: parseInt(e.target.value) || 50
-                  })}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="50"
-                />
-              </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tempo de Entrega (minutos) *
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={editingNeighborhood.delivery_time}
+                      onChange={(e) => setEditingNeighborhood({
+                        ...editingNeighborhood,
+                        delivery_time: parseInt(e.target.value) || 50
+                      })}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="50"
+                    />
+                  </div>
 
-              <div>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={editingNeighborhood.is_active}
-                    onChange={(e) => setEditingNeighborhood({
-                      ...editingNeighborhood,
-                      is_active: e.target.checked
-                    })}
-                    className="w-4 h-4 text-purple-600"
-                  />
-                  <span className="text-sm font-medium text-gray-700">
-                    Bairro ativo (disponível para entrega)
-                  </span>
-                </label>
-              </div>
+                  <div>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={editingNeighborhood.is_active}
+                        onChange={(e) => setEditingNeighborhood({
+                          ...editingNeighborhood,
+                          is_active: e.target.checked
+                        })}
+                        className="w-4 h-4 text-purple-600"
+                      />
+                      <span className="text-sm font-medium text-gray-700">
+                        Bairro ativo (disponível para entrega)
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </form>
             </div>
 
             <div className="p-6 border-t border-gray-200 flex justify-end gap-3">

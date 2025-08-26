@@ -162,7 +162,10 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
   };
 
   const handleCreateSale = async () => {
-    if (!selectedTable) return;
+    if (!selectedTable || !selectedTable.id) {
+      console.error('❌ Erro: selectedTable is null or missing ID');
+      return;
+    }
     
     try {
       await createTableSale(selectedTable.id, customerName, customerCount);

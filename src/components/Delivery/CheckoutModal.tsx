@@ -95,6 +95,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setLoading(true);
     
     try {
+      // Validate required data
+      if (!customerData.name || !customerData.phone || !customerData.address || !selectedNeighborhood) {
+        throw new Error('Todos os campos obrigatórios devem ser preenchidos');
+      }
+      
       // Create order data
       const orderData = {
         customer_name: customerData.name,
@@ -104,7 +109,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         customer_complement: customerData.complement,
         payment_method: paymentMethod,
         change_for: changeFor,
-        items: items.map(item => ({
+        items: items.filter(item => item && item.product).map(item => ({
           product_name: item.product.name,
           product_image: item.product.image,
           selected_size: item.selectedSize?.name,
@@ -112,7 +117,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
           unit_price: item.unit_price,
           total_price: item.totalPrice,
           observations: item.observations,
-          complements: item.selectedComplements.map(sc => ({
+          complements: (item.selectedComplements || []).map(sc => ({
             name: sc.complement.name,
             price: sc.complement.price
           }))
@@ -126,9 +131,13 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
       // Create the order
       const order = await createOrder(orderData);
+      
+      if (!order || !order.id) {
+        throw new Error('Falha ao criar pedido: dados inválidos retornados');
+      }
 
       // Handle cashback transactions
-      if (customerBalance) {
+      if (customerBalance && customerBalance.customer_id) {
         // Create purchase transaction (earn cashback)
         await createPurchaseTransaction(
           customerBalance.customer_id,
@@ -153,7 +162,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       onOrderComplete();
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
-      alert('Erro ao criar pedido. Tente novamente.');
+      alert(`Erro ao criar pedido: ${error instanceof Error ? error.message : 'Tente novamente'}`);
     } finally {
       setLoading(false);
     }

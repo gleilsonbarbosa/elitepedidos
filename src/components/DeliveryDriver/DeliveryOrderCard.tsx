@@ -82,7 +82,7 @@ const DeliveryOrderCard: React.FC<DeliveryOrderCardProps> = ({
   };
 
   const generateMapsLink = () => {
-    const fullAddress = `${order.customer_address}, ${order.customer_neighborhood}`;
+    const fullAddress = `${order.customer_address || ''}, ${order.customer_neighborhood || ''}`.trim();
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
   };
 
@@ -107,7 +107,7 @@ const DeliveryOrderCard: React.FC<DeliveryOrderCardProps> = ({
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-semibold text-gray-800">
-                Pedido #{order.id.slice(-8)}
+                Pedido #{(order.id || 'unknown').slice(-8)}
               </h3>
               <p className="text-sm text-gray-500 flex items-center gap-1">
                 <Clock size={14} />
