@@ -196,6 +196,11 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
       return;
     }
 
+    if (!operator?.id) {
+      alert('Erro: Operador não identificado. Faça login novamente.');
+      return;
+    }
+
     if (paymentInfo.method === 'misto' && (!paymentInfo.mixedPayments || paymentInfo.mixedPayments.length === 0)) {
       alert('Configure as formas de pagamento misto');
       setShowMixedPaymentModal(true);
@@ -203,12 +208,8 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
     }
 
     try {
-      if (!operator?.id) {
-        console.warn('⚠️ Operador não identificado, usando valor padrão');
-      }
-      
       const saleData = {
-        operator_id: operator?.id || null,
+        operator_id: operator.id,
         customer_name: paymentInfo.customerName,
         customer_phone: paymentInfo.customerPhone,
         subtotal: getSubtotal(),

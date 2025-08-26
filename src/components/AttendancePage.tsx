@@ -64,38 +64,13 @@ const AttendancePage: React.FC = () => {
 
   // Se está logado, mostrar sistema unificado
   if (session.isAuthenticated) {
-    // Create operator based on attendance session user
-    const attendanceOperator = session.user ? {
-      id: session.user.id,
-      name: session.user.name,
-      code: session.user.username.toUpperCase(),
-      password_hash: '',
-      is_active: true,
-      permissions: session.user.permissions || {
-        can_cancel: false,
-        can_discount: false,
-        can_use_scale: false,
-        can_view_sales: true,
-        can_view_orders: true,
-        can_view_reports: false,
-        can_view_products: true,
-        can_view_operators: false,
-        can_manage_products: false,
-        can_manage_settings: false,
-        can_view_attendance: true,
-        can_view_cash_report: false,
-        can_view_sales_report: false,
-        can_view_cash_register: false,
-        can_view_expected_balance: false
-      },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      last_login: null
-    } : null;
+    // Use the fetched PDV operator (ADMIN) for database operations
+    // This ensures the operator_id exists in pdv_operators table
+    const validOperator = pdvOperator || null;
 
     return (
       <UnifiedAttendancePage 
-        operator={attendanceOperator}
+        operator={validOperator}
         onLogout={logout}
       />
     );
