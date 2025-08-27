@@ -4,6 +4,7 @@ import { CartItem } from '../../types/cart';
 import { useNeighborhoods } from '../../hooks/useNeighborhoods';
 import { useCashback } from '../../hooks/useCashback';
 import { useOrders } from '../../hooks/useOrders';
+import { supabase } from '../../lib/supabase';
 import CashbackButton from '../Cashback/CashbackButton';
 
 interface CheckoutModalProps {
@@ -21,13 +22,20 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   totalPrice,
   onOrderComplete
 }) => {
-  const [step, setStep] = useState<'customer' | 'delivery' | 'payment' | 'review'>('customer');
+  const [step, setStep] = useState<'customer' | 'register' | 'delivery' | 'payment' | 'review'>('customer');
   const [customerData, setCustomerData] = useState({
     name: '',
     phone: '',
     address: '',
     complement: ''
   });
+  const [registrationData, setRegistrationData] = useState({
+    email: '',
+    dateOfBirth: '',
+    whatsappConsent: true
+  });
+  const [isFirstOrder, setIsFirstOrder] = useState(false);
+  const [checkingCustomer, setCheckingCustomer] = useState(false);
   const [selectedNeighborhood, setSelectedNeighborhood] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'money' | 'pix' | 'card'>('money');
   const [changeFor, setChangeFor] = useState<number | undefined>(undefined);
@@ -38,6 +46,14 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const { neighborhoods } = useNeighborhoods();
   const { getCustomerByPhone, getCustomerBalance, createPurchaseTransaction, createRedemptionTransaction } = useCashback();
   const { createOrder } = useOrders();
+
+  const validateName = (name: string) => {
+    if (!name.trim()) return false;
+    if (name.trim().length < 2) return false;
+    // Verificar se contém números
+    if (/\d/.test(name)) return false;
+    return true;
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -64,17 +80,23 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   useEffect(() => {
     const loadCustomerBalance = async () => {
       if (customerData.phone.length >= 11) {
+        setCheckingCustomer(true);
         try {
           const customer = await getCustomerByPhone(customerData.phone);
           if (customer) {
+            setIsFirstOrder(false);
             const balance = await getCustomerBalance(customer.id);
             setCustomerBalance(balance);
           } else {
+            setIsFirstOrder(true);
             setCustomerBalance(null);
           }
         } catch (error) {
           console.error('Erro ao carregar saldo:', error);
+          setIsFirstOrder(false);
           setCustomerBalance(null);
+        } finally {
+          setCheckingCustomer(false);
         }
       }
     };
@@ -95,9 +117,114 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setLoading(true);
     
     try {
+      // Validações robustas dos dados
+      if (!validateName(customerData.name)) {
+        if (!customerData.name || customerData.name.trim().length < 2) {
+          throw new Error('Nome deve ter pelo menos 2 caracteres');
+        }
+        if (/\d/.test(customerData.name)) {
+          throw new Error('Nome não pode conter números');
+        }
+        throw new Error('Nome inválido');
+      }
+      
+      if (!customerData.phone || customerData.phone.replace(/\D/g, '').length !== 11) {
+        throw new Error('Telefone deve ter 11 dígitos (DDD + número)');
+      }
+      
+      if (!customerData.address || customerData.address.trim().length < 10) {
+        throw new Error('Endereço deve ter pelo menos 10 caracteres');
+      }
+      
+      if (!selectedNeighborhood || selectedNeighborhood.trim().length === 0) {
+        throw new Error('Bairro é obrigatório para entrega');
+      }
+      
+      if (!paymentMethod) {
+        throw new Error('Forma de pagamento é obrigatória');
+      }
+      
+      if (paymentMethod === 'money' && changeFor && changeFor < getFinalTotal()) {
+        throw new Error('Valor para troco deve ser maior que o total da compra');
+      }
+      
+      if (items.length === 0) {
+        throw new Error('Carrinho está vazio. Adicione produtos antes de finalizar');
+      }
+      
+      const finalTotal = getFinalTotal();
+      if (finalTotal <= 0) {
+        throw new Error('Total do pedido deve ser maior que zero');
+      }
+      
+      // Validar se o bairro existe na lista
+      const neighborhoodExists = neighborhoods.some(n => n.name === selectedNeighborhood);
+      if (!neighborhoodExists) {
+        throw new Error('Bairro selecionado não é válido para entrega');
+      }
+      
+      // Validar cadastro de novo cliente se necessário
+      if (isFirstOrder) {
+        if (registrationData.email && registrationData.email.trim() && 
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registrationData.email)) {
+          throw new Error('E-mail inválido');
+        }
+        
+        if (registrationData.dateOfBirth && registrationData.dateOfBirth.trim()) {
+          const birthDate = new Date(registrationData.dateOfBirth);
+          const today = new Date();
+          const age = today.getFullYear() - birthDate.getFullYear();
+          
+          if (age < 0 || age > 120) {
+            throw new Error('Data de nascimento inválida');
+          }
+        }
+      }
+      
       // Validate required data
-      if (!customerData.name || !customerData.phone || !customerData.address || !selectedNeighborhood) {
-        throw new Error('Todos os campos obrigatórios devem ser preenchidos');
+      console.log('✅ Todas as validações passaram, criando pedido...');
+      
+      // Create customer if it's first order
+      let customerId = customerBalance?.customer_id;
+      
+      if (isFirstOrder) {
+        console.log('👤 Criando novo cliente:', {
+          name: customerData.name,
+          phone: customerData.phone,
+          email: registrationData.email,
+          dateOfBirth: registrationData.dateOfBirth,
+          whatsappConsent: registrationData.whatsappConsent
+        });
+        
+        try {
+          const { data: newCustomer, error } = await supabase
+            .from('customers')
+            .insert([{
+              name: customerData.name,
+              phone: customerData.phone.replace(/\D/g, ''),
+              email: registrationData.email || null,
+              date_of_birth: registrationData.dateOfBirth || null,
+              whatsapp_consent: registrationData.whatsappConsent,
+              balance: 0
+            }])
+            .select()
+            .single();
+
+          if (error) {
+            console.error('❌ Erro ao criar cliente:', error);
+            // Continue without customer registration if it fails
+          } else {
+            console.log('✅ Novo cliente criado:', newCustomer);
+            customerId = newCustomer.id;
+            
+            // Load balance for the new customer
+            const balance = await getCustomerBalance(newCustomer.id);
+            setCustomerBalance(balance);
+          }
+        } catch (error) {
+          console.error('❌ Erro na criação do cliente:', error);
+          // Continue without customer registration
+        }
       }
       
       // Create order data
@@ -107,6 +234,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         customer_address: customerData.address,
         customer_neighborhood: selectedNeighborhood,
         customer_complement: customerData.complement,
+        customer_id: customerId,
         payment_method: paymentMethod,
         change_for: changeFor,
         items: items.filter(item => item && item.product).map(item => ({
@@ -137,10 +265,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       }
 
       // Handle cashback transactions
-      if (customerBalance && customerBalance.customer_id) {
+      if (customerId) {
         // Create purchase transaction (earn cashback)
         await createPurchaseTransaction(
-          customerBalance.customer_id,
+          customerId,
           getFinalTotal(),
           order.id
         );
@@ -148,18 +276,55 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         // Create redemption transaction if cashback was used
         if (appliedCashback > 0) {
           await createRedemptionTransaction(
-            customerBalance.customer_id,
+            customerId,
             appliedCashback,
             order.id
           );
         }
       }
 
-      // Show success and redirect to tracking
-      alert(`Pedido criado com sucesso! ID: ${order.id.slice(-8)}`);
-      window.location.href = `/pedido/${order.id}`;
+      // Show success message with options
+      const success = confirm(
+        `🎉 Pedido criado com sucesso!\n\n` +
+        `📋 ID: ${order.id.slice(-8)}\n` +
+        `👤 Cliente: ${customerData.name}\n` +
+        `💰 Total: ${formatPrice(getFinalTotal())}\n\n` +
+        `Deseja fazer um novo pedido?\n\n` +
+        `• OK = Fazer novo pedido\n` +
+        `• Cancelar = Acompanhar este pedido`
+      );
       
-      onOrderComplete();
+      if (success) {
+        // Reset form for new order
+        setStep('customer');
+        setCustomerData({
+          name: '',
+          phone: '',
+          address: '',
+          complement: ''
+        });
+        setRegistrationData({
+          email: '',
+          dateOfBirth: '',
+          whatsappConsent: true
+        });
+        setIsFirstOrder(false);
+        setSelectedNeighborhood('');
+        setPaymentMethod('money');
+        setChangeFor(undefined);
+        setAppliedCashback(0);
+        setCustomerBalance(null);
+        
+        // Clear cart
+        onOrderComplete();
+        
+        // Keep modal open for new order
+        return;
+      } else {
+        // Redirect to tracking
+        window.location.href = `/pedido/${order.id}`;
+        onOrderComplete();
+      }
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
       alert(`Erro ao criar pedido: ${error instanceof Error ? error.message : 'Tente novamente'}`);
@@ -171,11 +336,38 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const canProceedToNextStep = () => {
     switch (step) {
       case 'customer':
-        return customerData.name.trim() && customerData.phone.length >= 11;
+        const nameValid = validateName(customerData.name);
+        const phoneValid = customerData.phone.replace(/\D/g, '').length === 11;
+        return nameValid && phoneValid;
+      case 'register':
+        // Validar campos de cadastro se preenchidos
+        if (registrationData.email.trim() && 
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registrationData.email)) {
+          return false;
+        }
+        
+        if (registrationData.dateOfBirth.trim()) {
+          const birthDate = new Date(registrationData.dateOfBirth);
+          const today = new Date();
+          const age = today.getFullYear() - birthDate.getFullYear();
+          
+          if (age < 0 || age > 120) {
+            return false;
+          }
+        }
+        
+        return true;
       case 'delivery':
-        return customerData.address.trim() && selectedNeighborhood;
+        const addressValid = customerData.address.trim().length >= 10;
+        const neighborhoodValid = selectedNeighborhood && 
+          neighborhoods.some(n => n.name === selectedNeighborhood);
+        return addressValid && neighborhoodValid;
       case 'payment':
-        return paymentMethod && (paymentMethod !== 'money' || !changeFor || changeFor >= getFinalTotal());
+        if (!paymentMethod) return false;
+        if (paymentMethod === 'money' && changeFor && changeFor < getFinalTotal()) {
+          return false;
+        }
+        return true;
       case 'review':
         return true;
       default:
@@ -184,7 +376,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   const nextStep = () => {
-    const steps = ['customer', 'delivery', 'payment', 'review'] as const;
+    // Skip registration step if not first order
+    const steps = isFirstOrder 
+      ? ['customer', 'register', 'delivery', 'payment', 'review'] as const
+      : ['customer', 'delivery', 'payment', 'review'] as const;
     const currentIndex = steps.indexOf(step);
     if (currentIndex < steps.length - 1) {
       setStep(steps[currentIndex + 1]);
@@ -192,7 +387,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   const prevStep = () => {
-    const steps = ['customer', 'delivery', 'payment', 'review'] as const;
+    // Skip registration step if not first order
+    const steps = isFirstOrder 
+      ? ['customer', 'register', 'delivery', 'payment', 'review'] as const
+      : ['customer', 'delivery', 'payment', 'review'] as const;
     const currentIndex = steps.indexOf(step);
     if (currentIndex > 0) {
       setStep(steps[currentIndex - 1]);
@@ -234,9 +432,17 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         {/* Progress Bar */}
         <div className="bg-gray-100 px-6 py-3">
           <div className="flex items-center justify-between text-sm">
-            {['customer', 'delivery', 'payment', 'review'].map((stepName, index) => {
-              const stepLabels = ['Dados', 'Entrega', 'Pagamento', 'Revisar'];
-              const currentIndex = ['customer', 'delivery', 'payment', 'review'].indexOf(step);
+            {(isFirstOrder 
+              ? ['customer', 'register', 'delivery', 'payment', 'review']
+              : ['customer', 'delivery', 'payment', 'review']
+            ).map((stepName, index) => {
+              const stepLabels = isFirstOrder 
+                ? ['Dados', 'Cadastro', 'Entrega', 'Pagamento', 'Revisar']
+                : ['Dados', 'Entrega', 'Pagamento', 'Revisar'];
+              const allSteps = isFirstOrder 
+                ? ['customer', 'register', 'delivery', 'payment', 'review']
+                : ['customer', 'delivery', 'payment', 'review'];
+              const currentIndex = allSteps.indexOf(step);
               const isActive = index === currentIndex;
               const isCompleted = index < currentIndex;
               
@@ -282,8 +488,19 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Seu nome completo"
                     required
+                    minLength={2}
                   />
                 </div>
+                {customerData.name.trim() && !validateName(customerData.name) && (
+                  <p className="text-xs text-red-600 mt-1">
+                    {customerData.name.trim().length < 2 
+                      ? 'Nome deve ter pelo menos 2 caracteres'
+                      : /\d/.test(customerData.name) 
+                        ? 'Nome não pode conter números'
+                        : 'Nome inválido'
+                    }
+                  </p>
+                )}
               </div>
 
               <div>
@@ -303,11 +520,37 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="(85) 99999-9999"
                     required
+                    minLength={15}
+                    maxLength={15}
                   />
                 </div>
+                {customerData.phone && customerData.phone.replace(/\D/g, '').length > 0 && customerData.phone.replace(/\D/g, '').length !== 11 && (
+                  <p className="text-xs text-red-600 mt-1">
+                    Telefone deve ter 11 dígitos (DDD + 9 dígitos)
+                  </p>
+                )}
                 <p className="text-xs text-gray-500 mt-1">
                   Usado para contato e cashback
                 </p>
+                {checkingCustomer && (
+                  <div className="flex items-center gap-2 mt-2 text-blue-600 text-sm">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    Verificando cliente...
+                  </div>
+                )}
+                {isFirstOrder && customerData.phone.length >= 11 && !checkingCustomer && (
+                  <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                      </svg>
+                      <div>
+                        <p className="text-green-800 font-medium text-sm">🎉 Bem-vindo à Elite Açaí!</p>
+                        <p className="text-green-700 text-sm">Primeiro pedido detectado. Complete seu cadastro para ganhar cashback!</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Cashback Display */}
@@ -329,6 +572,105 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   />
                 </div>
               )}
+            </div>
+          )}
+
+          {step === 'register' && isFirstOrder && (
+            <div className="space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center gap-2">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" />
+                  </svg>
+                  <div>
+                    <h3 className="font-medium text-green-800">Complete seu cadastro</h3>
+                    <p className="text-green-700 text-sm">Ganhe vantagens exclusivas!</p>
+                  </div>
+                </div>
+              </div>
+              
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Dados Adicionais</h3>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  E-mail (opcional)
+                </label>
+                <input
+                  type="email"
+                  value={registrationData.email}
+                  onChange={(e) => setRegistrationData(prev => ({ ...prev, email: e.target.value }))}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="seu@email.com"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Para receber promoções e ofertas especiais
+                </p>
+                {registrationData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registrationData.email) && (
+                  <p className="text-xs text-red-600 mt-1">
+                    Formato de e-mail inválido
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Data de Nascimento (opcional)
+                </label>
+                <input
+                  type="date"
+                  value={registrationData.dateOfBirth}
+                  onChange={(e) => setRegistrationData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  max={new Date().toISOString().split('T')[0]}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Para ofertas especiais de aniversário
+                </p>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={registrationData.whatsappConsent}
+                    onChange={(e) => setRegistrationData(prev => ({ ...prev, whatsappConsent: e.target.checked }))}
+                    className="w-4 h-4 text-blue-600 mt-1"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-blue-800">
+                      Aceito receber notificações via WhatsApp
+                    </span>
+                    <p className="text-blue-700 text-xs mt-1">
+                      Status do pedido, promoções e ofertas especiais
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              <div className="bg-gradient-to-r from-purple-50 to-green-50 border border-purple-200 rounded-lg p-4">
+                <h4 className="font-medium text-purple-800 mb-2 flex items-center gap-2">
+                  <Gift size={18} />
+                  Vantagens do seu cadastro
+                </h4>
+                <ul className="text-sm text-purple-700 space-y-1">
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-600">✓</span>
+                    <span>5% de cashback em todos os pedidos</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-600">✓</span>
+                    <span>Promoções exclusivas por WhatsApp</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-600">✓</span>
+                    <span>Ofertas especiais de aniversário</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <span className="text-green-600">✓</span>
+                    <span>Histórico de pedidos sempre disponível</span>
+                  </li>
+                </ul>
+              </div>
             </div>
           )}
 
@@ -387,6 +729,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
               {selectedNeighborhood && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-800 mb-2">Resumo da Entrega</h4>
                   <div className="flex justify-between items-center">
                     <span className="text-blue-700">Taxa de entrega:</span>
                     <span className="font-semibold text-blue-800">{formatPrice(getDeliveryFee())}</span>
@@ -394,6 +737,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <div className="flex justify-between items-center">
                     <span className="text-blue-700">Tempo estimado:</span>
                     <span className="font-semibold text-blue-800">{getEstimatedTime()} minutos</span>
+                  </div>
+                  <div className="flex justify-between items-center mt-2 pt-2 border-t border-blue-200">
+                    <span className="text-blue-700">Total com entrega:</span>
+                    <span className="font-bold text-blue-900">{formatPrice(totalPrice + getDeliveryFee())}</span>
                   </div>
                 </div>
               )}

@@ -98,35 +98,36 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
             line-height: 1.3;
             color: black;
             background: white;
-            padding: 1mm;
+            padding: 0mm;
+            margin: 0;
             width: 78mm;
-            margin: 0 auto;
+            overflow: visible;
           }
           
           .center { text-align: center; }
-          .bold { font-weight: 900; color: #000000 !important; }
-          .title { font-weight: 900; color: #000000 !important; font-size: 16px !important; }
-          .subtitle { font-weight: bold; color: #333333 !important; font-size: 14px !important; }
-          .small { font-size: 12px; font-weight: normal; color: #000000 !important; }
-          .text { font-size: 14px; font-weight: normal; color: #000000 !important; }
-          .value { font-size: 14px; font-weight: bold; color: #000000 !important; }
+          .bold { font-weight: 900 !important; color: #000000 !important; }
+          .title { font-weight: 900 !important; color: #000000 !important; font-size: 16px !important; }
+          .subtitle { font-weight: bold !important; color: #000000 !important; font-size: 14px !important; }
+          .small { font-size: 12px; font-weight: bold !important; color: #000000 !important; }
+          .text { font-size: 14px; font-weight: bold !important; color: #000000 !important; }
+          .value { font-size: 14px; font-weight: 900 !important; color: #000000 !important; }
           .separator { 
             border-bottom: 2px solid #000000; 
-            margin: 3px 0; 
-            padding-bottom: 3px; 
+            margin: 2px 0; 
+            padding-bottom: 2px; 
           }
           .separator-light { 
             border-bottom: 1px dashed #666666; 
-            margin: 2px 0; 
-            padding-bottom: 2px; 
+            margin: 1px 0; 
+            padding-bottom: 1px; 
           }
           .flex-between { 
             display: flex; 
             justify-content: space-between; 
             align-items: center;
             width: 100%;
-            font-weight: normal;
-            color: #000000;
+            font-weight: bold !important;
+            color: #000000 !important;
           }
           .mb-1 { margin-bottom: 2px; }
           .mb-2 { margin-bottom: 3px; }
@@ -144,20 +145,20 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
           }
           
           .section-title {
-            font-weight: bold !important;
+            font-weight: 900 !important;
             color: #000000 !important;
             font-size: 15px !important;
             text-transform: uppercase;
           }
           
           .item-label {
-            font-weight: normal !important;
-            color: #333333 !important;
+            font-weight: bold !important;
+            color: #000000 !important;
             font-size: 13px !important;
           }
           
           .item-value {
-            font-weight: bold !important;
+            font-weight: 900 !important;
             color: #000000 !important;
             font-size: 13px !important;
           }
@@ -245,7 +246,7 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
 
         <!-- Totais por Forma de Pagamento -->
         <div class="mb-3 separator">
-          <div class="section-title mb-1">POR FORMA DE PAGAMENTO:</div>
+          <div class="section-title mb-1" style="color: black !important; font-weight: bold !important;">POR FORMA DE PAGAMENTO:</div>
           <div>
             ${['dinheiro', 'pix', 'cartao_credito', 'cartao_debito'].map(method => {
               const methodEntries = entries.filter(e => e.payment_method === method);
@@ -256,8 +257,8 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
               if (total !== 0) {
                 return `
                   <div class="flex-between">
-                    <span class="item-label">${getPaymentMethodLabel(method)}:</span>
-                    <span class="item-value">${formatPrice(total)}</span>
+                    <span class="item-label" style="color: black !important;">${getPaymentMethodLabel(method)}:</span>
+                    <span class="item-value" style="color: black !important; font-weight: bold !important;">${formatPrice(total)}</span>
                   </div>
                 `;
               }
@@ -267,21 +268,22 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
         </div>
 
         <!-- Rodapé -->
-        <div class="center" style="border-top: 3px solid #000000; padding-top: 5px;">
+        <div class="center" style="border-top: 2px solid black; padding-top: 5px; color: black !important;">
           <div class="mb-2">
-            <div class="section-title">RELATÓRIO DE CAIXA</div>
-            <div class="subtitle">Elite Açaí - Sistema PDV</div>
+            <div class="section-title" style="color: black !important; font-weight: bold !important;">RELATÓRIO DE CAIXA</div>
+            <div class="subtitle" style="color: black !important; font-weight: bold !important;">Elite Açaí - Sistema PDV</div>
           </div>
           
           <div class="mb-2">
-            <div class="text">Operador: <span class="value">Sistema</span></div>
-            <div class="text">Impresso: <span class="value">${new Date().toLocaleString('pt-BR')}</span></div>
+            <div class="text" style="color: black !important;">Operador: <span class="value" style="color: black !important; font-weight: bold !important;">Sistema</span></div>
+            <div class="text" style="color: black !important;">Impresso: <span class="value" style="color: black !important; font-weight: bold !important;">${new Date().toLocaleString('pt-BR')}</span></div>
           </div>
+          
 
-          <div style="margin-top: 8px; padding-top: 5px; border-top: 2px solid #000000;">
-            <div class="small">Elite Açaí - CNPJ: 38.130.139/0001-22</div>
-            <div class="small">Este é um relatório interno</div>
-            <div class="small">Não é um documento fiscal</div>
+          <div style="margin-top: 8px; padding-top: 5px; border-top: 2px solid black;">
+            <div class="small" style="color: black !important;">Elite Açaí - CNPJ: 38.130.139/0001-22</div>
+            <div class="small" style="color: black !important;">Este é um relatório interno</div>
+            <div class="small" style="color: black !important;">Não é um documento fiscal</div>
           </div>
         </div>
       </body>
@@ -731,15 +733,15 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
             color: #333333 !important;
             font-weight: normal !important;
           }
-          
-          .thermal-print-content .item-value {
+            font-weight: bold !important;
+            color: black !important;
             color: #000000 !important;
             font-weight: bold !important;
           }
           
           .thermal-print-content .total-value {
             color: #000000 !important;
-            font-weight: 900 !important;
+            color: black !important;
             font-size: 15px !important;
           }
         }

@@ -218,7 +218,7 @@ const ProductsPanel: React.FC = () => {
   });
   const [draggedGroupIndex, setDraggedGroupIndex] = useState<number | null>(null);
   const [draggedOptionIndex, setDraggedOptionIndex] = useState<{ groupIndex: number; optionIndex: number } | null>(null);
-  const { error, fixProduct, debugProduct } = useProductScheduling();
+  const { error, debugProduct } = useProductScheduling();
   const [selectedProductForSchedule, setSelectedProductForSchedule] = useState<any | null>(null);
   
   const { getProductSchedule, saveProductSchedule } = useProductScheduling();
@@ -399,6 +399,60 @@ const ProductsPanel: React.FC = () => {
   };
 
   const handleEdit = (product: any) => {
+    console.log('📝 Iniciando edição do produto:', {
+      productName: product.name,
+      productId: product.id,
+      hasComplements: product.has_complements,
+      complementGroupsFromDB: product.complement_groups
+    });
+    
+    console.log('📝 Editando produto:', {
+      id: product.id,
+      name: product.name,
+      has_complements: product.has_complements || false,
+      complement_groups: product.complement_groups,
+      complement_groups_type: typeof product.complement_groups,
+      complement_groups_length: Array.isArray(product.complement_groups) ? product.complement_groups.length : 'não é array'
+    });
+    
+    // Processar complement_groups corretamente
+    let complementGroups: ComplementGroup[] = [];
+    let hasComplements = false;
+    
+    if (product.complement_groups) {
+      try {
+        if (Array.isArray(product.complement_groups)) {
+          complementGroups = product.complement_groups.map((group: any) => ({
+            ...group,
+            options: Array.isArray(group.options) 
+              ? group.options.map((option: any) => ({
+                  ...option,
+                  is_active: option.is_active !== false
+                }))
+              : Array.isArray(group.complements) 
+                ? group.complements.map((comp: any) => ({
+                    name: comp.name,
+                    price: comp.price || 0,
+                    description: comp.description || '',
+                    is_active: comp.isActive !== false
+                  }))
+                : []
+          }));
+          hasComplements = true;
+        }
+      } catch (error) {
+        console.error('❌ Erro ao processar complement_groups:', error);
+        complementGroups = [];
+        hasComplements = false;
+      }
+    }
+    
+    console.log('✅ Grupos de complementos processados:', {
+      hasComplements,
+      groupsCount: complementGroups.length,
+      groups: complementGroups.map(g => ({ name: g.name, optionsCount: g.options.length }))
+    });
+    
     const productData: ProductFormData = {
       id: product.id,
       name: product.name,
@@ -409,15 +463,15 @@ const ProductsPanel: React.FC = () => {
       description: product.description,
       is_active: product.is_active,
       is_weighable: product.is_weighable,
-      price_per_gram: product.price_per_gram,
-      has_complements: product.has_complements,
-      complement_groups: Array.isArray(product.complement_groups) 
-        ? product.complement_groups.map(group => ({
-            ...group,
-            options: Array.isArray(group.options) ? group.options : []
-          }))
-        : []
+      has_complements: hasComplements,
+      complement_groups: complementGroups
     };
+    
+    console.log('✅ Dados do produto mapeados para edição:', {
+      hasComplements: productData.has_complements,
+      complementGroupsCount: productData.complement_groups?.length || 0,
+      groups: productData.complement_groups?.map(g => ({ name: g.name, optionsCount: g.options.length }))
+    });
     
     setFormData(productData);
     setEditingProduct(productData);
@@ -444,35 +498,30 @@ const ProductsPanel: React.FC = () => {
     }
     
     console.log('🚀 Iniciando salvamento do produto:', {
-      isEditing: !!editingProduct,
+      isEditing: !!formData.id,
       formData,
-      productId: editingProduct?.id
+      productId: formData.id
     });
 
-    // For updates, validate that we have a valid product ID
-    if (editingProduct && (!editingProduct.id || editingProduct.id.startsWith('temp-'))) {
-      alert('Erro: ID do produto inválido. Tente recarregar a página e criar o produto novamente.');
-      setShowModal(false);
-      return;
-    }
-    
     try {
       console.log('💾 Iniciando salvamento:', {
-        productId: editingProduct?.id,
+        productId: formData.id,
         productName: formData.name,
-        isCreating: !editingProduct,
+        isCreating: !formData.id,
         updates: formData
       });
       
       let savedProduct;
       
-      if (!editingProduct) {
+      if (!formData.id) {
         // Creating new product
-        savedProduct = await createDeliveryProduct(formData);
+        const { id, ...createData } = formData;
+        savedProduct = await createDeliveryProduct(createData);
         console.log('✅ Novo produto criado:', savedProduct);
       } else {
         // Updating existing product
-        savedProduct = await updateDeliveryProduct(editingProduct.id, formData);
+        const { id, ...updateData } = formData;
+        savedProduct = await updateDeliveryProduct(formData.id, updateData);
         console.log('✅ Produto atualizado:', savedProduct);
       }
       
@@ -480,7 +529,7 @@ const ProductsPanel: React.FC = () => {
       resetForm();
       
       // Show success message
-      alert(`Produto ${editingProduct ? 'atualizado' : 'criado'} com sucesso!`);
+      alert(`Produto ${formData.id ? 'atualizado' : 'criado'} com sucesso!`);
       
       // Refresh products list
       
@@ -502,7 +551,7 @@ const ProductsPanel: React.FC = () => {
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
           </svg>
-          Produto excluído com sucesso!
+          Produto ${formData.id ? 'atualizado' : 'criado'} com sucesso!
         `;
         document.body.appendChild(successMessage);
         
@@ -510,15 +559,11 @@ const ProductsPanel: React.FC = () => {
           if (document.body.contains(successMessage)) {
             document.body.removeChild(successMessage);
           }
-          // Continue with next product instead of breaking the loop
         }, 3000);
         
       } catch (error) {
         console.log('Delivery refresh não disponível:', error);
       }
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
       
     } catch (error) {
       console.error('Erro ao salvar produto:', error);
@@ -531,7 +576,7 @@ const ProductsPanel: React.FC = () => {
       console.error('Erro completo:', {
         error,
         formData,
-        editingProduct
+        productId: formData.id
       });
     }
   };
@@ -685,6 +730,7 @@ const ProductsPanel: React.FC = () => {
   };
 
   const addComplementGroup = () => {
+    console.log('➕ Adicionando novo grupo de complementos...');
     const newGroup: ComplementGroup = {
       name: "Novo Grupo",
       required: false,
@@ -693,27 +739,68 @@ const ProductsPanel: React.FC = () => {
       options: []
     };
     
-    setFormData(prev => ({
-      ...prev,
-      complement_groups: [...(prev.complement_groups || []), newGroup]
-    }));
+    setFormData(prev => {
+      const newComplementGroups = [...(prev.complement_groups || []), newGroup];
+      const updatedData = {
+        ...prev,
+        complement_groups: newComplementGroups,
+        has_complements: true
+      };
+      
+      console.log('✅ Novo grupo adicionado:', {
+        totalGroups: updatedData.complement_groups.length,
+        newGroupName: newGroup.name,
+        hasComplements: updatedData.has_complements
+      });
+      
+      return updatedData;
+    });
   };
 
   const updateComplementGroup = (groupIndex: number, updates: Partial<ComplementGroup>) => {
-    setFormData(prev => ({
-      ...prev,
-      complement_groups: prev.complement_groups?.map((group, index) =>
+    console.log('✏️ Atualizando grupo:', { groupIndex, updates });
+    
+    setFormData(prev => {
+      const updatedGroups = prev.complement_groups?.map((group, index) =>
         index === groupIndex ? { ...group, ...updates } : group
-      ) || []
-    }));
+      ) || [];
+      
+      const updatedData = {
+        ...prev,
+        complement_groups: updatedGroups
+      };
+      
+      console.log('✅ Grupo atualizado:', {
+        groupIndex,
+        updates,
+        totalGroups: updatedData.complement_groups.length
+      });
+      
+      return updatedData;
+    });
   };
 
   const removeComplementGroup = (groupIndex: number) => {
-    setFormData(prev => ({
-      ...prev,
-      complement_groups: prev.complement_groups?.filter((_, index) => index !== groupIndex) || []
-    }));
+    console.log('🗑️ Removendo grupo:', { groupIndex });
+    
+    setFormData(prev => {
+      const filteredGroups = prev.complement_groups?.filter((_, index) => index !== groupIndex) || [];
+      const updatedData = {
+        ...prev,
+        complement_groups: filteredGroups,
+        has_complements: filteredGroups.length > 0
+      };
+      
+      console.log('✅ Grupo removido:', {
+        removedGroupIndex: groupIndex,
+        remainingGroups: updatedData.complement_groups.length,
+        hasComplements: updatedData.has_complements
+      });
+      
+      return updatedData;
+    });
   };
+
 
   const addComplementOption = (groupIndex: number) => {
     const newOption: ComplementOption = {
@@ -1199,7 +1286,16 @@ const ProductsPanel: React.FC = () => {
                     <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, complement_groups: DEFAULT_COMPLEMENT_GROUPS }))}
+                        onClick={() => {
+                          console.log('🔄 Aplicando grupos padrão de complementos...');
+                          const updatedFormData = { 
+                            ...formData, 
+                            complement_groups: [...DEFAULT_COMPLEMENT_GROUPS],
+                            has_complements: true 
+                          };
+                          console.log('✅ Grupos padrão aplicados:', updatedFormData.complement_groups);
+                          setFormData(updatedFormData);
+                        }}
                         className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 text-sm"
                       >
                         <Package className="w-4 h-4" />
@@ -1207,7 +1303,11 @@ const ProductsPanel: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={addComplementGroup}
+                        onClick={() => {
+                          console.log('➕ Adicionando novo grupo de complementos...');
+                          addComplementGroup();
+                          console.log('✅ Grupo adicionado, total de grupos:', (formData.complement_groups || []).length + 1);
+                        }}
                         className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 text-sm"
                       >
                         <Plus className="w-4 h-4" />

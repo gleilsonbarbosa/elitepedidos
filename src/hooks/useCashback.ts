@@ -18,7 +18,7 @@ export const useCashback = () => {
         .from('customers')
         .select('*')
         .eq('phone', cleanPhone)
-        .single();
+        .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
         throw error;
