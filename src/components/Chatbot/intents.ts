@@ -118,7 +118,7 @@ export const intents: Intent[] = [
   {
     id: 'location',
     keywords: ['localização', 'localizacao', 'endereço', 'endereco', 'onde fica', 'onde vocês ficam', 'onde voces ficam', 'loja', 'lojas'],
-    response: "📍 **NOSSAS LOJAS:**\n\n🏡 **Loja 1:**\nRua Dois, 2130‑A – Residencial 1 – Cágado\n🕐 Aberta das 17h às 23h\n\n🏡 **Loja 2:**\nRua Um, 1614‑C – Residencial 1 – Cágado\n🕐 Aberta das 16h às 23h\n\nAmbas as lojas oferecem delivery e atendimento presencial! 😊",
+    response: "📍 **NOSSAS LOJAS:**\n\n🏡 **Loja 1:**\nRua Dois, 2130‑A – Residencial 1 – Cágado\n🕐 Aberta das 17h às 23h\n\n🏡 **Loja 2:**\nRua Um, 1614‑C – Residencial 1 – Cágado\n🕐 Aberta das 17h às 23h\n\nAmbas as lojas oferecem delivery e atendimento presencial! 😊",
     priority: 5
   },
   

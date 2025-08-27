@@ -407,6 +407,17 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
     return result.filter(p => p.is_active);
   }, [products, searchProducts, searchTerm, selectedCategory]);
 
+  // Limitar a apenas 4 mesas
+  const limitedTables = tables.slice(0, 4);
+
+  // Calcular estatísticas apenas das mesas exibidas
+  const limitedStats = {
+    total: limitedTables.length,
+    free: limitedTables.filter(table => table.status === 'livre').length,
+    occupied: limitedTables.filter(table => table.status === 'ocupada').length,
+    waitingBill: limitedTables.filter(table => table.status === 'aguardando_conta').length
+  };
+
   const categories = [
     { id: 'all', label: 'Todas' },
     { id: 'acai', label: 'Açaí' },
@@ -477,7 +488,7 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Total</p>
-              <p className="text-2xl font-bold text-gray-800">{stats.total}</p>
+              <p className="text-2xl font-bold text-gray-800">{limitedStats.total}</p>
             </div>
             <Users className="w-8 h-8 text-gray-500" />
           </div>
@@ -487,7 +498,7 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Livres</p>
-              <p className="text-2xl font-bold text-green-600">{stats.free}</p>
+              <p className="text-2xl font-bold text-green-600">{limitedStats.free}</p>
             </div>
             <CheckCircle className="w-8 h-8 text-green-500" />
           </div>
@@ -497,7 +508,7 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Ocupadas</p>
-              <p className="text-2xl font-bold text-red-600">{stats.occupied}</p>
+              <p className="text-2xl font-bold text-red-600">{limitedStats.occupied}</p>
             </div>
             <User className="w-8 h-8 text-red-500" />
           </div>
@@ -507,7 +518,7 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-600">Aguardando</p>
-              <p className="text-2xl font-bold text-yellow-600">{stats.waitingBill}</p>
+              <p className="text-2xl font-bold text-yellow-600">{limitedStats.waitingBill}</p>
             </div>
             <DollarSign className="w-8 h-8 text-yellow-500" />
           </div>
@@ -526,10 +537,10 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
       {/* Tables Grid */}
       <div className="bg-white rounded-xl shadow-sm p-6">
         <h3 className="text-lg font-semibold text-gray-800 mb-4">
-          Mesas ({tables.length})
+          Mesas (exibindo {limitedTables.length} de {tables.length})
         </h3>
         
-        {tables.length === 0 ? (
+        {limitedTables.length === 0 ? (
           <div className="text-center py-12">
             <Users size={48} className="mx-auto text-gray-300 mb-4" />
             <h3 className="text-lg font-medium text-gray-600 mb-2">
@@ -544,7 +555,7 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-            {tables.map((table) => (
+            {limitedTables.map((table) => (
               <div
                 key={table.id}
                 onClick={() => handleTableClick(table)}
