@@ -217,16 +217,6 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
           ` : ''}
         </div>
         
-        <!-- Link de Acompanhamento -->
-        <div class="mb-3 separator">
-          <div class="section-title mb-1">ACOMPANHE SEU PEDIDO:</div>
-          <div class="item-details">Acesse o link abaixo para</div>
-          <div class="item-details">acompanhar o status do pedido:</div>
-          <div class="item-details mt-2">${window.location.origin}/pedido/${order.id}</div>
-          <div class="item-details mt-2">Ou digite no nosso site:</div>
-          <div class="item-details">Pedido ID: ${order.id.slice(-8)}</div>
-        </div>
-        
         <!-- Rodapé -->
         <div class="center item-details">
           <div class="section-title mb-2">Obrigado pela preferência!</div>
