@@ -9,43 +9,6 @@ import { PDVOperator } from '../types/pdv';
 const AttendancePage: React.FC = () => {
   const navigate = useNavigate();
   const { session, login, logout } = useAttendance();
-  const [pdvOperator, setPdvOperator] = React.useState<PDVOperator | null>(null);
-
-  // Fetch the ADMIN operator from pdv_operators table
-  React.useEffect(() => {
-    const fetchPdvOperator = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('pdv_operators')
-          .select('*')
-          .eq('code', 'ADMIN')
-          .single();
-
-        if (error) {
-          console.error('❌ Error fetching PDV operator:', error);
-          return;
-        }
-
-        if (data) {
-          setPdvOperator(data);
-          console.log('✅ PDV operator fetched:', data);
-        } else {
-          console.warn('⚠️ Nenhum operador ADMIN encontrado');
-          setPdvOperator(null);
-        }
-      } catch (error) {
-        console.error('❌ Error in fetchPdvOperator:', error);
-        if (error instanceof TypeError && error.message === 'Failed to fetch') {
-          console.warn('⚠️ Erro de conexão ao buscar operador - usando modo offline');
-        }
-        setPdvOperator(null);
-      }
-    };
-
-    if (session.isAuthenticated) {
-      fetchPdvOperator();
-    }
-  }, [session.isAuthenticated]);
 
   // Debug logging
   React.useEffect(() => {
@@ -64,9 +27,35 @@ const AttendancePage: React.FC = () => {
 
   // Se está logado, mostrar sistema unificado
   if (session.isAuthenticated) {
-    // Use the fetched PDV operator (ADMIN) for database operations
-    // This ensures the operator_id exists in pdv_operators table
-    const validOperator = pdvOperator || null;
+    // Use the logged in user from the session
+    // Convert attendance user to PDV operator format for compatibility
+    const validOperator = session.user ? {
+      id: session.user.id,
+      name: session.user.name,
+      code: session.user.username,
+      password_hash: '', // Not needed for display
+      is_active: session.user.is_active,
+      permissions: {
+        can_cancel: session.user.permissions.can_cancel || false,
+        can_discount: session.user.permissions.can_discount || false,
+        can_use_scale: session.user.permissions.can_use_scale || false,
+        can_view_sales: session.user.permissions.can_view_sales || false,
+        can_view_orders: session.user.permissions.can_view_orders || false,
+        can_view_reports: session.user.permissions.can_view_reports || false,
+        can_view_products: session.user.permissions.can_view_products || false,
+        can_view_operators: session.user.permissions.can_view_operators || false,
+        can_manage_products: session.user.permissions.can_manage_products || false,
+        can_manage_settings: session.user.permissions.can_manage_settings || false,
+        can_view_attendance: session.user.permissions.can_view_attendance || false,
+        can_view_cash_report: session.user.permissions.can_view_cash_report || false,
+        can_view_sales_report: session.user.permissions.can_view_sales_report || false,
+        can_view_cash_register: session.user.permissions.can_view_cash_register || false,
+        can_view_expected_balance: session.user.permissions.can_view_expected_balance || false
+      },
+      created_at: session.user.created_at,
+      updated_at: session.user.updated_at,
+      last_login: session.user.last_login
+    } : null;
 
     return (
       <UnifiedAttendancePage 
