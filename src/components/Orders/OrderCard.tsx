@@ -102,6 +102,8 @@ const OrderCard: React.FC<OrderCardProps> = ({
     }
     
     message += `Qualquer dúvida, estamos aqui para ajudar! 😊\n\n`;
+    message += `🔗 *ACOMPANHE SEU PEDIDO:*\n`;
+    message += `${window.location.origin}/pedido/${order.id}\n\n`;
     message += `Elite Açaí - O melhor açaí da cidade! 🍧`;
     
     return `https://wa.me/${phoneWithCountryCode}?text=${encodeURIComponent(message)}`;

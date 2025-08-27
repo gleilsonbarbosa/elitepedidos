@@ -289,6 +289,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         `📋 ID: ${order.id.slice(-8)}\n` +
         `👤 Cliente: ${customerData.name}\n` +
         `💰 Total: ${formatPrice(getFinalTotal())}\n\n` +
+        `🔗 Link de acompanhamento:\n` +
+        `${window.location.origin}/pedido/${order.id}\n\n` +
         `Deseja fazer um novo pedido?\n\n` +
         `• OK = Fazer novo pedido\n` +
         `• Cancelar = Acompanhar este pedido`
@@ -325,6 +327,21 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         window.location.href = `/pedido/${order.id}`;
         onOrderComplete();
       }
+      // Show simple success message
+      alert(
+        `🎉 Pedido criado com sucesso!\n\n` +
+        `📋 ID: ${order.id.slice(-8)}\n` +
+        `👤 Cliente: ${customerData.name}\n` +
+        `💰 Total: ${formatPrice(getFinalTotal())}\n\n` +
+        `🔗 Você será redirecionado para acompanhar seu pedido!\n\n` +
+        `Obrigado pela preferência! 😊`
+      );
+      
+      // Clear cart and close modal
+      onOrderComplete();
+      
+      // Redirect directly to order tracking
+      window.location.href = `/pedido/${order.id}`;
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
       alert(`Erro ao criar pedido: ${error instanceof Error ? error.message : 'Tente novamente'}`);

@@ -174,7 +174,17 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({ onClose, onOrderCreat
         onOrderCreated(newOrder.id);
       }
       
-      alert('Pedido criado com sucesso!');
+      const orderTrackingLink = `${window.location.origin}/pedido/${newOrder.id}`;
+      
+      alert(
+        `🎉 Pedido criado com sucesso!\n\n` +
+        `📋 ID: ${newOrder.id.slice(-8)}\n` +
+        `👤 Cliente: ${customerName}\n` +
+        `💰 Total: ${formatPrice(getTotalPrice() + getDeliveryFee())}\n\n` +
+        `🔗 Link de acompanhamento:\n${orderTrackingLink}\n\n` +
+        `O cliente pode usar este link para acompanhar o status do pedido.`
+      );
+      
       onClose();
     } catch (error) {
       console.error('Erro ao criar pedido:', error);

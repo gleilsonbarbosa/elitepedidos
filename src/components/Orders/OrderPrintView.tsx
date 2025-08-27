@@ -46,8 +46,8 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
           
           body {
             font-family: 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.3;
+            font-size: 14px;
+            line-height: 1.4;
             color: black;
             background: white;
             padding: 2mm;
@@ -55,24 +55,60 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
           }
           
           .center { text-align: center; }
-          .bold { font-weight: bold; }
-          .small { font-size: 10px; }
+          .bold { font-weight: 900 !important; }
+          .small { font-size: 12px; font-weight: bold !important; }
+          .medium { font-size: 14px; font-weight: bold !important; }
+          .large { font-size: 16px; font-weight: 900 !important; }
           .separator { 
-            border-bottom: 1px dashed black; 
-            margin: 5px 0; 
-            padding-bottom: 5px; 
+            border-bottom: 2px solid black; 
+            margin: 6px 0; 
+            padding-bottom: 6px; 
           }
           .flex-between { 
             display: flex; 
             justify-content: space-between; 
             align-items: center;
           }
-          .mb-1 { margin-bottom: 2px; }
-          .mb-2 { margin-bottom: 5px; }
-          .mb-3 { margin-bottom: 8px; }
+          .mb-1 { margin-bottom: 3px; }
+          .mb-2 { margin-bottom: 6px; }
+          .mb-3 { margin-bottom: 9px; }
           .mt-1 { margin-top: 2px; }
           .mt-2 { margin-top: 5px; }
           .ml-2 { margin-left: 8px; }
+          
+          /* Novos estilos para melhor legibilidade */
+          .header-title { 
+            font-size: 18px; 
+            font-weight: 900 !important; 
+            color: black !important; 
+            margin-bottom: 4px;
+          }
+          .section-title { 
+            font-size: 15px; 
+            font-weight: 900 !important; 
+            color: black !important; 
+            text-transform: uppercase; 
+          }
+          .item-name { 
+            font-size: 14px; 
+            font-weight: 900 !important; 
+            color: black !important; 
+          }
+          .item-details { 
+            font-size: 12px; 
+            font-weight: bold !important; 
+            color: black !important; 
+          }
+          .price-value { 
+            font-size: 14px; 
+            font-weight: 900 !important; 
+            color: black !important; 
+          }
+          .total-value { 
+            font-size: 16px; 
+            font-weight: 900 !important; 
+            color: black !important; 
+          }
           
           img {
             max-width: 60mm;
@@ -85,8 +121,8 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
       <body>
         <!-- Cabeçalho -->
         <div class="center mb-3 separator">
-          <div class="bold" style="font-size: 16px;">ELITE AÇAÍ</div>
-          <div class="small">Delivery Premium</div>
+          <div class="header-title">ELITE AÇAÍ</div>
+          <div class="medium">DELIVERY PREMIUM</div>
           <div class="small">Rua Um, 1614-C</div>
           <div class="small">Residencial 1 - Cágado</div>
           <div class="small">Tel: (85) 98904-1010</div>
@@ -96,101 +132,111 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
         ${order.payment_method === 'pix' ? `
         <!-- QR Code PIX -->
         <div class="center mb-3 separator">
-          <div class="bold mb-2">QR CODE PIX</div>
+          <div class="section-title mb-2">QR CODE PIX</div>
           <div class="small">Chave PIX: 85989041010</div>
           <div class="small">Nome: Amanda Suyelen da Costa Pereira</div>
-          <div class="bold">Valor: ${formatPrice(order.total_price)}</div>
+          <div class="price-value">Valor: ${formatPrice(order.total_price)}</div>
         </div>
         ` : ''}
         
         <!-- Dados do Pedido -->
         <div class="mb-3 separator">
-          <div class="bold center mb-2">=== PEDIDO DE DELIVERY ===</div>
-          <div class="small">Pedido: #${order.id.slice(-8)}</div>
-          <div class="small">Data: ${new Date(order.created_at).toLocaleDateString('pt-BR')}</div>
-          <div class="small">Hora: ${new Date(order.created_at).toLocaleTimeString('pt-BR')}</div>
-          <div class="small">Status: ${getStatusLabel(order.status)}</div>
+          <div class="section-title center mb-2">=== PEDIDO DE DELIVERY ===</div>
+          <div class="medium">Pedido: #${order.id.slice(-8)}</div>
+          <div class="item-details">Data: ${new Date(order.created_at).toLocaleDateString('pt-BR')}</div>
+          <div class="item-details">Hora: ${new Date(order.created_at).toLocaleTimeString('pt-BR')}</div>
+          <div class="item-details">Status: ${getStatusLabel(order.status)}</div>
         </div>
         
         <!-- Cliente -->
         <div class="mb-3 separator">
-          <div class="bold mb-1">DADOS DO CLIENTE:</div>
-          <div class="small">Nome: ${order.customer_name}</div>
-          <div class="small">Telefone: ${order.customer_phone}</div>
-          <div class="small">Endereço: ${order.customer_address}</div>
-          <div class="small">Bairro: ${order.customer_neighborhood}</div>
-          ${order.customer_complement ? `<div class="small">Complemento: ${order.customer_complement}</div>` : ''}
+          <div class="section-title mb-1">DADOS DO CLIENTE:</div>
+          <div class="item-details">Nome: ${order.customer_name}</div>
+          <div class="item-details">Telefone: ${order.customer_phone}</div>
+          <div class="item-details">Endereço: ${order.customer_address}</div>
+          <div class="item-details">Bairro: ${order.customer_neighborhood}</div>
+          ${order.customer_complement ? `<div class="item-details">Complemento: ${order.customer_complement}</div>` : ''}
         </div>
         
         <!-- Itens -->
         <div class="mb-3 separator">
-          <div class="bold mb-1">ITENS DO PEDIDO:</div>
+          <div class="section-title mb-1">ITENS DO PEDIDO:</div>
           ${order.items.map((item, index) => `
             <div class="mb-2">
-              <div class="bold">${item.product_name}</div>
-              ${item.selected_size ? `<div class="small">Tamanho: ${item.selected_size}</div>` : ''}
+              <div class="item-name">${item.product_name}</div>
+              ${item.selected_size ? `<div class="item-details">Tamanho: ${item.selected_size}</div>` : ''}
               <div class="flex-between">
-                <span class="small">${item.quantity}x ${formatPrice(item.unit_price)}</span>
-                <span class="small">${formatPrice(item.total_price)}</span>
+                <span class="item-details">${item.quantity}x ${formatPrice(item.unit_price)}</span>
+                <span class="price-value">${formatPrice(item.total_price)}</span>
               </div>
               ${item.complements && item.complements.length > 0 ? `
                 <div class="ml-2 mt-1">
-                  <div class="small">Complementos:</div>
+                  <div class="item-details">Complementos:</div>
                   ${item.complements.map(comp => `
-                    <div class="small ml-2">• ${comp.name}${comp.price > 0 ? ` (+${formatPrice(comp.price)})` : ''}</div>
+                    <div class="item-details ml-2">• ${comp.name}${comp.price > 0 ? ` (+${formatPrice(comp.price)})` : ''}</div>
                   `).join('')}
                 </div>
               ` : ''}
-              ${item.observations ? `<div class="small ml-2 mt-1">Obs: ${item.observations}</div>` : ''}
+              ${item.observations ? `<div class="item-details ml-2 mt-1">⚠️ OBS: ${item.observations}</div>` : ''}
             </div>
           `).join('')}
         </div>
         
         <!-- Resumo -->
         <div class="mb-3 separator">
-          <div class="bold mb-1">RESUMO:</div>
+          <div class="section-title mb-1">RESUMO:</div>
           <div class="flex-between">
-            <span class="small">Subtotal:</span>
-            <span class="small">${formatPrice(order.total_price - (order.delivery_fee || 0))}</span>
+            <span class="item-details">Subtotal:</span>
+            <span class="price-value">${formatPrice(order.total_price - (order.delivery_fee || 0))}</span>
           </div>
           ${order.delivery_fee && order.delivery_fee > 0 ? `
           <div class="flex-between">
-            <span class="small">Taxa de Entrega:</span>
-            <span class="small">${formatPrice(order.delivery_fee)}</span>
+            <span class="item-details">Taxa de Entrega:</span>
+            <span class="price-value">${formatPrice(order.delivery_fee)}</span>
           </div>
           ` : ''}
-          <div style="border-top: 1px solid black; padding-top: 3px; margin-top: 3px;">
+          <div style="border-top: 2px solid black; padding-top: 5px; margin-top: 5px;">
             <div class="flex-between bold">
-              <span>TOTAL:</span>
-              <span>${formatPrice(order.total_price)}</span>
+              <span class="section-title">TOTAL:</span>
+              <span class="total-value">${formatPrice(order.total_price)}</span>
             </div>
           </div>
         </div>
         
         <!-- Pagamento -->
         <div class="mb-3 separator">
-          <div class="bold mb-1">PAGAMENTO:</div>
-          <div class="small">Forma: ${getPaymentMethodLabel(order.payment_method)}</div>
-          ${order.change_for ? `<div class="small">Troco para: ${formatPrice(order.change_for)}</div>` : ''}
+          <div class="section-title mb-1">PAGAMENTO:</div>
+          <div class="item-details">Forma: ${getPaymentMethodLabel(order.payment_method)}</div>
+          ${order.change_for ? `<div class="item-details">Troco para: ${formatPrice(order.change_for)}</div>` : ''}
           ${order.payment_method === 'pix' ? `
           <div class="mt-2">
-            <div class="small">⚠️ IMPORTANTE:</div>
-            <div class="small">Envie o comprovante do PIX</div>
-            <div class="small">para confirmar o pedido!</div>
+            <div class="item-details">⚠️ IMPORTANTE:</div>
+            <div class="item-details">Envie o comprovante do PIX</div>
+            <div class="item-details">para confirmar o pedido!</div>
           </div>
           ` : ''}
         </div>
         
+        <!-- Link de Acompanhamento -->
+        <div class="mb-3 separator">
+          <div class="section-title mb-1">ACOMPANHE SEU PEDIDO:</div>
+          <div class="item-details">Acesse o link abaixo para</div>
+          <div class="item-details">acompanhar o status do pedido:</div>
+          <div class="item-details mt-2">${window.location.origin}/pedido/${order.id}</div>
+          <div class="item-details mt-2">Ou digite no nosso site:</div>
+          <div class="item-details">Pedido ID: ${order.id.slice(-8)}</div>
+        </div>
+        
         <!-- Rodapé -->
-        <div class="center small" style="border-top: 1px solid black; padding-top: 5px;">
-          <div class="bold mb-2">Obrigado pela preferência!</div>
-          <div>Elite Açaí - O melhor açaí da cidade!</div>
-          <div>@eliteacai</div>
-          <div>⭐⭐⭐⭐⭐ Avalie-nos no Google</div>
-          <div style="margin-top: 8px; padding-top: 5px; border-top: 1px solid black;">
-            <div>Elite Açaí - CNPJ: ${storeSettings?.cnpj || '00.000.000/0001-00'}</div>
-            <div>Impresso: ${new Date().toLocaleString('pt-BR')}</div>
-            <div>Este não é um documento fiscal</div>
+        <div class="center item-details">
+          <div class="section-title mb-2">Obrigado pela preferência!</div>
+          <div class="item-details">Elite Açaí - O melhor açaí da cidade!</div>
+          <div class="item-details">@eliteacai</div>
+          <div class="item-details">⭐⭐⭐⭐⭐ Avalie-nos no Google</div>
+          <div style="margin-top: 10px; padding-top: 6px; border-top: 2px solid black;">
+            <div class="small">Elite Açaí - CNPJ: ${storeSettings?.cnpj || '38.130.139/0001-22'}</div>
+            <div class="small">Impresso: ${new Date().toLocaleString('pt-BR')}</div>
+            <div class="small">Este não é um documento fiscal</div>
           </div>
         </div>
       </body>
@@ -291,6 +337,10 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
     }
     message += `\n`;
     
+    message += `🔗 *LINK DE ACOMPANHAMENTO:*\n`;
+    message += `${window.location.origin}/pedido/${order.id}\n`;
+    message += `Cliente pode acompanhar status em tempo real\n\n`;
+    
     message += `📱 Sistema de Atendimento - Elite Açaí`;
     
     return encodeURIComponent(message);
@@ -338,95 +388,113 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
 
           {/* Preview */}
           <div className="overflow-y-auto max-h-[calc(90vh-80px)] p-4">
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono text-sm">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono text-sm leading-relaxed">
               <div className="text-center mb-4">
-                <p className="font-bold text-lg">ELITE AÇAÍ</p>
-                <p className="text-sm">Delivery Premium</p>
+                <p className="font-black text-xl">ELITE AÇAÍ</p>
+                <p className="font-bold">DELIVERY PREMIUM</p>
                 <p className="text-xs">Rua Um, 1614-C</p>
                 <p className="text-xs">Residencial 1 - Cágado</p>
                 <p className="text-xs">Tel: (85) 98904-1010</p>
                 <p className="text-xs">CNPJ: {storeSettings?.cnpj || '38.130.139/0001-22'}</p>
-                <p className="text-xs">--------------------------</p>
+                <p className="font-bold">══════════════════════════</p>
               </div>
               
               {/* QR Code PIX - apenas para pagamentos PIX */}
               {order.payment_method === 'pix' && (
-                <div className="text-center mb-4 pb-2 border-b border-dashed border-gray-400">
-                  <div className="font-bold mb-2">QR CODE PIX</div>
+                <div className="text-center mb-4 pb-3 border-b-2 border-solid border-gray-600">
+                  <div className="font-black text-base mb-3">QR CODE PIX</div>
                   <div className="space-y-1">
-                    <div>Chave PIX: 85989041010</div>
-                    <div>Nome: Amanda Suyelen da Costa Pereira</div>
-                    <div className="font-bold">Valor: {formatPrice(order.total_price)}</div>
+                    <div className="font-bold">Chave PIX: 85989041010</div>
+                    <div className="font-bold">Nome: Amanda Suyelen da Costa Pereira</div>
+                    <div className="font-black text-lg">Valor: {formatPrice(order.total_price)}</div>
                   </div>
-                  <p>--------------------------</p>
+                  <p className="font-bold">══════════════════════════</p>
                 </div>
               )}
               
               <div className="mb-3">
-                <p className="text-xs">Pedido: #{order.id.slice(-8)}</p>
-                <p className="text-xs">Data: {new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
-                <p className="text-xs">Hora: {new Date(order.created_at).toLocaleTimeString('pt-BR')}</p>
-                <p className="text-xs">Status: {getStatusLabel(order.status)}</p>
-                <p className="text-xs">--------------------------</p>
+                <p className="font-bold">Pedido: #{order.id.slice(-8)}</p>
+                <p className="font-semibold">Data: {new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
+                <p className="font-semibold">Hora: {new Date(order.created_at).toLocaleTimeString('pt-BR')}</p>
+                <p className="font-semibold">Status: {getStatusLabel(order.status)}</p>
+                <p className="font-bold">══════════════════════════</p>
               </div>
               
               <div className="mb-3">
-                <p className="text-xs font-bold">CLIENTE:</p>
-                <p className="text-xs">Nome: {order.customer_name}</p>
-                <p className="text-xs">Telefone: {order.customer_phone}</p>
-                <p className="text-xs">Endereço: {order.customer_address}</p>
-                <p className="text-xs">Bairro: {order.customer_neighborhood}</p>
-                {order.customer_complement && <p className="text-xs">Complemento: {order.customer_complement}</p>}
-                <p className="text-xs">--------------------------</p>
+                <p className="font-black text-base">DADOS DO CLIENTE:</p>
+                <p className="font-bold">Nome: {order.customer_name}</p>
+                <p className="font-bold">Telefone: {order.customer_phone}</p>
+                <p className="font-bold">Endereço: {order.customer_address}</p>
+                <p className="font-bold">Bairro: {order.customer_neighborhood}</p>
+                {order.customer_complement && <p className="font-bold">Complemento: {order.customer_complement}</p>}
+                <p className="font-bold">══════════════════════════</p>
               </div>
               
               <div className="mb-3">
-                <p className="text-xs font-bold">ITENS:</p>
+                <p className="font-black text-base">ITENS DO PEDIDO:</p>
                 {order.items.map((item, index) => (
-                  <div key={index} className="text-xs mb-2">
-                    <p>{item.product_name}</p>
-                    {item.selected_size && <p>Tamanho: {item.selected_size}</p>}
-                    <p>{item.quantity}x {formatPrice(item.unit_price)} = {formatPrice(item.total_price)}</p>
+                  <div key={index} className="mb-3">
+                    <p className="font-black">{item.product_name}</p>
+                    {item.selected_size && <p className="font-semibold">Tamanho: {item.selected_size}</p>}
+                    <div className="flex justify-between font-bold">
+                      <span>{item.quantity}x {formatPrice(item.unit_price)}</span>
+                      <span>{formatPrice(item.total_price)}</span>
+                    </div>
                     
                     {item.complements && item.complements.length > 0 && (
-                      <div className="ml-2 mt-1">
-                        <p>Complementos:</p>
+                      <div className="ml-2 mt-2">
+                        <p className="font-semibold">Complementos:</p>
                         {item.complements.map((comp, idx) => (
-                          <p key={idx} className="ml-2">• {comp.name}{comp.price > 0 && ` (+${formatPrice(comp.price)})`}</p>
+                          <p key={idx} className="ml-2 font-medium">• {comp.name}{comp.price > 0 && ` (+${formatPrice(comp.price)})`}</p>
                         ))}
                       </div>
                     )}
                     
-                    {item.observations && <p>Obs: {item.observations}</p>}
+                    {item.observations && <p className="font-bold bg-yellow-100 p-1 rounded mt-1">⚠️ OBS: {item.observations}</p>}
                   </div>
                 ))}
-                <p className="text-xs">--------------------------</p>
+                <p className="font-bold">══════════════════════════</p>
               </div>
               
               <div className="mb-3">
-                <p className="text-xs">Subtotal: {formatPrice(order.total_price - (order.delivery_fee || 0))}</p>
-                {order.delivery_fee && order.delivery_fee > 0 && <p className="text-xs">Taxa: {formatPrice(order.delivery_fee)}</p>}
-                <p className="text-xs font-bold">TOTAL: {formatPrice(order.total_price)}</p>
-                <p className="text-xs">--------------------------</p>
-              </div>
-              
-              <div className="mb-3">
-                <p className="text-xs font-bold">PAGAMENTO:</p>
-                <p className="text-xs">Forma: {getPaymentMethodLabel(order.payment_method)}</p>
-                {order.change_for && <p className="text-xs">Troco para: {formatPrice(order.change_for)}</p>}
-                {order.payment_method === 'pix' && (
-                  <div className="mt-2">
-                    <p className="text-xs">⚠️ IMPORTANTE:</p>
-                    <p className="text-xs">Envie o comprovante do PIX</p>
-                    <p className="text-xs">para confirmar o pedido!</p>
+                <div className="flex justify-between font-semibold">
+                  <span>Subtotal:</span>
+                  <span>{formatPrice(order.total_price - (order.delivery_fee || 0))}</span>
+                </div>
+                {order.delivery_fee && order.delivery_fee > 0 && (
+                  <div className="flex justify-between font-semibold">
+                    <span>Taxa Entrega:</span>
+                    <span>{formatPrice(order.delivery_fee)}</span>
                   </div>
                 )}
-                <p className="text-xs">--------------------------</p>
+                <div className="border-t-2 border-black mt-2 pt-2">
+                  <div className="flex justify-between">
+                    <span className="font-black text-lg">TOTAL:</span>
+                    <span className="font-black text-xl">{formatPrice(order.total_price)}</span>
+                  </div>
+                </div>
+                <p className="font-bold">══════════════════════════</p>
               </div>
               
-              <div className="text-center text-xs">
-                <p>Obrigado pela preferência!</p>
-                <p>Elite Açaí</p>
+              <div className="mb-3">
+                <p className="font-black text-base">PAGAMENTO:</p>
+                <p className="font-bold">Forma: {getPaymentMethodLabel(order.payment_method)}</p>
+                {order.change_for && <p className="font-bold">Troco para: {formatPrice(order.change_for)}</p>}
+                {order.payment_method === 'pix' && (
+                  <div className="mt-2">
+                    <p className="font-bold text-red-600">⚠️ IMPORTANTE:</p>
+                    <p className="font-semibold">Envie o comprovante do PIX</p>
+                    <p className="font-semibold">para confirmar o pedido!</p>
+                  </div>
+                )}
+                <p className="font-bold">══════════════════════════</p>
+              </div>
+              
+              <div className="text-center">
+                <p className="font-black text-base">Obrigado pela preferência!</p>
+                <p className="font-bold">Elite Açaí - O melhor açaí da cidade!</p>
+                <p className="font-medium">@eliteacai</p>
+                <p className="font-medium">⭐⭐⭐⭐⭐ Avalie-nos no Google</p>
               </div>
             </div>
           </div>

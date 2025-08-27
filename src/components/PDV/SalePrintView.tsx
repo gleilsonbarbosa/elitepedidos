@@ -47,8 +47,8 @@ const SalePrintView: React.FC<SalePrintViewProps> = ({
           
           body {
             font-family: 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.3;
+            font-size: 14px;
+            line-height: 1.4;
             color: black;
             background: white;
             padding: 2mm;
@@ -56,29 +56,65 @@ const SalePrintView: React.FC<SalePrintViewProps> = ({
           }
           
           .center { text-align: center; }
-          .bold { font-weight: bold; }
-          .small { font-size: 10px; }
+          .bold { font-weight: 900 !important; }
+          .small { font-size: 12px; font-weight: bold !important; }
+          .medium { font-size: 14px; font-weight: bold !important; }
+          .large { font-size: 16px; font-weight: 900 !important; }
           .separator { 
-            border-bottom: 1px dashed black; 
-            margin: 5px 0; 
-            padding-bottom: 5px; 
+            border-bottom: 2px solid black; 
+            margin: 6px 0; 
+            padding-bottom: 6px; 
           }
           .flex-between { 
             display: flex; 
             justify-content: space-between; 
             align-items: center;
           }
-          .mb-1 { margin-bottom: 2px; }
-          .mb-2 { margin-bottom: 5px; }
-          .mb-3 { margin-bottom: 8px; }
+          .mb-1 { margin-bottom: 3px; }
+          .mb-2 { margin-bottom: 6px; }
+          .mb-3 { margin-bottom: 9px; }
           .ml-2 { margin-left: 8px; }
+          
+          /* Novos estilos para melhor legibilidade */
+          .header-title { 
+            font-size: 18px; 
+            font-weight: 900 !important; 
+            color: black !important; 
+            margin-bottom: 4px;
+          }
+          .section-title { 
+            font-size: 15px; 
+            font-weight: 900 !important; 
+            color: black !important; 
+            text-transform: uppercase; 
+          }
+          .item-name { 
+            font-size: 14px; 
+            font-weight: 900 !important; 
+            color: black !important; 
+          }
+          .item-details { 
+            font-size: 12px; 
+            font-weight: bold !important; 
+            color: black !important; 
+          }
+          .price-value { 
+            font-size: 14px; 
+            font-weight: 900 !important; 
+            color: black !important; 
+          }
+          .total-value { 
+            font-size: 16px; 
+            font-weight: 900 !important; 
+            color: black !important; 
+          }
         </style>
       </head>
       <body>
         <!-- Cabeçalho -->
         <div class="center mb-3 separator">
-          <div class="bold" style="font-size: 16px;">ELITE AÇAÍ</div>
-          <div class="small">Comprovante de Venda</div>
+          <div class="header-title">ELITE AÇAÍ</div>
+          <div class="medium">COMPROVANTE DE VENDA</div>
           <div class="small">Rua Um, 1614-C</div>
           <div class="small">Residencial 1 - Cágado</div>
           <div class="small">Tel: (85) 98904-1010</div>
@@ -87,23 +123,23 @@ const SalePrintView: React.FC<SalePrintViewProps> = ({
         
         <!-- Dados da Venda -->
         <div class="mb-3 separator">
-          <div class="bold center mb-2">=== COMPROVANTE DE VENDA ===</div>
-          <div class="small">Venda: #${sale.sale_number || 'N/A'}</div>
-          <div class="small">Data: ${new Date().toLocaleDateString('pt-BR')}</div>
-          <div class="small">Hora: ${new Date().toLocaleTimeString('pt-BR')}</div>
-          <div class="small">Operador: ${sale.operator_name || 'Sistema'}</div>
-          ${sale.customer_name ? `<div class="small">Cliente: ${sale.customer_name}</div>` : ''}
+          <div class="section-title center mb-2">=== COMPROVANTE DE VENDA ===</div>
+          <div class="medium">Venda: #${sale.sale_number || 'N/A'}</div>
+          <div class="item-details">Data: ${new Date().toLocaleDateString('pt-BR')}</div>
+          <div class="item-details">Hora: ${new Date().toLocaleTimeString('pt-BR')}</div>
+          <div class="item-details">Operador: ${sale.operator_name || 'Sistema'}</div>
+          ${sale.customer_name ? `<div class="item-details">Cliente: ${sale.customer_name}</div>` : ''}
         </div>
         
         <!-- Itens -->
         <div class="mb-3 separator">
-          <div class="bold mb-1">ITENS DA VENDA:</div>
+          <div class="section-title mb-1">ITENS DA VENDA:</div>
           ${items.map((item, index) => `
             <div class="mb-2">
-              <div class="bold">${item.product_name}</div>
+              <div class="item-name">${item.product_name}</div>
               <div class="flex-between">
-                <span class="small">${item.weight_kg ? `${item.weight_kg}kg × ${formatPrice((item.price_per_gram || 0) * 1000)}/kg` : `${item.quantity}x ${formatPrice(item.unit_price || 0)}`}</span>
-                <span class="small">${formatPrice(item.subtotal)}</span>
+                <span class="item-details">${item.weight_kg ? `${item.weight_kg}kg × ${formatPrice((item.price_per_gram || 0) * 1000)}/kg` : `${item.quantity}x ${formatPrice(item.unit_price || 0)}`}</span>
+                <span class="price-value">${formatPrice(item.subtotal)}</span>
               </div>
             </div>
           `).join('')}
@@ -111,49 +147,49 @@ const SalePrintView: React.FC<SalePrintViewProps> = ({
         
         <!-- Resumo -->
         <div class="mb-3 separator">
-          <div class="bold mb-1">RESUMO:</div>
+          <div class="section-title mb-1">RESUMO:</div>
           <div class="flex-between">
-            <span class="small">Subtotal:</span>
-            <span class="small">${formatPrice(sale.subtotal || 0)}</span>
+            <span class="item-details">Subtotal:</span>
+            <span class="price-value">${formatPrice(sale.subtotal || 0)}</span>
           </div>
           ${sale.discount_amount > 0 ? `
           <div class="flex-between">
-            <span class="small">Desconto:</span>
-            <span class="small">-${formatPrice(sale.discount_amount)}</span>
+            <span class="item-details">Desconto:</span>
+            <span class="price-value">-${formatPrice(sale.discount_amount)}</span>
           </div>
           ` : ''}
-          <div style="border-top: 1px solid black; padding-top: 3px; margin-top: 3px;">
+          <div style="border-top: 2px solid black; padding-top: 5px; margin-top: 5px;">
             <div class="flex-between bold">
-              <span>TOTAL:</span>
-              <span>${formatPrice(sale.total_amount || 0)}</span>
+              <span class="section-title">TOTAL:</span>
+              <span class="total-value">${formatPrice(sale.total_amount || 0)}</span>
             </div>
           </div>
         </div>
         
         <!-- Pagamento -->
         <div class="mb-3 separator">
-          <div class="bold mb-1">PAGAMENTO:</div>
-          <div class="small">Forma: ${getPaymentMethodLabel(sale.payment_type)}</div>
+          <div class="section-title mb-1">PAGAMENTO:</div>
+          <div class="item-details">Forma: ${getPaymentMethodLabel(sale.payment_type)}</div>
           ${sale.payment_type === 'misto' && sale.payment_details?.mixed_payments ? `
             <div class="ml-2">
               ${sale.payment_details.mixed_payments.map((payment: any) => `
-                <div class="small">${getPaymentMethodLabel(payment.method)}: ${formatPrice(payment.amount)}</div>
+                <div class="item-details">${getPaymentMethodLabel(payment.method)}: ${formatPrice(payment.amount)}</div>
               `).join('')}
             </div>
           ` : ''}
-          ${sale.change_amount > 0 ? `<div class="small">Troco: ${formatPrice(sale.change_amount)}</div>` : ''}
+          ${sale.change_amount > 0 ? `<div class="item-details">Troco: ${formatPrice(sale.change_amount)}</div>` : ''}
         </div>
         
         <!-- Rodapé -->
-        <div class="center small">
-          <div class="bold mb-2">Obrigado pela preferência!</div>
-          <div>Elite Açaí - O melhor açaí da cidade!</div>
-          <div>@eliteacai</div>
-          <div>⭐⭐⭐⭐⭐ Avalie-nos no Google</div>
-          <div style="margin-top: 8px; padding-top: 5px; border-top: 1px solid black;">
-            <div>Elite Açaí - CNPJ: ${storeSettings?.cnpj || '38.130.139/0001-22'}</div>
-            <div>Impresso: ${new Date().toLocaleString('pt-BR')}</div>
-            <div>Este não é um documento fiscal</div>
+        <div class="center">
+          <div class="section-title mb-2">Obrigado pela preferência!</div>
+          <div class="item-details">Elite Açaí - O melhor açaí da cidade!</div>
+          <div class="item-details">@eliteacai</div>
+          <div class="item-details">⭐⭐⭐⭐⭐ Avalie-nos no Google</div>
+          <div style="margin-top: 10px; padding-top: 6px; border-top: 2px solid black;">
+            <div class="small">Elite Açaí - CNPJ: ${storeSettings?.cnpj || '38.130.139/0001-22'}</div>
+            <div class="small">Impresso: ${new Date().toLocaleString('pt-BR')}</div>
+            <div class="small">Este não é um documento fiscal</div>
           </div>
         </div>
       </body>
@@ -200,81 +236,90 @@ const SalePrintView: React.FC<SalePrintViewProps> = ({
 
           {/* Preview */}
           <div className="overflow-y-auto max-h-[calc(90vh-80px)] p-4">
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono text-sm">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 font-mono text-sm leading-relaxed">
               <div className="text-center mb-4">
-                <p className="font-bold text-lg">ELITE AÇAÍ</p>
-                <p className="text-sm">Comprovante de Venda</p>
+                <p className="font-black text-xl">ELITE AÇAÍ</p>
+                <p className="font-bold">COMPROVANTE DE VENDA</p>
                 <p className="text-xs">Rua Um, 1614-C</p>
                 <p className="text-xs">Residencial 1 - Cágado</p>
                 <p className="text-xs">Tel: (85) 98904-1010</p>
                 <p className="text-xs">CNPJ: {storeSettings?.cnpj || '38.130.139/0001-22'}</p>
-                <p className="text-xs">--------------------------</p>
+                <p className="font-bold">══════════════════════════</p>
               </div>
               
               <div className="mb-3">
-                <p className="text-sm font-bold text-center">=== COMPROVANTE DE VENDA ===</p>
-                <p className="text-xs">Venda: #{sale.sale_number || 'N/A'}</p>
-                <p className="text-xs">Data: {new Date().toLocaleDateString('pt-BR')}</p>
-                <p className="text-xs">Hora: {new Date().toLocaleTimeString('pt-BR')}</p>
-                <p className="text-xs">Operador: {sale.operator_name || 'Sistema'}</p>
-                {sale.customer_name && <p className="text-xs">Cliente: {sale.customer_name}</p>}
-                <p className="text-xs">--------------------------</p>
+                <p className="font-black text-base text-center">=== COMPROVANTE DE VENDA ===</p>
+                <p className="font-bold">Venda: #{sale.sale_number || 'N/A'}</p>
+                <p className="font-semibold">Data: {new Date().toLocaleDateString('pt-BR')}</p>
+                <p className="font-semibold">Hora: {new Date().toLocaleTimeString('pt-BR')}</p>
+                <p className="font-semibold">Operador: {sale.operator_name || 'Sistema'}</p>
+                {sale.customer_name && <p className="font-semibold">Cliente: {sale.customer_name}</p>}
+                <p className="font-bold">══════════════════════════</p>
               </div>
               
               <div className="mb-3">
-                <p className="text-sm font-bold">ITENS:</p>
+                <p className="font-black text-base">ITENS DA VENDA:</p>
                 {items.map((item, index) => (
-                  <div key={index} className="text-xs mb-2">
-                    <p className="font-bold">{item.product_name}</p>
+                  <div key={index} className="mb-3">
+                    <p className="font-black">{item.product_name}</p>
                     <div className="flex justify-between">
                       <span>
                         {item.weight_kg ? 
-                          `${item.weight_kg}kg × ${formatPrice((item.price_per_gram || 0) * 1000)}/kg` : 
-                          `${item.quantity}x ${formatPrice(item.unit_price || 0)}`
+                          <span className="font-bold">{item.weight_kg}kg × {formatPrice((item.price_per_gram || 0) * 1000)}/kg</span> : 
+                          <span className="font-bold">{item.quantity}x {formatPrice(item.unit_price || 0)}</span>
                         }
                       </span>
-                      <span>{formatPrice(item.subtotal)}</span>
+                      <span className="font-black">{formatPrice(item.subtotal)}</span>
                     </div>
                   </div>
                 ))}
-                <p className="text-xs">--------------------------</p>
+                <p className="font-bold">══════════════════════════</p>
               </div>
               
               <div className="mb-3">
-                <div className="flex justify-between text-xs">
-                  <span>Subtotal:</span>
-                  <span>{formatPrice(sale.subtotal || 0)}</span>
+                <div className="flex justify-between font-semibold">
+                  <span className="item-details">Subtotal:</span>
+                  <span className="price-value">{formatPrice(sale.subtotal || 0)}</span>
                 </div>
                 {sale.discount_amount > 0 && (
-                  <div className="flex justify-between text-xs">
-                    <span>Desconto:</span>
-                    <span>-{formatPrice(sale.discount_amount)}</span>
+                  <div className="flex justify-between font-semibold">
+                    <span className="item-details">Desconto:</span>
+                    <span className="price-value">-{formatPrice(sale.discount_amount)}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-bold border-t border-gray-300 pt-1 mt-1">
-                  <span>TOTAL:</span>
-                  <span>{formatPrice(sale.total_amount || 0)}</span>
+                <div className="border-t-2 border-black mt-2 pt-2">
+                  <div className="flex justify-between">
+                    <span className="section-title">TOTAL:</span>
+                    <span className="total-value">{formatPrice(sale.total_amount || 0)}</span>
+                  </div>
                 </div>
-                <p className="text-xs">--------------------------</p>
+                <p className="font-bold">══════════════════════════</p>
               </div>
               
               <div className="mb-3">
-                <p className="text-sm font-bold">PAGAMENTO:</p>
-                <p className="text-xs">Forma: {getPaymentMethodLabel(sale.payment_type)}</p>
+                <p className="font-black text-base">PAGAMENTO:</p>
+                <p className="font-bold">Forma: {getPaymentMethodLabel(sale.payment_type)}</p>
                 {sale.payment_type === 'misto' && sale.payment_details?.mixed_payments && (
                   <div className="ml-2">
                     {sale.payment_details.mixed_payments.map((payment: any, idx: number) => (
-                      <p key={idx} className="text-xs">{getPaymentMethodLabel(payment.method)}: {formatPrice(payment.amount)}</p>
+                      <p key={idx} className="item-details">{getPaymentMethodLabel(payment.method)}: {formatPrice(payment.amount)}</p>
                     ))}
                   </div>
                 )}
-                {sale.change_amount > 0 && <p className="text-xs">Troco: {formatPrice(sale.change_amount)}</p>}
-                <p className="text-xs">--------------------------</p>
+                {sale.change_amount > 0 && <p className="font-bold">Troco: {formatPrice(sale.change_amount)}</p>}
+                <p className="font-bold">══════════════════════════</p>
               </div>
               
-              <div className="text-center text-xs">
-                <p className="font-bold">Obrigado pela preferência!</p>
-                <p>Elite Açaí</p>
+              <div className="text-center">
+                <p className="font-black text-base">Obrigado pela preferência!</p>
+                <p className="font-bold">Elite Açaí - O melhor açaí da cidade!</p>
+                <p className="font-medium">@eliteacai</p>
+                <p className="font-medium">⭐⭐⭐⭐⭐ Avalie-nos no Google</p>
+                <div className="border-t-2 border-black mt-3 pt-3">
+                  <p className="small">Elite Açaí - CNPJ: {storeSettings?.cnpj || '38.130.139/0001-22'}</p>
+                  <p className="small">Impresso: {new Date().toLocaleString('pt-BR')}</p>
+                  <p className="small">Este não é um documento fiscal</p>
+                </div>
               </div>
             </div>
           </div>

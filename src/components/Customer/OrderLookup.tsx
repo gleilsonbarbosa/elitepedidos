@@ -6,13 +6,36 @@ const OrderLookup: React.FC = () => {
   const [orderId, setOrderId] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [loading, setLoading] = useState(false);
+  const [searchError, setSearchError] = useState('');
   const navigate = useNavigate();
 
-  const isValidUUID = (uuid: string) => {
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    return uuidRegex.test(uuid);
+  const isValidOrderId = (id: string) => {
+    // Aceitar apenas 8 caracteres hexadecimais (ID curto)
+    const shortIdRegex = /^[0-9a-f]{8}$/i;
+    return shortIdRegex.test(id);
   };
 
+  const findOrderByShortId = async (shortId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('id')
+        .like('id', `%${shortId}`)
+        .limit(10);
+
+      if (error) throw error;
+
+      // Encontrar o pedido cujo ID termina exatamente com o shortId
+      const matchingOrder = data?.find(order => 
+        order.id.slice(-8).toLowerCase() === shortId.toLowerCase()
+      );
+
+      return matchingOrder ? matchingOrder.id : null;
+    } catch (error) {
+      console.error('Erro ao buscar pedido:', error);
+      return null;
+    }
+  };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -21,24 +44,86 @@ const OrderLookup: React.FC = () => {
       return;
     }
 
-    if (!isValidUUID(orderId.trim())) {
-      alert('Por favor, digite o ID completo do pedido. O ID deve ter o formato: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx');
+    const cleanId = orderId.trim().toLowerCase();
+    
+    if (!isValidOrderId(cleanId)) {
+      alert('Por favor, digite o ID do pedido com exatamente 8 caracteres.\nExemplo: 1a2b3c4d');
       return;
     }
 
     setLoading(true);
-    
-    // Simular validação (em produção, você validaria no backend)
-    setTimeout(() => {
+    setSearchError('');
+
+    try {
+      // Buscar o pedido pelo ID curto
+      const fullOrderId = await findOrderByShortId(cleanId);
+      
+      if (!fullOrderId) {
+        setSearchError('Pedido não encontrado. Verifique o ID e tente novamente.');
+        setLoading(false);
+        return;
+      }
+
+      // Redirecionar para o pedido encontrado
+      navigate(`/pedido/${fullOrderId}`);
+    } catch (error) {
+      console.error('Erro ao buscar pedido:', error);
+      setSearchError('Erro ao buscar pedido. Tente novamente.');
+    } finally {
       setLoading(false);
-      navigate(`/pedido/${orderId.trim()}`);
-    }, 1000);
+    }
   };
 
   const formatOrderId = (value: string) => {
-    // Remove espaços e converte para minúsculo, mas mantém hífens para UUIDs
-    return value.replace(/\s/g, '').toLowerCase();
+    // Remove tudo que não seja hexadecimal e limita a 8 caracteres
+    return value.replace(/[^0-9a-f]/gi, '').toLowerCase().slice(0, 8);
   };
+
+  const handleOrderIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatOrderId(e.target.value);
+    setOrderId(formatted);
+    setSearchError(''); // Limpar erro ao digitar
+  };
+
+  // Simular busca sem fazer o submit real
+  const simulateSearch = async () => {
+    if (!orderId.trim()) return;
+    
+    setLoading(true);
+    
+    // Simular delay de busca
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Se chegou aqui, simular que encontrou o pedido
+    const mockOrderId = `12345678-1234-1234-1234-${orderId}123456`;
+    
+    setLoading(false);
+    navigate(`/pedido/${mockOrderId}`);
+  };
+
+  // Função de submit antida que apenas simula
+  const handleSubmitOriginal = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!orderId.trim()) {
+      alert('Por favor, digite o ID do pedido');
+      return;
+    }
+
+    const cleanId = orderId.trim().toLowerCase();
+    
+    if (!isValidOrderId(cleanId)) {
+      alert('Por favor, digite o ID do pedido com exatamente 8 caracteres.');
+      return;
+    }
+
+    await simulateSearch();
+  };
+
+  // Usar handleSubmitOriginal por enquanto para compatibilidade
+  const finalSubmitHandler = import.meta.env.VITE_SUPABASE_URL ? handleSubmit : handleSubmitOriginal;
+
+    
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-green-50 flex items-center justify-center p-4">
@@ -53,9 +138,12 @@ const OrderLookup: React.FC = () => {
           <p className="text-gray-600">
             Digite o ID do seu pedido para acompanhar o status
           </p>
+          <p className="text-sm text-blue-600 mt-2">
+            Use o ID de 8 caracteres que você recebeu
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={finalSubmitHandler} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               ID do Pedido *
@@ -65,15 +153,24 @@ const OrderLookup: React.FC = () => {
               <input
                 type="text"
                 value={orderId}
-                onChange={(e) => setOrderId(formatOrderId(e.target.value))}
+                onChange={handleOrderIdChange}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                placeholder="12345678-1234-1234-1234-123456789012"
+                placeholder="1a2b3c4d"
                 required
+                maxLength={8}
               />
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              Digite o ID completo que você recebeu por WhatsApp ou email
+              Digite o ID de 8 caracteres que você recebeu por WhatsApp ou no comprovante
             </p>
+            {searchError && (
+              <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {searchError}
+              </p>
+            )}
           </div>
 
           <div>
