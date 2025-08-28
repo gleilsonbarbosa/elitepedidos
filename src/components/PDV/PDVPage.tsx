@@ -37,6 +37,7 @@ import {
   Clock
 } from 'lucide-react';
 import PDVPeakHoursReport from './PDVPeakHoursReport';
+import PDVCustomersReport from './PDVCustomersReport';
 
 const PDVPage: React.FC = () => {
   const navigate = useNavigate();
@@ -54,7 +55,7 @@ const PDVPage: React.FC = () => {
     return null;
   });
 
-  const [activeTab, setActiveTab] = useState<'sales' | 'cash' | 'daily_report' | 'detailed_report' | 'period_report' | 'daily_delivery_report' | 'operators' | 'products' | 'reports' | 'settings' | 'sales_report' | 'customer_frequency' | 'peak_hours'>('sales');
+  const [activeTab, setActiveTab] = useState<'sales' | 'cash' | 'daily_report' | 'detailed_report' | 'period_report' | 'daily_delivery_report' | 'operators' | 'products' | 'reports' | 'settings' | 'sales_report' | 'customer_frequency' | 'peak_hours' | 'customers'>('sales');
   const { hasPermission } = usePermissions(loggedInOperator);
   const { storeSettings } = useStoreHours();
   const { isOpen: isCashRegisterOpen } = usePDVCashRegister();
@@ -172,7 +173,23 @@ const PDVPage: React.FC = () => {
       color: 'bg-orange-600',
       permission: 'can_view_reports',
       description: 'Análise de horários e dias de maior movimento'
-    }
+    },
+    {
+      id: 'customers' as const,
+      label: 'Relatório de Clientes',
+      icon: Users,
+      color: 'bg-teal-600',
+      permission: 'can_view_reports',
+      description: 'Lista de clientes com dados de contato'
+    },
+    {
+      id: 'customers_report' as const,
+      label: 'Relatório de Clientes',
+      icon: Users,
+      color: 'bg-blue-600',
+      permission: 'can_view_reports',
+      description: 'Lista completa de clientes com dados de contato'
+    },
   ].filter(tab => isAdmin || hasPermission(tab.permission as any));
 
   // Add Cash Flow tab
@@ -213,6 +230,8 @@ const PDVPage: React.FC = () => {
         return null;
       case 'peak_hours':
         return <PDVPeakHoursReport />;
+      case 'customers_report':
+        return <PDVCustomersReport />;
       default:
         return <PDVOperators />;
     }
