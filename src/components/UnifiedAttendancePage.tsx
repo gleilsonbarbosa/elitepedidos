@@ -40,12 +40,13 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
   const { orders } = useOrders();
   const [supabaseConfigured, setSupabaseConfigured] = useState(true);
   
+  // Check if user is admin for sale deletion permissions
+  const isAdmin = !operator || 
+                  operator.code?.toUpperCase() === 'ADMIN' ||
+                  operator.name?.toUpperCase().includes('ADMIN');
+
   // Calculate pending orders count from the orders data
   const pendingOrdersCount = orders.filter(order => order.status === 'pending').length;
-
-  // Check if user is admin
-  const isAdmin = !operator || 
-                  operator.code?.toUpperCase() === 'ADMIN';
 
   // Debug logging
   React.useEffect(() => {
@@ -253,11 +254,11 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
 
         {/* Content */}
         <div className="transition-all duration-300 print:hidden">
-          {activeTab === 'sales' && (isAdmin || hasPermission('can_view_sales')) && <PDVSalesScreen operator={operator} scaleHook={scaleHook || scale} storeSettings={settings} />}
+          {activeTab === 'sales' && (isAdmin || hasPermission('can_view_sales')) && <PDVSalesScreen operator={operator} scaleHook={scaleHook || scale} storeSettings={settings} isAdmin={isAdmin} />}
           {activeTab === 'orders' && (isAdmin || hasPermission('can_view_orders')) && <AttendantPanel storeSettings={settings} />}
-          {activeTab === 'cash' && (isAdmin || hasPermission('can_view_cash_register')) && <CashRegisterMenu />}
-          {activeTab === 'tables' && (isAdmin || hasPermission('can_view_sales')) && <TableSalesPanel storeId={1} operatorName={operator?.name || 'Operador'} isCashRegisterOpen={isCashRegisterOpen} />}
-          {activeTab === 'history' && (isAdmin || hasPermission('can_view_sales')) && <SalesHistoryPanel storeId={1} />}
+          {activeTab === 'cash' && (isAdmin || hasPermission('can_view_cash_register')) && <CashRegisterMenu isAdmin={isAdmin} />}
+          {activeTab === 'tables' && (isAdmin || hasPermission('can_view_sales')) && <TableSalesPanel storeId={1} operatorName={operator?.name || 'Operador'} isCashRegisterOpen={isCashRegisterOpen} isAdmin={isAdmin} />}
+          {activeTab === 'history' && (isAdmin || hasPermission('can_view_sales')) && <SalesHistoryPanel storeId={1} isAdmin={isAdmin} />}
         </div>
       </div>
     </div>

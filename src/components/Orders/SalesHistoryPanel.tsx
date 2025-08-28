@@ -5,11 +5,14 @@ import {
   Filter,
   Download,
   Eye,
+ Edit3,
   DollarSign,
   Package,
   Clock,
   User,
-  Printer
+  Printer,
+  Trash2,
+  X
 } from 'lucide-react';
 import { PDVOperator } from '../../types/pdv';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -18,6 +21,7 @@ import { supabase } from '../../lib/supabase';
 interface SalesHistoryPanelProps {
   storeId: number;
   operator?: PDVOperator;
+  isAdmin?: boolean;
 }
 
 interface Sale {
@@ -33,14 +37,284 @@ interface Sale {
   channel?: string;
 }
 
-export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, operator }) => {
+interface EditSaleModalProps {
+  sale: Sale;
+  onClose: () => void;
+  onSave: (updatedSale: Partial<Sale>) => void;
+}
+
+const EditSaleModal: React.FC<EditSaleModalProps> = ({ sale, onClose, onSave }) => {
+  const [customerName, setCustomerName] = useState(sale.customer_name || '');
+  const [paymentType, setPaymentType] = useState(sale.payment_type);
+  const [saving, setSaving] = useState(false);
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(value);
+  };
+
+  const formatDateTime = (dateString: string) => {
+    return new Intl.DateTimeFormat('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).format(new Date(dateString));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave({
+        customer_name: customerName.trim() || null,
+        payment_type: paymentType
+      });
+      onClose();
+    } catch (error) {
+      console.error('Erro ao salvar alterações:', error);
+      alert('Erro ao salvar alterações da venda');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl max-w-md w-full">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-800">
+              Editar Venda #{sale.sale_number}
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Nome do Cliente
+            </label>
+            <input
+              type="text"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Nome do cliente (opcional)"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Forma de Pagamento
+            </label>
+            <select
+              value={paymentType}
+              onChange={(e) => setPaymentType(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="dinheiro">Dinheiro</option>
+              <option value="pix">PIX</option>
+              <option value="cartao_credito">Cartão de Crédito</option>
+              <option value="cartao_debito">Cartão de Débito</option>
+              <option value="voucher">Voucher</option>
+              <option value="misto">Pagamento Misto</option>
+            </select>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="text-sm text-blue-700">
+              <p><strong>Venda:</strong> #{sale.sale_number}</p>
+              <p><strong>Operador:</strong> {sale.operator_name}</p>
+              <p><strong>Total:</strong> {formatCurrency(sale.total_amount)}</p>
+              <p><strong>Data:</strong> {formatDateTime(sale.created_at)}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-gray-200 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+          >
+            {saving ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Salvando...
+              </>
+            ) : (
+              'Salvar Alterações'
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, operator, isAdmin = false }) => {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState('today');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const { hasPermission } = usePermissions(operator);
+
+  const handleEditSale = async (sale: Sale, updates: Partial<Sale>) => {
+    try {
+      console.log('✏️ Editando venda:', { saleId: sale.id, updates, channel: sale.channel });
+
+      if (sale.channel === 'pdv') {
+        const { error } = await supabase
+          .from('pdv_sales')
+          .update({
+            customer_name: updates.customer_name,
+            payment_type: updates.payment_type,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', sale.id);
+
+        if (error) throw error;
+      } else if (sale.channel === 'delivery') {
+        const { error } = await supabase
+          .from('orders')
+          .update({
+            customer_name: updates.customer_name,
+            payment_method: updates.payment_type,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', sale.id);
+
+        if (error) throw error;
+      } else if (sale.channel === 'mesa') {
+        const tableName = storeId === 1 ? 'store1_table_sales' : 'store2_table_sales';
+        const { error } = await supabase
+          .from(tableName)
+          .update({
+            customer_name: updates.customer_name,
+            payment_type: updates.payment_type,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', sale.id);
+
+        if (error) throw error;
+      }
+
+      // Refresh the sales list
+      await fetchSales();
+      
+      // Show success message
+      const successMessage = document.createElement('div');
+      successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
+      successMessage.innerHTML = `
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        Venda #${sale.sale_number} editada com sucesso!
+      `;
+      document.body.appendChild(successMessage);
+      
+      setTimeout(() => {
+        if (document.body.contains(successMessage)) {
+          document.body.removeChild(successMessage);
+        }
+      }, 3000);
+    } catch (error) {
+      console.error('Erro ao editar venda:', error);
+      throw error;
+    }
+  };
+
+  const handleCancelSale = async (sale: Sale) => {
+    try {
+      if (sale.channel === 'pdv') {
+        await cancelPDVSale(sale.id, 'Cancelada pelo administrador via histórico');
+      } else if (sale.channel === 'delivery') {
+        // Cancel delivery order
+        const { error } = await supabase
+          .from('orders')
+          .update({
+            status: 'cancelled',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', sale.id);
+
+        if (error) throw error;
+      } else if (sale.channel === 'mesa') {
+        // Cancel table sale
+        const tableName = storeId === 1 ? 'store1_table_sales' : 'store2_table_sales';
+        const tableTableName = storeId === 1 ? 'store1_tables' : 'store2_tables';
+
+        const { error: saleError } = await supabase
+          .from(tableName)
+          .update({
+            status: 'cancelada',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', sale.id);
+
+        if (saleError) throw saleError;
+
+        // Free the table
+        const { data: tableData } = await supabase
+          .from(tableTableName)
+          .select('id')
+          .eq('current_sale_id', sale.id)
+          .maybeSingle();
+
+        if (tableData) {
+          await supabase
+            .from(tableTableName)
+            .update({
+              status: 'livre',
+              current_sale_id: null,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', tableData.id);
+        }
+      }
+
+      // Refresh the sales list
+      await fetchSales();
+      
+      // Show success message
+      const successMessage = document.createElement('div');
+      successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
+      successMessage.innerHTML = `
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        Venda #${sale.sale_number} cancelada com sucesso!
+      `;
+      document.body.appendChild(successMessage);
+      
+      setTimeout(() => {
+        if (document.body.contains(successMessage)) {
+          document.body.removeChild(successMessage);
+        }
+      }, 3000);
+    } catch (error) {
+      console.error('Erro ao cancelar venda:', error);
+      alert(`Erro ao cancelar venda: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+    }
+  };
 
   const handlePrintReceipt = (sale: Sale) => {
     // Criar uma nova janela com conteúdo específico para impressão térmica
@@ -385,6 +659,21 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
     fetchSales();
   };
 
+  const cancelPDVSale = async (saleId: string, reason: string) => {
+    const { error } = await supabase
+      .from('pdv_sales')
+      .update({
+        is_cancelled: true,
+        cancelled_at: new Date().toISOString(),
+        cancel_reason: reason,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', saleId);
+
+    if (error) throw error;
+  };
+
+
   useEffect(() => {
     fetchSales();
   }, [dateFilter]);
@@ -655,12 +944,39 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <button
-                        onClick={() => setSelectedSale(sale)}
-                        className="text-emerald-600 hover:text-emerald-900 font-medium"
-                      >
-                        <Eye size={16} />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSelectedSale(sale)}
+                          className="text-emerald-600 hover:text-emerald-900 font-medium"
+                          title="Ver detalhes"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        {isAdmin && !sale.is_cancelled && (
+                          <button
+                            onClick={() => {
+                              setEditingSale(sale);
+                            }}
+                            className="text-blue-600 hover:text-blue-900 font-medium"
+                            title="Editar venda (apenas admin)"
+                          >
+                            <Edit3 size={16} />
+                          </button>
+                        )}
+                        {isAdmin && !sale.is_cancelled && (
+                          <button
+                            onClick={() => {
+                              if (confirm(`Tem certeza que deseja cancelar a venda #${sale.sale_number}?`)) {
+                                handleCancelSale(sale);
+                              }
+                            }}
+                            className="text-red-600 hover:text-red-900 font-medium"
+                            title="Cancelar venda (apenas admin)"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -743,6 +1059,15 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Sale Modal */}
+      {editingSale && (
+        <EditSaleModal
+          sale={editingSale}
+          onClose={() => setEditingSale(null)}
+          onSave={(updates) => handleEditSale(editingSale, updates)}
+        />
       )}
     </div>
   );

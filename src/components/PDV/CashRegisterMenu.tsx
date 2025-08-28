@@ -17,14 +17,21 @@ import {
   RefreshCw,
   ChevronDown,
   ChevronUp,
-  AlertCircle
+  AlertCircle,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import CashRegisterDetails from './CashRegisterDetails';
 import CashRegisterCloseConfirmation from './CashRegisterCloseConfirmation';
 import CashRegisterCloseDialog from './CashRegisterCloseDialog';
 import CashRegisterPrintView from './CashRegisterPrintView';
+import { supabase } from '../../lib/supabase';
 
-const CashRegisterMenu: React.FC = () => {
+interface CashRegisterMenuProps {
+  isAdmin?: boolean;
+}
+
+const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin = false }) => {
   const { hasPermission } = usePermissions();
   const {
     isOpen,
@@ -55,6 +62,8 @@ const CashRegisterMenu: React.FC = () => {
   const [showPrintView, setShowPrintView] = useState(false);
   const [closedRegister, setClosedRegister] = useState<any>(null);
   const [isClosing, setIsClosing] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<any>(null);
+  const [savingEntry, setSavingEntry] = useState(false);
   
   // Check Supabase configuration on mount
   React.useEffect(() => {
@@ -183,6 +192,101 @@ const CashRegisterMenu: React.FC = () => {
       setEntryPaymentMethod('dinheiro');
     } catch (err) {
       console.error('Erro ao adicionar entrada:', err);
+    }
+  };
+
+  const handleDeleteEntry = async (entryId: string, description: string) => {
+    if (confirm(`Tem certeza que deseja excluir a movimentação "${description}"?`)) {
+      try {
+        if (!supabaseConfigured) {
+          alert('Funcionalidade requer configuração do Supabase');
+          return;
+        }
+
+        const { error } = await supabase
+          .from('pdv_cash_entries')
+          .delete()
+          .eq('id', entryId);
+
+        if (error) throw error;
+
+        // Refresh data
+        refreshData();
+        
+        // Show success message
+        const successMessage = document.createElement('div');
+        successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
+        successMessage.innerHTML = `
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+          Movimentação excluída com sucesso!
+        `;
+        document.body.appendChild(successMessage);
+        
+        setTimeout(() => {
+          if (document.body.contains(successMessage)) {
+            document.body.removeChild(successMessage);
+          }
+        }, 3000);
+      } catch (error) {
+        console.error('Erro ao excluir movimentação:', error);
+        alert('Erro ao excluir movimentação');
+      }
+    }
+  };
+
+  const handleEditEntry = async () => {
+    if (!editingEntry) return;
+
+    if (!editingEntry.description.trim() || editingEntry.amount <= 0) {
+      alert('Descrição e valor são obrigatórios');
+      return;
+    }
+
+    setSavingEntry(true);
+    try {
+      if (!supabaseConfigured) {
+        alert('Funcionalidade requer configuração do Supabase');
+        return;
+      }
+
+      const { error } = await supabase
+        .from('pdv_cash_entries')
+        .update({
+          type: editingEntry.type,
+          amount: editingEntry.amount,
+          description: editingEntry.description,
+          payment_method: editingEntry.payment_method
+        })
+        .eq('id', editingEntry.id);
+
+      if (error) throw error;
+
+      setEditingEntry(null);
+      refreshData();
+      
+      // Show success message
+      const successMessage = document.createElement('div');
+      successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
+      successMessage.innerHTML = `
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        Movimentação editada com sucesso!
+      `;
+      document.body.appendChild(successMessage);
+      
+      setTimeout(() => {
+        if (document.body.contains(successMessage)) {
+          document.body.removeChild(successMessage);
+        }
+      }, 3000);
+    } catch (error) {
+      console.error('Erro ao editar movimentação:', error);
+      alert('Erro ao editar movimentação');
+    } finally {
+      setSavingEntry(false);
     }
   };
 
@@ -433,6 +537,7 @@ const CashRegisterMenu: React.FC = () => {
                     <th className="text-left py-3 px-4 font-medium text-gray-700">Descrição</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-700">Forma</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-700">Valor</th>
+                   {isAdmin && <th className="text-left py-3 px-4 font-medium text-gray-700">Ações</th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -471,6 +576,26 @@ const CashRegisterMenu: React.FC = () => {
                           {formatPrice(entry.amount)}
                         </span>
                       </td>
+                     {isAdmin && (
+                       <td className="py-4 px-4">
+                         <div className="flex items-center gap-2">
+                           <button
+                             onClick={() => setEditingEntry(entry)}
+                             className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                             title="Editar movimentação"
+                           >
+                             <Edit3 size={16} />
+                           </button>
+                           <button
+                             onClick={() => handleDeleteEntry(entry.id, entry.description)}
+                             className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                             title="Excluir movimentação"
+                           >
+                             <Trash2 size={16} />
+                           </button>
+                         </div>
+                       </td>
+                     )}
                     </tr>
                   ))}
                 </tbody>
@@ -485,6 +610,122 @@ const CashRegisterMenu: React.FC = () => {
             )}
           </div>
         </>
+      )}
+
+      {/* Edit Entry Modal */}
+      {editingEntry && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-800">
+                  Editar Movimentação
+                </h2>
+                <button
+                  onClick={() => setEditingEntry(null)}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo
+                </label>
+                <select
+                  value={editingEntry.type}
+                  onChange={(e) => setEditingEntry({
+                    ...editingEntry,
+                    type: e.target.value
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="income">Entrada</option>
+                  <option value="expense">Saída</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Valor
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={editingEntry.amount}
+                  onChange={(e) => setEditingEntry({
+                    ...editingEntry,
+                    amount: parseFloat(e.target.value) || 0
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="0,00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Descrição
+                </label>
+                <input
+                  type="text"
+                  value={editingEntry.description}
+                  onChange={(e) => setEditingEntry({
+                    ...editingEntry,
+                    description: e.target.value
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Descrição da movimentação"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Forma de Pagamento
+                </label>
+                <select
+                  value={editingEntry.payment_method}
+                  onChange={(e) => setEditingEntry({
+                    ...editingEntry,
+                    payment_method: e.target.value
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="dinheiro">Dinheiro</option>
+                  <option value="cartao_credito">Cartão de Crédito</option>
+                  <option value="cartao_debito">Cartão de Débito</option>
+                  <option value="pix">PIX</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={() => setEditingEntry(null)}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleEditEntry}
+                disabled={savingEntry || !editingEntry.description.trim() || editingEntry.amount <= 0}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                {savingEntry ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar Alterações'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Open Register Modal */}

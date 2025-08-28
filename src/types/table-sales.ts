@@ -12,7 +12,6 @@ export interface TableSale {
   change_amount: number;
   status: 'aberta' | 'fechada' | 'cancelada';
   cash_register_id?: string;
-  cash_register_id?: string;
   notes?: string;
   opened_at: string;
   closed_at?: string;

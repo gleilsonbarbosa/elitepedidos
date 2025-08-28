@@ -505,6 +505,7 @@ export const usePDVSales = () => {
     error,
     createSale,
     cancelSale,
+    cancelSale,
     fetchSales
   };
 };

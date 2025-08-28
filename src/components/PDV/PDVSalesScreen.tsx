@@ -32,9 +32,10 @@ interface PDVSalesScreenProps {
   operator?: PDVOperator;
   scaleHook?: any;
   storeSettings?: any;
+  isAdmin?: boolean;
 }
 
-const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, storeSettings }) => {
+const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, storeSettings, isAdmin = false }) => {
   const { hasPermission } = usePermissions(operator);
   const { products, loading: productsLoading, searchProducts } = usePDVProducts();
   const { createSale, loading: salesLoading } = usePDVSales();
