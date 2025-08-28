@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePDVProducts, usePDVSales, usePDVCart } from '../../hooks/usePDV';
 import { usePermissions } from '../../hooks/usePermissions';
+import { usePDVCashRegister } from '../../hooks/usePDVCashRegister';
 import PermissionGuard from '../PermissionGuard';
 import { PesagemModal } from './PesagemModal';
 import PaymentModal from '../Delivery/PaymentModal';
@@ -37,6 +38,7 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
   const { hasPermission } = usePermissions(operator);
   const { products, loading: productsLoading, searchProducts } = usePDVProducts();
   const { createSale, loading: salesLoading } = usePDVSales();
+  const { isOpen: isCashRegisterOpen, currentRegister } = usePDVCashRegister();
   const {
     items,
     discount,
@@ -193,6 +195,11 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
   const handleFinalizeSale = async () => {
     if (items.length === 0) {
       alert('Adicione pelo menos um item à venda');
+      return;
+    }
+
+    if (!isCashRegisterOpen || !currentRegister) {
+      alert('Não há caixa aberto. Por favor, abra o caixa antes de realizar vendas.');
       return;
     }
 
@@ -589,13 +596,18 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
                 {/* Finalize Sale Button */}
                 <button
                   onClick={handleFinalizeSale}
-                  disabled={salesLoading || !supabaseConfigured}
+                  disabled={salesLoading || !supabaseConfigured || !isCashRegisterOpen}
                   className="w-full mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white py-3 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
                 >
                   {salesLoading ? (
                     <>
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                       Processando...
+                    </>
+                  ) : !isCashRegisterOpen ? (
+                    <>
+                      <DollarSign size={20} />
+                      Caixa Fechado
                     </>
                   ) : (
                     <>
