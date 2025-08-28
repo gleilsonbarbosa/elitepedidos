@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Upload, X, Save, Package, Image as ImageIcon, GripVertical, RefreshCw, Wrench, Bug } from 'lucide-react';
+import { Plus, Edit, Trash2, Upload, X, Save, Package, Image as ImageIcon, GripVertical, RefreshCw, Wrench, Bug, AlertCircle } from 'lucide-react';
 import { usePDVProducts } from '../../hooks/usePDV';
 import { useDeliveryProducts, DeliveryProduct } from '../../hooks/useDeliveryProducts';
 import { useImageUpload } from '../../hooks/useImageUpload';
@@ -204,6 +204,7 @@ const ProductsPanel: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [supabaseConfigured, setSupabaseConfigured] = useState(true);
   const [editingProduct, setEditingProduct] = useState<ProductFormData | null>(null);
   const [productImages, setProductImages] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState<ProductFormData>({
@@ -218,7 +219,7 @@ const ProductsPanel: React.FC = () => {
   });
   const [draggedGroupIndex, setDraggedGroupIndex] = useState<number | null>(null);
   const [draggedOptionIndex, setDraggedOptionIndex] = useState<{ groupIndex: number; optionIndex: number } | null>(null);
-  const { error, debugProduct } = useProductScheduling();
+  const { error, debugProduct, fixProduct } = useProductScheduling();
   const [selectedProductForSchedule, setSelectedProductForSchedule] = useState<any | null>(null);
   
   const { getProductSchedule, saveProductSchedule } = useProductScheduling();
@@ -238,9 +239,28 @@ const ProductsPanel: React.FC = () => {
     return result;
   }, [deliveryProducts, searchTerm, selectedCategory]);
 
+  // Check Supabase configuration
+  useEffect(() => {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    const isConfigured = supabaseUrl && supabaseKey && 
+                        supabaseUrl !== 'your_supabase_url_here' && 
+                        supabaseKey !== 'your_supabase_anon_key_here' &&
+                        !supabaseUrl.includes('placeholder');
+    
+    setSupabaseConfigured(isConfigured);
+  }, []);
+
   // Carregar imagens dos produtos
   useEffect(() => {
     const loadProductImages = async () => {
+      // Skip image loading if Supabase is not configured
+      if (!supabaseConfigured) {
+        console.warn('⚠️ Supabase não configurado - pulando carregamento de imagens');
+        return;
+      }
+
       try {
         // Skip if Supabase is not configured
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -338,7 +358,13 @@ const ProductsPanel: React.FC = () => {
        
        for (const product of deliveryProducts) {
          try {
-           const savedImage = await getProductImage(product.id);
+          // Add timeout to prevent hanging requests
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Timeout')), 5000);
+          });
+          
+          const imagePromise = getProductImage(product.id);
+          const savedImage = await Promise.race([imagePromise, timeoutPromise]) as string | null;
            if (savedImage) {
              images[product.id] = savedImage;
              successCount++;
@@ -377,7 +403,7 @@ const ProductsPanel: React.FC = () => {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [filteredProducts, getProductImage]);
+  }, [filteredProducts, getProductImage, supabaseConfigured]);
 
   const resetForm = () => {
     setFormData({
@@ -560,7 +586,6 @@ const ProductsPanel: React.FC = () => {
             document.body.removeChild(successMessage);
           }
         }, 3000);
-        
       } catch (error) {
         console.log('Delivery refresh não disponível:', error);
       }
@@ -849,6 +874,24 @@ const ProductsPanel: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Supabase Configuration Warning */}
+      {!supabaseConfigured && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <div className="bg-yellow-100 rounded-full p-2">
+              <AlertCircle size={20} className="text-yellow-600" />
+            </div>
+            <div>
+              <h3 className="font-medium text-yellow-800">Supabase Não Configurado</h3>
+              <p className="text-yellow-700 text-sm">
+                Configure as variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY para acessar as funcionalidades completas.
+                Algumas funcionalidades como upload de imagens estarão limitadas.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

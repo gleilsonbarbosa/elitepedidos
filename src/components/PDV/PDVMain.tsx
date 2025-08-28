@@ -12,9 +12,11 @@ import PDVCashReportWithDateFilter from './PDVCashReportWithDateFilter';
 import PDVCashReportWithDetails from './PDVCashReportWithDetails';
 import PDVDailyCashReport from './PDVDailyCashReport';
 import PDVDailyDeliveryReport from './PDVDailyDeliveryReport';
+import PDVCashRegistersReport from './PDVCashRegistersReport';
 import PDVSettings from './PDVSettings'; 
 import PDVOperators from './PDVOperators';
 import PDVSalesReport from './PDVSalesReport';
+import PDVCustomerFrequencyReport from './PDVCustomerFrequencyReport';
 import CashRegisterMenu from './CashRegisterMenu';
 import AttendantPanel from '../Orders/AttendantPanel';
 import { TrendingUp } from 'lucide-react';
@@ -32,6 +34,7 @@ const menuCategories = [
       { id: 'products' as const, label: 'Produtos', icon: Package, color: 'bg-blue-500' },
       { id: 'orders' as const, label: 'Pedidos', icon: Truck, color: 'bg-purple-500' },
       { id: 'cash_flow' as const, label: 'Fluxo de Caixa', icon: TrendingUp, color: 'bg-emerald-500' },
+      { id: 'customer_frequency' as const, label: 'Frequência de Clientes', icon: Users, color: 'bg-indigo-500' },
     ]
   },
   {
@@ -41,6 +44,7 @@ const menuCategories = [
     items: [
       { id: 'reports' as const, label: 'Gráficos', icon: BarChart3, color: 'bg-purple-500' },
       { id: 'sales_report' as const, label: 'Relatório de Vendas', icon: BarChart3, color: 'bg-indigo-500' },
+      { id: 'cash_registers_report' as const, label: 'Relatório de Caixas', icon: DollarSign, color: 'bg-green-500' },
       { id: 'daily_cash_report' as const, label: 'Relatório de Caixa Diário', icon: FileText, color: 'bg-teal-500' },
       { id: 'delivery_report' as const, label: 'Relatório de Delivery', icon: Truck, color: 'bg-purple-500' },
       { id: 'cash_report' as const, label: 'Relatório de Caixa por Período', icon: DollarSign, color: 'bg-emerald-500' },
@@ -65,6 +69,7 @@ const flatMenuItems = menuCategories.flatMap(category => category.items);
 interface PDVMainOperator {
   id: string;
   name: string;
+  code?: string;
   permissions: {
     can_discount: boolean;
     can_cancel: boolean;
@@ -86,7 +91,7 @@ interface PDVMainProps {
 }
 
 const PDVMain: React.FC<PDVMainProps> = ({ onBack, operator }) => {
-  const [activeScreen, setActiveScreen] = useState<'attendance' | 'products' | 'reports' | 'settings' | 'operators' | 'cash_register' | 'sales_report' | 'cash_report' | 'orders' | 'cash_menu' | 'daily_cash_report' | 'cash_report_details' | 'delivery_report'>('attendance');
+  const [activeScreen, setActiveScreen] = useState<'attendance' | 'products' | 'reports' | 'settings' | 'operators' | 'cash_register' | 'sales_report' | 'cash_report' | 'orders' | 'cash_menu' | 'daily_cash_report' | 'cash_report_details' | 'delivery_report' | 'cash_registers_report' | 'customer_frequency'>('attendance');
   const { hasPermission } = usePermissions();
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     main: true,
@@ -111,7 +116,7 @@ const PDVMain: React.FC<PDVMainProps> = ({ onBack, operator }) => {
       const validScreens = [
         'attendance', 'products', 'reports', 'settings', 'operators', 
         'cash_register', 'sales_report', 'cash_report', 'orders', 
-        'cash_menu', 'daily_cash_report', 'cash_report_details', 'delivery_report'
+        'cash_menu', 'daily_cash_report', 'cash_report_details', 'delivery_report', 'cash_registers_report'
       ];
       
       if (validScreens.includes(storedScreen)) {
@@ -370,6 +375,10 @@ const PDVMain: React.FC<PDVMainProps> = ({ onBack, operator }) => {
         // Redirect to the dedicated cash flow page
         window.location.href = '/fluxo-caixa';
         return null;
+      case 'cash_registers_report':
+        return <PDVCashRegistersReport />;
+      case 'customer_frequency':
+        return <PDVCustomerFrequencyReport />;
       default:
         return <UnifiedAttendancePage operator={operator} />;
     }
@@ -487,7 +496,8 @@ const PDVMain: React.FC<PDVMainProps> = ({ onBack, operator }) => {
                         'cash_report_details': 'can_view_cash_report',
                         'operators': 'can_view_operators',
                         'settings': 'can_manage_products',
-                        'pdv': 'can_view_attendance'
+                        'pdv': 'can_view_attendance',
+                        'customer_frequency': 'can_view_reports'
                       };
                       
                       const permissionNeeded = menuPermissionMap[item.id];

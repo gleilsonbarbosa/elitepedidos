@@ -7,12 +7,14 @@ import PDVCashReportWithDetails from './PDVCashReportWithDetails';
 import PDVDailyDeliveryReport from './PDVDailyDeliveryReport';
 import PDVDailyCashReport from './PDVDailyCashReport';
 import PDVCashReportWithDateFilter from './PDVCashReportWithDateFilter';
+import PDVCashRegistersReport from './PDVCashRegistersReport';
 import PDVOperators from './PDVOperators';
 import PDVProductsManager from './PDVProductsManager';
 import PDVReports from './PDVReports';
 import { TrendingUp } from 'lucide-react';
 import PDVSettings from './PDVSettings';
 import PDVSalesReport from './PDVSalesReport';
+import PDVCustomerFrequencyReport from './PDVCustomerFrequencyReport';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useScale } from '../../hooks/useScale';
 import { usePDVCashRegister } from '../../hooks/usePDVCashRegister';
@@ -30,7 +32,8 @@ import {
   Settings,
   Package,
   Calendar,
-  Truck
+  Truck,
+  Users
 } from 'lucide-react';
 
 const PDVPage: React.FC = () => {
@@ -49,7 +52,7 @@ const PDVPage: React.FC = () => {
     return null;
   });
 
-  const [activeTab, setActiveTab] = useState<'sales' | 'cash' | 'daily_report' | 'detailed_report' | 'period_report' | 'daily_delivery_report' | 'operators' | 'products' | 'reports' | 'settings' | 'sales_report'>('sales');
+  const [activeTab, setActiveTab] = useState<'sales' | 'cash' | 'daily_report' | 'detailed_report' | 'period_report' | 'daily_delivery_report' | 'operators' | 'products' | 'reports' | 'settings' | 'sales_report' | 'customer_frequency'>('sales');
   const { hasPermission } = usePermissions(loggedInOperator);
   const { storeSettings } = useStoreHours();
   const { isOpen: isCashRegisterOpen } = usePDVCashRegister();
@@ -129,6 +132,14 @@ const PDVPage: React.FC = () => {
       description: 'Relatório de vendas'
     },
     {
+      id: 'cash_registers_report' as const,
+      label: 'Relatório de Caixas',
+      icon: DollarSign,
+      color: 'bg-green-600',
+      permission: 'can_view_cash_report',
+      description: 'Relatório de caixas'
+    },
+    {
       id: 'daily_report' as const,
       label: 'Relatório Diário',
       icon: Calendar,
@@ -143,6 +154,14 @@ const PDVPage: React.FC = () => {
       color: 'bg-cyan-600',
       permission: 'can_view_reports',
       description: 'Relatório diário de delivery'
+    },
+    {
+      id: 'customer_frequency' as const,
+      label: 'Frequência de Clientes',
+      icon: Users,
+      color: 'bg-indigo-600',
+      permission: 'can_view_reports',
+      description: 'Análise de comportamento dos clientes'
     }
   ].filter(tab => isAdmin || hasPermission(tab.permission as any));
 
@@ -166,12 +185,18 @@ const PDVPage: React.FC = () => {
         return <PDVSettings />;
       case 'sales_report':
         return <PDVSalesReport />;
+      case 'cash_registers_report':
+        return <PDVCashRegistersReport />;
+      case 'cash_registers_report':
+        return <PDVCashRegistersReport />;
       case 'reports':
         return <PDVReports />;
       case 'daily_report':
         return <PDVDailyCashReport />;
       case 'daily_delivery_report':
         return <PDVDailyDeliveryReport />;
+      case 'customer_frequency':
+        return <PDVCustomerFrequencyReport />;
       case 'cash_flow':
         // Redirect to the dedicated cash flow page
         window.location.href = '/fluxo-caixa';
