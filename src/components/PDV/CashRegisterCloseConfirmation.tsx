@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { X, AlertTriangle, DollarSign, CheckCircle, Printer, Plus, Minus } from 'lucide-react';
 import { PDVCashRegister, PDVCashRegisterSummary, PDVCashRegisterEntry } from '../../types/pdv';
 import { usePermissions } from '../../hooks/usePermissions';
-import { supabase } from '../../lib/supabase';
 
 interface CashRegisterCloseConfirmationProps {
   isOpen: boolean;
@@ -28,8 +27,6 @@ const CashRegisterCloseConfirmation: React.FC<CashRegisterCloseConfirmationProps
   const [justification, setJustification] = useState('');
   const [printMovements, setPrintMovements] = useState(true);
   const [showBillCounting, setShowBillCounting] = useState(false);
-  const [openTables, setOpenTables] = useState<any[]>([]);
-  const [checkingTables, setCheckingTables] = useState(false);
   const [billCounts, setBillCounts] = useState({
     '200': 0,
     '100': 0,
@@ -62,74 +59,6 @@ const CashRegisterCloseConfirmation: React.FC<CashRegisterCloseConfirmationProps
     { value: '0.01', label: 'R$ 0,01', color: 'bg-gray-50' }
   ];
 
-  // Verificar mesas abertas quando o modal abrir
-  React.useEffect(() => {
-    if (isOpen) {
-      checkOpenTables();
-    }
-  }, [isOpen]);
-
-  const checkOpenTables = async () => {
-    setCheckingTables(true);
-    try {
-      // Verificar mesas abertas na loja 1
-      const { data: store1Tables, error: error1 } = await supabase
-        .from('store1_tables')
-        .select(`
-          id,
-          number,
-          name,
-          status,
-          current_sale_id,
-          store1_table_sales!current_sale_id(
-            sale_number,
-            customer_name,
-            total_amount,
-            status
-          )
-        `)
-        .neq('status', 'livre');
-
-      if (error1) {
-        console.warn('⚠️ Erro ao verificar mesas da loja 1:', error1);
-      }
-
-      // Verificar mesas abertas na loja 2
-      const { data: store2Tables, error: error2 } = await supabase
-        .from('store2_tables')
-        .select(`
-          id,
-          number,
-          name,
-          status,
-          current_sale_id,
-          store2_table_sales!current_sale_id(
-            sale_number,
-            customer_name,
-            total_amount,
-            status
-          )
-        `)
-        .neq('status', 'livre');
-
-      if (error2) {
-        console.warn('⚠️ Erro ao verificar mesas da loja 2:', error2);
-      }
-
-      const allOpenTables = [
-        ...(store1Tables || []).map(table => ({ ...table, store: 'Loja 1' })),
-        ...(store2Tables || []).map(table => ({ ...table, store: 'Loja 2' }))
-      ];
-
-      setOpenTables(allOpenTables);
-      console.log('🔍 Mesas abertas encontradas:', allOpenTables.length);
-    } catch (error) {
-      console.error('❌ Erro ao verificar mesas abertas:', error);
-      setOpenTables([]);
-    } finally {
-      setCheckingTables(false);
-    }
-  };
   if (!isOpen) return null;
 
   const formatPrice = (price: number) => {
@@ -145,36 +74,6 @@ const CashRegisterCloseConfirmation: React.FC<CashRegisterCloseConfirmationProps
     }
   };
 
-  const handleFinalConfirm = () => {
-    // Se há mesas abertas, mostrar aviso
-    if (openTables.length > 0) {
-      const tablesList = openTables.map(table => 
-        `• ${table.store} - Mesa ${table.number} (${getTableStatusLabel(table.status)})`
-      ).join('\n');
-      
-      const confirmed = confirm(
-        `⚠️ ATENÇÃO: Há ${openTables.length} mesa(s) ainda não finalizadas:\n\n${tablesList}\n\n` +
-        `Tem certeza que deseja fechar o caixa mesmo com mesas abertas?\n\n` +
-        `• OK = Fechar caixa mesmo assim\n` +
-        `• Cancelar = Voltar e finalizar mesas primeiro`
-      );
-      
-      if (!confirmed) {
-        return;
-      }
-    }
-    
-    onConfirm(closingAmount, justification || undefined);
-  };
-
-  const getTableStatusLabel = (status: string) => {
-    switch (status) {
-      case 'ocupada': return 'Ocupada';
-      case 'aguardando_conta': return 'Aguardando Conta';
-      case 'limpeza': return 'Em Limpeza';
-      default: return status;
-    }
-  };
   const calculateBillTotal = () => {
     return Object.entries(billCounts).reduce((total, [value, count]) => {
       return total + (parseFloat(value) * count);
@@ -247,59 +146,6 @@ const CashRegisterCloseConfirmation: React.FC<CashRegisterCloseConfirmationProps
         </div>
 
         <div className="p-6 overflow-y-auto">
-          {/* Verificação de mesas abertas */}
-          {checkingTables && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <div className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                <p className="text-blue-700 text-sm">Verificando mesas abertas...</p>
-              </div>
-            </div>
-          )}
-
-          {/* Alerta de mesas abertas */}
-          {openTables.length > 0 && !checkingTables && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-              <div className="flex items-start gap-3">
-                <AlertTriangle size={20} className="text-red-600 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-red-800 mb-2">
-                    ⚠️ Mesas Abertas Detectadas ({openTables.length})
-                  </h4>
-                  <p className="text-red-700 text-sm mb-3">
-                    Há mesas ainda abertas. Recomenda-se fechar todas as mesas antes de fechar o caixa:
-                  </p>
-                  <div className="space-y-2">
-                    {openTables.map((table, index) => (
-                      <div key={index} className="bg-white/70 rounded p-2 border border-red-200">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium text-red-800">
-                            {table.store} - Mesa {table.number}
-                          </span>
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            table.status === 'ocupada' 
-                              ? 'bg-red-100 text-red-700' 
-                              : 'bg-yellow-100 text-yellow-700'
-                          }`}>
-                            {table.status === 'ocupada' ? 'Ocupada' : 'Aguardando Conta'}
-                          </span>
-                        </div>
-                        {table.store1_table_sales?.[0] || table.store2_table_sales?.[0] ? (
-                          <div className="text-xs text-red-600 mt-1">
-                            Venda #{(table.store1_table_sales?.[0] || table.store2_table_sales?.[0])?.sale_number} - 
-                            {formatPrice((table.store1_table_sales?.[0] || table.store2_table_sales?.[0])?.total_amount || 0)}
-                          </div>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-red-700 text-sm mt-3 font-medium">
-                    💡 Dica: Feche as mesas na aba "Mesas" antes de fechar o caixa
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
           {!hasInformedAmount ? (
             // ETAPA 1: Informar valor contado
             <div className="space-y-4">
@@ -493,7 +339,7 @@ const CashRegisterCloseConfirmation: React.FC<CashRegisterCloseConfirmationProps
             ) : (
               <>
                 <button
-                  onClick={handleFinalConfirm}
+                  onClick={() => onConfirm(closingAmount, justification || undefined)}
                   disabled={isProcessing || !canProceed}
                   className="w-full bg-green-500 hover:bg-green-600 disabled:bg-gray-300 text-white py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                 >
