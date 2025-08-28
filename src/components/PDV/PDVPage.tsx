@@ -33,8 +33,10 @@ import {
   Package,
   Calendar,
   Truck,
-  Users
+  Users,
+  Clock
 } from 'lucide-react';
+import PDVPeakHoursReport from './PDVPeakHoursReport';
 
 const PDVPage: React.FC = () => {
   const navigate = useNavigate();
@@ -52,7 +54,7 @@ const PDVPage: React.FC = () => {
     return null;
   });
 
-  const [activeTab, setActiveTab] = useState<'sales' | 'cash' | 'daily_report' | 'detailed_report' | 'period_report' | 'daily_delivery_report' | 'operators' | 'products' | 'reports' | 'settings' | 'sales_report' | 'customer_frequency'>('sales');
+  const [activeTab, setActiveTab] = useState<'sales' | 'cash' | 'daily_report' | 'detailed_report' | 'period_report' | 'daily_delivery_report' | 'operators' | 'products' | 'reports' | 'settings' | 'sales_report' | 'customer_frequency' | 'peak_hours'>('sales');
   const { hasPermission } = usePermissions(loggedInOperator);
   const { storeSettings } = useStoreHours();
   const { isOpen: isCashRegisterOpen } = usePDVCashRegister();
@@ -162,6 +164,14 @@ const PDVPage: React.FC = () => {
       color: 'bg-indigo-600',
       permission: 'can_view_reports',
       description: 'Análise de comportamento dos clientes'
+    },
+    {
+      id: 'peak_hours' as const,
+      label: 'Horários de Pico',
+      icon: Clock,
+      color: 'bg-orange-600',
+      permission: 'can_view_reports',
+      description: 'Análise de horários e dias de maior movimento'
     }
   ].filter(tab => isAdmin || hasPermission(tab.permission as any));
 
@@ -201,6 +211,8 @@ const PDVPage: React.FC = () => {
         // Redirect to the dedicated cash flow page
         window.location.href = '/fluxo-caixa';
         return null;
+      case 'peak_hours':
+        return <PDVPeakHoursReport />;
       default:
         return <PDVOperators />;
     }
