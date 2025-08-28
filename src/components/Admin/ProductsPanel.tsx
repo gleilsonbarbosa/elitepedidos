@@ -218,7 +218,7 @@ const ProductsPanel: React.FC = () => {
   });
   const [draggedGroupIndex, setDraggedGroupIndex] = useState<number | null>(null);
   const [draggedOptionIndex, setDraggedOptionIndex] = useState<{ groupIndex: number; optionIndex: number } | null>(null);
-  const { error, debugProduct } = useProductScheduling();
+  const { error, debugProduct, fixProduct } = useProductScheduling();
   const [selectedProductForSchedule, setSelectedProductForSchedule] = useState<any | null>(null);
   
   const { getProductSchedule, saveProductSchedule } = useProductScheduling();
@@ -242,13 +242,24 @@ const ProductsPanel: React.FC = () => {
   useEffect(() => {
     const loadProductImages = async () => {
       try {
-        // Skip if Supabase is not configured
+        // Skip image loading if Supabase is not configured
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
         if (!supabaseUrl || !supabaseKey || 
             supabaseUrl.includes('placeholder') || 
             supabaseKey.includes('placeholder')) {
+          console.warn('⚠️ Supabase não configurado completamente - pulando carregamento de imagens');
+          return;
+        }
+
+        // Skip if Supabase is not configured
+        const localSupabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const localSupabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+        if (!localSupabaseUrl || !localSupabaseKey || 
+            localSupabaseUrl.includes('placeholder') || 
+            localSupabaseKey.includes('placeholder')) {
           console.warn('⚠️ Supabase não configurado - usando imagens padrão dos produtos');
           return;
         }
@@ -258,38 +269,40 @@ const ProductsPanel: React.FC = () => {
           return;
         }
 
-        const images: Record<string, string> = {};
-        
         // Process products with timeout and error handling for each
         const imagePromises = filteredProducts.map(async (product) => {
           try {
-            // Set timeout for each individual request
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout')), 3000)
-            );
-            
-            const imagePromise = getProductImage(product.id);
-            
-            const savedImage = await Promise.race([imagePromise, timeoutPromise]) as string | null;
-            
-            if (savedImage) {
-              images[product.id] = savedImage;
-            }
+            const savedImage = await getProductImage(product.id);
+            return {
+              productId: product.id,
+              imageUrl: savedImage
+            };
           } catch (error) {
-            // Handle network errors gracefully for individual products
-            if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-              console.warn(`⚠️ Erro de rede ao carregar imagem do produto ${product.name} - usando fallback`);
-            } else if (error instanceof Error && error.message === 'Timeout') {
-              console.warn(`⏰ Timeout ao carregar imagem do produto ${product.name}`);
+            // Handle network errors gracefully
+            if (error instanceof TypeError && error.message === 'Failed to fetch') {
+              console.warn(`⚠️ Erro de rede ao carregar imagem para ${product.name} - continuando sem imagem`);
+            } else if (error instanceof Error && error.message.includes('Bucket not found')) {
+              console.warn(`⚠️ Bucket de storage não encontrado para ${product.name} - continuando sem imagem`);
             } else {
               console.warn(`⚠️ Erro ao carregar imagem do produto ${product.name}:`, error);
             }
-            // Don't add to images object, will use product's default image
+            // Return null for failed image loads
+            return {
+              productId: product.id,
+              imageUrl: null
+            };
           }
         });
-
-        // Wait for all image loading attempts to complete
-        await Promise.allSettled(imagePromises);
+            
+        const results = await Promise.all(imagePromises);
+        
+        const images: Record<string, string> = {};
+        results.forEach((result) => {
+          if (result && result.imageUrl) {
+            const { productId, imageUrl } = result;
+            images[productId] = imageUrl;
+          }
+        });
         
         setProductImages(images);
       } catch (error) {
@@ -371,12 +384,18 @@ const ProductsPanel: React.FC = () => {
      }
     };
 
-    // Adicionar delay para evitar múltiplas chamadas simultâneas
+    // Use a more robust debouncing approach
     const timeoutId = setTimeout(() => {
-      loadProductImages();
+      loadProductImages().catch((error) => {
+        console.error('❌ Erro no carregamento de imagens (timeout):', error);
+        // Ensure we don't break the component even if loading fails completely
+        setProductImages({});
+      });
     }, 300);
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+    };
   }, [filteredProducts, getProductImage]);
 
   const resetForm = () => {
@@ -562,7 +581,9 @@ const ProductsPanel: React.FC = () => {
         }, 3000);
         
       } catch (error) {
-        console.log('Delivery refresh não disponível:', error);
+        // Handle any unexpected errors in the loading process
+        console.error('❌ Erro inesperado no carregamento de imagens:', error);
+        // Don't throw error, just continue without images
       }
       
     } catch (error) {

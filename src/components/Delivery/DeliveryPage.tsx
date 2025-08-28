@@ -15,7 +15,7 @@ import { useCart } from '../../hooks/useCart';
 import { useStoreHours } from '../../hooks/useStoreHours';
 import { useProductScheduling } from '../../hooks/useProductScheduling';
 import { useRecommendations } from '../../hooks/useRecommendations';
-import { useDeliveryProducts } from '../../hooks/useDeliveryProducts';
+import { usePDVProducts } from '../../hooks/usePDV';
 import { 
   getPromotionsOfTheDay, 
   hasTodaySpecialPromotions, 
@@ -52,7 +52,7 @@ const DeliveryPage: React.FC = () => {
   const { getStoreStatus } = useStoreHours();
   const productScheduling = useProductScheduling();
   const { getRecommendations } = useRecommendations();
-  const { products: deliveryProducts, loading: productsLoading, refetch: refetchProducts } = useDeliveryProducts();
+  const { products: deliveryProducts, loading: productsLoading, searchProducts } = usePDVProducts();
   
   // Configurar hook para funções de availability
   React.useEffect(() => {
@@ -82,86 +82,28 @@ const DeliveryPage: React.FC = () => {
       id: dbProduct.id,
       name: dbProduct.name,
       category: dbProduct.category as Product['category'],
-      price: dbProduct.price,
-      originalPrice: dbProduct.original_price,
+      price: dbProduct.unit_price || 0,
+      originalPrice: dbProduct.unit_price ? dbProduct.unit_price * 1.2 : undefined,
       pricePerGram: dbProduct.price_per_gram,
       description: dbProduct.description,
       image: dbProduct.image_url || 'https://images.pexels.com/photos/1092730/pexels-photo-1092730.jpeg?auto=compress&cs=tinysrgb&w=400',
       isActive: dbProduct.is_active,
       is_weighable: dbProduct.is_weighable,
-      complementGroups: Array.isArray(dbProduct.complement_groups) 
-        ? dbProduct.complement_groups.map(group => ({
-            id: group.id || `group-${Math.random()}`,
-            name: group.name || 'Grupo sem nome',
-            required: group.required || false,
-            minItems: group.min_items || 0,
-            maxItems: group.max_items || 1,
-            complements: Array.isArray(group.complements) 
-              ? group.complements
-                  .filter(comp => {
-                    const isActive = comp.isActive !== false && comp.is_active !== false;
-                    if (!isActive) {
-                      console.log(`🚫 Complemento ${comp.name} filtrado (inativo):`, comp);
-                    }
-                    return isActive;
-                  })
-                  .map(comp => ({
-                    id: comp.id || `comp-${Math.random()}`,
-                    name: comp.name || 'Complemento',
-                    price: comp.price || 0,
-                    description: comp.description || '',
-                    isActive: comp.isActive !== false && comp.is_active !== false
-                  }))
-              : (Array.isArray(group.options) 
-                ? group.options
-                    .filter(opt => {
-                      const isActive = opt.isActive !== false && opt.is_active !== false;
-                      if (!isActive) {
-                        console.log(`🚫 Opção ${opt.name} filtrada (inativa):`, opt);
-                      }
-                      return isActive;
-                    })
-                    .map(opt => ({
-                      id: opt.id || `opt-${Math.random()}`,
-                      name: opt.name || 'Opção',
-                      price: opt.price || 0,
-                      description: opt.description || '',
-                      isActive: opt.isActive !== false && opt.is_active !== false
-                    }))
-                : [])
-          }))
-        : [],
-      sizes: dbProduct.sizes,
-      scheduledDays: dbProduct.scheduled_days,
-      availability: dbProduct.availability_type ? {
-        type: dbProduct.availability_type as any,
-        scheduledDays: dbProduct.scheduled_days
-      } : undefined
+      complementGroups: [],
+      sizes: undefined,
+      scheduledDays: undefined,
+      availability: undefined
     }));
   }, [deliveryProducts]);
 
   // Recarregar produtos quando necessário
   React.useEffect(() => {
-    // Disponibilizar função de refresh globalmente
-    (window as any).refreshDeliveryProducts = refetchProducts;
-    // Também disponibilizar função de correção de produto
-    (window as any).fixDeliveryProduct = async (productId: string) => {
-      try {
-        console.log('🔧 Corrigindo produto via console:', productId);
-        // Note: We need to access fixProduct from the hook, but it's not exposed yet
-        // This will be added in a subsequent update
-        await refetchProducts(); // For now, just refresh
-        console.log('✅ Produtos atualizados');
-      } catch (err) {
-        console.error('❌ Erro ao corrigir produto:', err);
-      }
-    };
+    // Remove global refresh functions since we're using PDV products now
+    delete (window as any).refreshDeliveryProducts;
+    delete (window as any).fixDeliveryProduct;
     
-    return () => {
-      delete (window as any).refreshDeliveryProducts;
-      delete (window as any).fixDeliveryProduct;
-    };
-  }, [refetchProducts]);
+    console.log('ℹ️ Usando produtos do PDV em vez de delivery_products');
+  }, []);
   
   // Filtrar apenas produtos ativos
   const activeProducts = products.filter(product => {

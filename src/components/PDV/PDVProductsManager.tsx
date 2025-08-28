@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Package, Plus, Edit3, Trash2, Search, Eye, EyeOff, Scale, Image as ImageIcon, Save, X, Upload, AlertCircle } from 'lucide-react';
 import { usePDVProducts } from '../../hooks/usePDV';
 import { useImageUpload } from '../../hooks/useImageUpload';
+import { supabase } from '../../lib/supabase';
 import ImageUploadModal from '../Admin/ImageUploadModal';
 import { PDVProduct } from '../../types/pdv';
 
@@ -42,6 +43,18 @@ const PDVProductsManager: React.FC = () => {
   // Carregar imagens dos produtos
   React.useEffect(() => {
     const loadProductImages = async () => {
+      try {
+        // Skip image loading if Supabase is not configured
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+        if (!supabaseUrl || !supabaseKey || 
+            supabaseUrl.includes('placeholder') || 
+            supabaseKey.includes('placeholder')) {
+          console.warn('⚠️ Supabase não configurado completamente - pulando carregamento de imagens');
+          return;
+        }
+
       // Verificar se há produtos para carregar
       if (filteredProducts.length === 0) {
         return;
@@ -56,22 +69,47 @@ const PDVProductsManager: React.FC = () => {
             images[product.id] = savedImage;
           }
         } catch (error) {
-          // Apenas logar se não for erro de conectividade
-          if (!(error instanceof TypeError && error.message.includes('Failed to fetch'))) {
-            console.warn(`Erro ao carregar imagem do produto ${product.name}:`, error);
+          // Handle all types of errors gracefully
+          if (error instanceof TypeError && error.message === 'Failed to fetch') {
+            console.warn(`⚠️ Erro de rede ao carregar imagem para ${product.name} - continuando sem imagem`);
+          } else if (error instanceof Error && error.message.includes('Bucket not found')) {
+            console.warn(`⚠️ Bucket de storage não encontrado para ${product.name} - continuando sem imagem`);
+          } else {
+            console.warn(`⚠️ Erro ao carregar imagem do produto ${product.name}:`, error);
           }
+          // Continue loading other images even if one fails
         }
       }
       
       setProductImages(images);
+      } catch (error) {
+        // Handle any unexpected errors at the top level
+        if (error instanceof TypeError && error.message === 'Failed to fetch') {
+          console.warn('⚠️ Problemas de conectividade com Supabase - carregamento de imagens desabilitado');
+        } else {
+          console.warn('⚠️ Erro inesperado no carregamento de imagens:', error);
+        }
+        // Ensure we don't break the component
+        setProductImages({});
+      }
     };
 
-    // Adicionar delay para evitar múltiplas chamadas simultâneas
+    // Use a more robust debouncing approach
     const timeoutId = setTimeout(() => {
-      loadProductImages();
-    }, 100);
+      loadProductImages().catch((error) => {
+        // Handle timeout errors gracefully
+        if (error instanceof TypeError && error.message === 'Failed to fetch') {
+          console.warn('⚠️ Timeout na conexão com Supabase - imagens não carregadas');
+        } else {
+          console.warn('⚠️ Erro no carregamento de imagens (timeout):', error);
+        }
+        setProductImages({});
+      });
+    }, 300);
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+    };
   }, [filteredProducts, getProductImage]);
 
   const formatPrice = (price: number) => {

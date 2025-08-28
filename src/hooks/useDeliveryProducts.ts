@@ -31,7 +31,7 @@ export const useDeliveryProducts = () => {
     try {
       setLoading(true);
       setError(null);
-      
+      console.log('🔄 Buscando produtos do banco (usando pdv_products)...');
       // Check if Supabase is properly configured
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -157,8 +157,7 @@ export const useDeliveryProducts = () => {
         }
       } else {
         const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar produtos';
-        setError(errorMessage);
-        setProducts([]);
+        setError(err instanceof Error ? err.message : 'Erro ao conectar com banco de dados');
       }
     } finally {
       setLoading(false);
@@ -193,7 +192,7 @@ export const useDeliveryProducts = () => {
       }
       
       const { data, error } = await supabase
-        .from('delivery_products')
+        .from('pdv_products')
         .insert([{
           ...product,
           created_at: new Date().toISOString(),
