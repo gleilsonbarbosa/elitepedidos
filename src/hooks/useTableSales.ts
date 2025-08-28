@@ -121,6 +121,21 @@ export const useTableSales = (
 
   const closeSale = async (saleId: string, paymentType: string, changeAmount: number = 0) => {
     try {
+      // Get the table associated with this sale - use maybeSingle to handle case where no table is found
+      const { data: tableData, error: tableError } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('current_sale_id', saleId)
+        .maybeSingle();
+
+      if (tableError) throw tableError;
+
+      // Check if table was found
+      if (!tableData) {
+        console.warn('⚠️ Mesa não encontrada para a venda:', saleId);
+        // Continue with sale closure even if table is not found
+      }
+
       // Update sale status to closed
       const { data: updatedSale, error: updateError } = await supabase
         .from(salesTableName)
@@ -136,25 +151,18 @@ export const useTableSales = (
 
       if (updateError) throw updateError;
 
-      // Get the table associated with this sale
-      const { data: tableData, error: tableError } = await supabase
-        .from(tableName)
-        .select('*')
-        .eq('current_sale_id', saleId)
-        .single();
+      // Update table status only if table was found
+      if (tableData) {
+        const { error: tableUpdateError } = await supabase
+          .from(tableName)
+          .update({
+            status: 'limpeza',
+            current_sale_id: null
+          })
+          .eq('id', tableData.id);
 
-      if (tableError) throw tableError;
-
-      // Update table status to cleaning and remove current sale
-      const { error: tableUpdateError } = await supabase
-        .from(tableName)
-        .update({
-          status: 'limpeza',
-          current_sale_id: null
-        })
-        .eq('id', tableData.id);
-
-      if (tableUpdateError) throw tableUpdateError;
+        if (tableUpdateError) throw tableUpdateError;
+      }
 
       await fetchTables();
     } catch (err) {
