@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calculator, Package, BarChart3, Settings, Users, ArrowLeft, DollarSign, Bell, FileText, LogOut, User, Layers, ChevronUp, ChevronDown, Truck, ShoppingBag, MessageSquare, Clock } from 'lucide-react';
+import { Calculator, Package, BarChart3, Settings, Users, ArrowLeft, DollarSign, Bell, FileText, LogOut, User, Layers, ChevronUp, ChevronDown, Truck, ShoppingBag, MessageSquare } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useScale } from '../../hooks/useScale';
@@ -20,8 +20,6 @@ import PDVCustomerFrequencyReport from './PDVCustomerFrequencyReport';
 import CashRegisterMenu from './CashRegisterMenu';
 import AttendantPanel from '../Orders/AttendantPanel';
 import { TrendingUp } from 'lucide-react';
-import PDVPeakHoursReport from './PDVPeakHoursReport';
-import PDVCustomersReport from './PDVCustomersReport';
 
 // Define menu items before component to avoid initialization issues
 // Organize menu items by category
@@ -37,8 +35,6 @@ const menuCategories = [
       { id: 'orders' as const, label: 'Pedidos', icon: Truck, color: 'bg-purple-500' },
       { id: 'cash_flow' as const, label: 'Fluxo de Caixa', icon: TrendingUp, color: 'bg-emerald-500' },
       { id: 'customer_frequency' as const, label: 'Frequência de Clientes', icon: Users, color: 'bg-indigo-500' },
-      { id: 'peak_hours' as const, label: 'Horários de Pico', icon: Clock, color: 'bg-orange-500' },
-      { id: 'customers_report' as const, label: 'Relatório de Clientes', icon: Users, color: 'bg-blue-500' },
     ]
   },
   {
@@ -52,9 +48,7 @@ const menuCategories = [
       { id: 'daily_cash_report' as const, label: 'Relatório de Caixa Diário', icon: FileText, color: 'bg-teal-500' },
       { id: 'delivery_report' as const, label: 'Relatório de Delivery', icon: Truck, color: 'bg-purple-500' },
       { id: 'cash_report' as const, label: 'Relatório de Caixa por Período', icon: DollarSign, color: 'bg-emerald-500' },
-      { id: 'cash_report_details' as const, label: 'Histórico de Caixas', icon: FileText, color: 'bg-amber-500' },
-      { id: 'peak_hours_report' as const, label: 'Relatório de Picos', icon: Clock, color: 'bg-orange-500' },
-      { id: 'customers_report' as const, label: 'Relatório de Clientes', icon: Users, color: 'bg-blue-500' }
+      { id: 'cash_report_details' as const, label: 'Histórico de Caixas', icon: FileText, color: 'bg-amber-500' }
     ]
   },
   {
@@ -97,7 +91,7 @@ interface PDVMainProps {
 }
 
 const PDVMain: React.FC<PDVMainProps> = ({ onBack, operator }) => {
-  const [activeScreen, setActiveScreen] = useState<'attendance' | 'products' | 'reports' | 'settings' | 'operators' | 'cash_register' | 'sales_report' | 'cash_report' | 'orders' | 'cash_menu' | 'daily_cash_report' | 'cash_report_details' | 'delivery_report' | 'cash_registers_report' | 'customer_frequency' | 'peak_hours' | 'peak_hours_report' | 'customers_report'>('attendance');
+  const [activeScreen, setActiveScreen] = useState<'attendance' | 'products' | 'reports' | 'settings' | 'operators' | 'cash_register' | 'sales_report' | 'cash_report' | 'orders' | 'cash_menu' | 'daily_cash_report' | 'cash_report_details' | 'delivery_report' | 'cash_registers_report' | 'customer_frequency'>('attendance');
   const { hasPermission } = usePermissions();
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     main: true,
@@ -385,12 +379,6 @@ const PDVMain: React.FC<PDVMainProps> = ({ onBack, operator }) => {
         return <PDVCashRegistersReport />;
       case 'customer_frequency':
         return <PDVCustomerFrequencyReport />;
-      case 'peak_hours':
-        return <PDVPeakHoursReport />;
-      case 'peak_hours_report':
-        return <PDVPeakHoursReport />;
-      case 'customers_report':
-        return <PDVCustomersReport />;
       default:
         return <UnifiedAttendancePage operator={operator} />;
     }
@@ -509,10 +497,7 @@ const PDVMain: React.FC<PDVMainProps> = ({ onBack, operator }) => {
                         'operators': 'can_view_operators',
                         'settings': 'can_manage_products',
                         'pdv': 'can_view_attendance',
-                        'customer_frequency': 'can_view_reports',
-                        'peak_hours': 'can_view_reports',
-                        'peak_hours_report': 'can_view_reports',
-                        'customers_report': 'can_view_reports'
+                        'customer_frequency': 'can_view_reports'
                       };
                       
                       const permissionNeeded = menuPermissionMap[item.id];
