@@ -18,8 +18,6 @@ const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
   const [dragOver, setDragOver] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string>(currentImage || '');
   const [uploadedImages, setUploadedImages] = useState<any[]>([]);
-  const [bucketExists, setBucketExists] = useState<boolean>(false);
-  const [bucketCheckComplete, setBucketCheckComplete] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { uploadImage, deleteImage, getUploadedImages, uploading, uploadProgress, error } = useImageUpload();
@@ -36,30 +34,13 @@ const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
       console.log('🔄 Recarregando lista de imagens...');
       const images = await getUploadedImages();
       setUploadedImages(images);
-      setBucketExists(true);
-      setBucketCheckComplete(true);
     } catch (error) {
       console.error('Erro ao carregar imagens:', error);
-      setUploadedImages([]);
-      if (error instanceof Error && error.message.includes('Bucket not found')) {
-        setBucketExists(false);
-        setBucketCheckComplete(true);
-        return; // Stop execution when bucket doesn't exist
-      }
-      setBucketExists(false); // Assume bucket doesn't exist for any storage error
-      setBucketCheckComplete(true);
     }
   };
 
   const handleFileSelect = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-
-    // CRITICAL: Stop execution immediately if bucket doesn't exist
-    if (!bucketExists || !bucketCheckComplete) {
-      console.log('❌ Upload bloqueado: bucket não existe ou verificação não concluída');
-      alert('❌ Erro de Configuração\n\nO bucket de armazenamento "product-images" não existe no Supabase.\n\nPara resolver:\n1. Acesse o painel do Supabase\n2. Vá em Storage no menu lateral\n3. Crie um novo bucket chamado "product-images"\n4. Configure as permissões como público\n\nApós isso, tente fazer o upload novamente.');
-      return;
-    }
 
     console.log('📁 Arquivo selecionado para upload');
     const file = files[0];
@@ -72,16 +53,6 @@ const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
       setSelectedImage(uploadedImage.url);
     } catch (err) {
       console.error('Erro no upload:', err);
-      
-      // Verificar se é erro de bucket não encontrado
-      if (err instanceof Error && err.message.includes('Bucket not found')) {
-        setBucketExists(false); // Update state
-        alert('❌ Erro de Configuração\n\nO bucket de armazenamento "product-images" não existe no Supabase.\n\nPara resolver:\n1. Acesse o painel do Supabase\n2. Vá em Storage no menu lateral\n3. Crie um novo bucket chamado "product-images"\n4. Configure as permissões como público\n\nApós isso, tente fazer o upload novamente.');
-        return;
-      }
-      
-      // Outros erros
-      alert('Erro no upload da imagem. Tente novamente.');
     }
   };
 
@@ -172,42 +143,20 @@ const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
         <div className="p-6 max-h-[calc(90vh-200px)] overflow-y-auto">
           {/* Upload Area */}
           <div className="mb-6">
-            {!bucketExists && (
-              <div className="mb-4 bg-orange-50 border border-orange-200 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-orange-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                  </svg>
-                  <div>
-                    <h4 className="font-semibold text-orange-800">Configuração Necessária</h4>
-                    <p className="text-orange-700 text-sm mt-1">
-                      O bucket de armazenamento "product-images" não existe no Supabase.
-                    </p>
-                    <p className="text-orange-600 text-xs mt-2">
-                      Crie o bucket no painel do Supabase para usar o upload de imagens.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
             <div
               className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                !bucketExists 
-                  ? 'border-gray-200 bg-gray-50'
-                  : dragOver
+                dragOver
                   ? 'border-purple-500 bg-purple-50'
                   : 'border-gray-300 hover:border-gray-400'
               }`}
-              onDrop={bucketExists ? handleDrop : undefined}
+              onDrop={handleDrop}
               onDragOver={(e) => {
                 e.preventDefault();
-                if (bucketExists) setDragOver(true);
+                setDragOver(true);
               }}
-              onDragLeave={() => {
-                if (bucketExists) setDragOver(false);
-              }}
+              onDragLeave={() => setDragOver(false)}
             >
-              <Upload size={48} className={`mx-auto mb-4 ${bucketExists ? 'text-gray-400' : 'text-gray-300'}`} />
+              <Upload size={48} className="mx-auto text-gray-400 mb-4" />
               <h3 className="text-lg font-medium text-gray-800 mb-2">
                 Faça upload de uma nova imagem
               </h3>
@@ -215,26 +164,14 @@ const ImageUploadModal: React.FC<ImageUploadModalProps> = ({
                 <p className="text-gray-600 text-sm">Faça upload ou selecione uma imagem existente (salva no banco de dados)</p>
               </p>
               <button
-                onClick={() => bucketExists ? fileInputRef.current?.click() : undefined}
-                disabled={uploading || !bucketExists}
-                className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                  bucketExists
-                    ? 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white px-6 py-2 rounded-lg font-medium transition-colors"
               >
-                {!bucketExists 
-                  ? 'Upload Indisponível'
-                  : uploading 
-                    ? 'Fazendo upload...' 
-                    : 'Selecionar Arquivo'
-                }
+                {uploading ? 'Fazendo upload...' : 'Selecionar Arquivo'}
               </button>
               <p className="text-xs text-gray-500 mt-2">
-                {bucketExists 
-                  ? 'Formatos aceitos: JPG, PNG, GIF, WebP (máx. 5MB)'
-                  : 'Configure o bucket no Supabase para habilitar uploads'
-                }
+                Formatos aceitos: JPG, PNG, GIF, WebP (máx. 5MB)
               </p>
               
               {/* Barra de progresso do upload */}
