@@ -804,8 +804,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   <input
                     type="radio"
                     name="payment"
-                    value="pix"
-                    checked={paymentMethod === 'pix'}
+                    value="pix_entregador"
+                    checked={paymentMethod === 'pix_entregador'}
                     onChange={(e) => setPaymentMethod(e.target.value as any)}
                     className="text-blue-600"
                   />
@@ -816,7 +816,29 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                       </svg>
                     </div>
                     <div>
-                      <span className="font-medium">PIX</span>
+                      <span className="font-medium">PIX Entregador</span>
+                      <p className="text-xs text-gray-500">Pagar na entrega</p>
+                    </div>
+                  </div>
+                </label>
+                
+                <label className="flex items-center gap-3 p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                  <input
+                    type="radio"
+                    name="payment"
+                    value="pix_online"
+                    checked={paymentMethod === 'pix_online'}
+                    onChange={(e) => setPaymentMethod(e.target.value as any)}
+                    className="text-green-600"
+                  />
+                  <div className="flex items-center gap-2">
+                    <div className="bg-green-100 rounded-full p-2">
+                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <span className="font-medium">PIX Online</span>
                       <p className="text-xs text-gray-500">Chave: 85989041010</p>
                     </div>
                   </div>
@@ -959,6 +981,46 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             </div>
           )}
+          
+          {paymentMethod === 'pix_entregador' && (
+            <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-blue-800">PIX Entregador Selecionado</p>
+                  <p className="text-sm text-blue-700">
+                    Você pagará via PIX diretamente ao entregador na hora da entrega.
+                  </p>
+                  <p className="text-sm text-blue-700 font-medium">
+                    Chave PIX: 85989041010
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {paymentMethod === 'pix_online' && (
+            <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-start gap-2">
+                <svg className="w-5 h-5 text-green-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-green-800">PIX Online Selecionado</p>
+                  <p className="text-sm text-green-700">
+                    Faça o PIX agora e envie o comprovante via WhatsApp.
+                  </p>
+                  <div className="mt-2 p-2 bg-white rounded border border-green-200">
+                    <p className="text-sm font-bold text-green-800">Chave PIX: 85989041010</p>
+                    <p className="text-sm text-green-700">Nome: Amanda Suyelen da Costa Pereira</p>
+                    <p className="text-sm font-bold text-green-800">Valor: {formatPrice(getFinalTotal())}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -995,7 +1057,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 ) : (
                   <>
                     <Check size={18} />
-                    Finalizar Pedido
+                    Finalizar Pedido - {formatPrice(getFinalTotal())} ({
+                      paymentMethod === 'money' ? 'Dinheiro' :
+                      paymentMethod === 'pix_entregador' ? 'PIX Entregador' :
+                      paymentMethod === 'pix_online' ? 'PIX Online' : 'Cartão'
+                    })
                   </>
                 )}
               </button>

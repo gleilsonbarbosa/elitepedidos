@@ -90,11 +90,10 @@ export const useCashback = () => {
 
       // Use the customer_balances view for accurate balance calculation
       const { data, error } = await supabase
-        .from('customers')
-        .select('*')
+        .from('customer_balances')
+        .select('customer_id, name, available_balance, expiring_amount, expiration_date')
         .eq('customer_id', customerId)
-        .or('id.eq.' + customerId)
-        .maybeSingle();
+        .single();
 
       if (error) {
         console.warn('Erro ao buscar saldo via view, tentando tabela customers:', error);
