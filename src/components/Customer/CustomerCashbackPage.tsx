@@ -85,6 +85,13 @@ const CustomerCashbackPage: React.FC = () => {
       setCustomer(customerData);
       
       const balance = await getCustomerBalance(customerData.id);
+      
+      // Garantir que o saldo nunca seja negativo na exibição
+      if (balance) {
+        balance.available_balance = Math.max(0, balance.available_balance);
+        balance.expiring_amount = Math.max(0, balance.expiring_amount || 0);
+      }
+      
       setCustomerBalance(balance);
       
     } catch (err) {

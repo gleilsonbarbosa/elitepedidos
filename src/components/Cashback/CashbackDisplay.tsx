@@ -52,7 +52,7 @@ const CashbackDisplay: React.FC<CashbackDisplayProps> = ({ balance, className = 
           <Gift size={20} className="text-gray-400" />
           <div>
             <p className="text-sm text-gray-600">Cashback disponível</p>
-            <p className="font-semibold text-gray-800">{formatPrice(0)}</p>
+            <p className="font-semibold text-gray-800">{formatPrice(Math.max(0, balance.available_balance))}</p>
           </div>
         </div>
         <p className="text-xs text-gray-500 mt-2">
@@ -71,7 +71,7 @@ const CashbackDisplay: React.FC<CashbackDisplayProps> = ({ balance, className = 
           </div>
           <div>
             <p className="text-sm text-green-700 font-medium">Cashback disponível</p>
-            <p className="text-xl font-bold text-green-800">{formatPrice(balance.available_balance)}</p>
+            <p className="text-xl font-bold text-green-800">{formatPrice(Math.max(0, balance.available_balance))}</p>
           </div>
         </div>
         <TrendingUp size={24} className="text-green-600" />

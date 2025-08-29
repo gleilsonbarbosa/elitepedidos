@@ -641,9 +641,9 @@ const PDVCustomersReport: React.FC = () => {
                       </td>
                       <td className="py-4 px-4">
                         <span className={`font-semibold ${
-                          customer.balance > 0 ? 'text-green-600' : 'text-gray-500'
+                          (customer.balance || 0) > 0 ? 'text-green-600' : 'text-gray-500'
                         }`}>
-                          {formatPrice(customer.balance)}
+                          {formatPrice(Math.max(0, customer.balance || 0))}
                         </span>
                       </td>
                       <td className="py-4 px-4">

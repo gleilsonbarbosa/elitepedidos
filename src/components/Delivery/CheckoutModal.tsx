@@ -44,7 +44,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [appliedCashback, setAppliedCashback] = useState(0);
 
   const { neighborhoods } = useNeighborhoods();
-  const { getCustomerByPhone, getCustomerBalance, createPurchaseTransaction, createRedemptionTransaction } = useCashback();
+  const { getCustomerByPhone, getCustomerBalance, createPurchaseTransaction, createRedemptionTransaction, loading: cashbackLoading } = useCashback();
   const { createOrder } = useOrders();
 
   const validateName = (name: string) => {
@@ -79,15 +79,26 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   // Load customer balance when phone changes
   useEffect(() => {
     const loadCustomerBalance = async () => {
-      if (customerData.phone.length >= 11) {
+      const phoneNumbers = customerData.phone.replace(/\D/g, '');
+      if (phoneNumbers.length >= 11) {
         setCheckingCustomer(true);
         try {
-          const customer = await getCustomerByPhone(customerData.phone);
+          console.log('🔍 Buscando cliente por telefone:', phoneNumbers);
+          const customer = await getCustomerByPhone(phoneNumbers);
           if (customer) {
+            console.log('✅ Cliente encontrado:', customer);
             setIsFirstOrder(false);
             const balance = await getCustomerBalance(customer.id);
+            console.log('💰 Saldo do cliente:', balance);
+            
+            // Garantir que o saldo seja sempre positivo ou zero
+            if (balance) {
+              balance.available_balance = Math.max(0, balance.available_balance);
+            }
+            
             setCustomerBalance(balance);
           } else {
+            console.log('ℹ️ Cliente não encontrado - primeiro pedido');
             setIsFirstOrder(true);
             setCustomerBalance(null);
           }
@@ -190,7 +201,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       if (isFirstOrder) {
         console.log('👤 Criando novo cliente:', {
           name: customerData.name,
-          phone: customerData.phone,
+          phone: customerData.phone.replace(/\D/g, ''),
           email: registrationData.email,
           dateOfBirth: registrationData.dateOfBirth,
           whatsappConsent: registrationData.whatsappConsent
@@ -589,6 +600,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   />
                 </div>
               )}
+              
             </div>
           )}
 
@@ -882,6 +894,26 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   </div>
                 </div>
               </div>
+              
+              {/* Cashback section in review */}
+              {customerBalance && customerBalance.available_balance > 0 && (
+                <div className="bg-gradient-to-r from-purple-50 to-green-50 border border-purple-200 rounded-lg p-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Gift size={18} className="text-purple-600" />
+                    <h4 className="font-medium text-purple-800">Cashback Disponível</h4>
+                  </div>
+                  <p className="text-purple-700 text-sm mb-3">
+                    Saldo: {formatPrice(customerBalance.available_balance)}
+                  </p>
+                  <CashbackButton
+                    availableBalance={customerBalance.available_balance}
+                    onApplyCashback={handleApplyCashback}
+                    onRemoveCashback={handleRemoveCashback}
+                    appliedAmount={appliedCashback}
+                    maxAmount={totalPrice + getDeliveryFee()}
+                  />
+                </div>
+              )}
 
               {/* Customer Info */}
               <div className="bg-blue-50 rounded-xl p-4">
