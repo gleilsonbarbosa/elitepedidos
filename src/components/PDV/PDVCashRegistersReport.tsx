@@ -188,54 +188,103 @@ const PDVCashRegistersReport: React.FC = () => {
       // Process registers and calculate summaries
       const processedRegisters = await Promise.all((registersData || []).map(async (register) => {
         try {
-          // Calculate sales totals for this register
+          // Calculate sales totals for this register - buscar vendas do período do caixa
+          const registerStart = register.opened_at;
+          const registerEnd = register.closed_at || new Date().toISOString();
+          
+          console.log(`📊 Calculando vendas para caixa ${register.id.slice(-8)}:`, {
+            registerStart,
+            registerEnd,
+            operator: register.pdv_operators?.name
+          });
+
+          // Buscar vendas PDV do período do caixa (não apenas as linkadas)
           const { data: salesData, error: salesError } = await supabase
             .from('pdv_sales')
-            .select('total_amount, payment_type')
-            .eq('cash_register_id', register.id)
+            .select('total_amount, payment_type, created_at')
+            .gte('created_at', registerStart)
+            .lte('created_at', registerEnd)
             .eq('is_cancelled', false);
 
           if (salesError) {
-            console.warn(`⚠️ Erro ao buscar vendas para caixa ${register.id}:`, salesError);
+            console.warn(`⚠️ Erro ao buscar vendas PDV para caixa ${register.id}:`, salesError);
           }
 
-          // Calculate delivery totals for this register
+          // Buscar pedidos de delivery do período do caixa
           const { data: deliveryData, error: deliveryError } = await supabase
             .from('orders')
-            .select('total_price')
-            .eq('cash_register_id', register.id)
+            .select('total_price, created_at, payment_method')
+            .gte('created_at', registerStart)
+            .lte('created_at', registerEnd)
+            .eq('channel', 'delivery')
             .neq('status', 'cancelled');
 
           if (deliveryError) {
             console.warn(`⚠️ Erro ao buscar delivery para caixa ${register.id}:`, deliveryError);
           }
 
-          // Calculate cash entries
+          // Buscar vendas de mesa do período do caixa
+          const { data: tableData, error: tableError } = await supabase
+            .from('store1_table_sales')
+            .select('total_amount, created_at, payment_type')
+            .gte('created_at', registerStart)
+            .lte('created_at', registerEnd)
+            .eq('status', 'fechada');
+
+          if (tableError) {
+            console.warn(`⚠️ Erro ao buscar vendas de mesa para caixa ${register.id}:`, tableError);
+          }
+
+          // Buscar entradas manuais do caixa
           const { data: entriesData, error: entriesError } = await supabase
             .from('pdv_cash_entries')
-            .select('type, amount')
+            .select('type, amount, payment_method')
             .eq('register_id', register.id);
 
           if (entriesError) {
             console.warn(`⚠️ Erro ao buscar entradas para caixa ${register.id}:`, entriesError);
           }
 
+          // Calcular totais
           const salesTotal = salesData?.reduce((sum, sale) => sum + sale.total_amount, 0) || 0;
           const deliveryTotal = deliveryData?.reduce((sum, order) => sum + order.total_price, 0) || 0;
+          const tableTotal = tableData?.reduce((sum, sale) => sum + sale.total_amount, 0) || 0;
           const otherIncomeTotal = entriesData?.filter(e => e.type === 'income').reduce((sum, e) => sum + e.amount, 0) || 0;
           const totalExpense = entriesData?.filter(e => e.type === 'expense').reduce((sum, e) => sum + e.amount, 0) || 0;
-          const expectedBalance = register.opening_amount + salesTotal + deliveryTotal + otherIncomeTotal - totalExpense;
+          
+          // Calcular saldo esperado (apenas dinheiro afeta o caixa físico)
+          const cashSalesTotal = salesData?.filter(s => s.payment_type === 'dinheiro').reduce((sum, sale) => sum + sale.total_amount, 0) || 0;
+          const cashDeliveryTotal = deliveryData?.filter(d => d.payment_method === 'money').reduce((sum, order) => sum + order.total_price, 0) || 0;
+          const cashTableTotal = tableData?.filter(t => t.payment_type === 'dinheiro').reduce((sum, sale) => sum + sale.total_amount, 0) || 0;
+          const cashIncomeTotal = entriesData?.filter(e => e.type === 'income' && e.payment_method === 'dinheiro').reduce((sum, e) => sum + e.amount, 0) || 0;
+          const cashExpenseTotal = entriesData?.filter(e => e.type === 'expense' && e.payment_method === 'dinheiro').reduce((sum, e) => sum + e.amount, 0) || 0;
+          
+          const expectedBalance = register.opening_amount + cashSalesTotal + cashDeliveryTotal + cashTableTotal + cashIncomeTotal - cashExpenseTotal;
+          
+          console.log(`📊 Totais calculados para caixa ${register.id.slice(-8)}:`, {
+            salesTotal,
+            deliveryTotal,
+            tableTotal,
+            otherIncomeTotal,
+            totalExpense,
+            expectedBalance,
+            salesCount: salesData?.length || 0,
+            deliveryCount: deliveryData?.length || 0,
+            tableCount: tableData?.length || 0
+          });
 
           return {
             ...register,
             operator_name: register.pdv_operators?.name || 'Operador',
             sales_total: salesTotal,
             delivery_total: deliveryTotal,
+            table_total: tableTotal,
             other_income_total: otherIncomeTotal,
             total_expense: totalExpense,
             expected_balance: expectedBalance,
             sales_count: salesData?.length || 0,
             delivery_count: deliveryData?.length || 0,
+            table_count: tableData?.length || 0,
             entries_count: entriesData?.length || 0,
             status: register.closed_at ? 'closed' as const : 'open' as const
           };
@@ -393,24 +442,28 @@ const PDVCashRegistersReport: React.FC = () => {
     opening_amount: acc.opening_amount + register.opening_amount,
     sales_total: acc.sales_total + register.sales_total,
     delivery_total: acc.delivery_total + register.delivery_total,
+    table_total: acc.table_total + (register.table_total || 0),
     other_income_total: acc.other_income_total + register.other_income_total,
     total_expense: acc.total_expense + register.total_expense,
     expected_balance: acc.expected_balance + register.expected_balance,
     closing_amount: acc.closing_amount + (register.closing_amount || 0),
     difference: acc.difference + (register.difference || 0),
     sales_count: acc.sales_count + register.sales_count,
-    delivery_count: acc.delivery_count + register.delivery_count
+    delivery_count: acc.delivery_count + register.delivery_count,
+    table_count: acc.table_count + (register.table_count || 0)
   }), {
     opening_amount: 0,
     sales_total: 0,
     delivery_total: 0,
+    table_total: 0,
     other_income_total: 0,
     total_expense: 0,
     expected_balance: 0,
     closing_amount: 0,
     difference: 0,
     sales_count: 0,
-    delivery_count: 0
+    delivery_count: 0,
+    table_count: 0
   });
 
   return (
@@ -545,9 +598,12 @@ const PDVCashRegistersReport: React.FC = () => {
             <div className="bg-white rounded-xl shadow-sm p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total de Vendas</p>
+                  <p className="text-sm font-medium text-gray-600">Total Geral</p>
                   <p className="text-2xl font-bold text-green-600">
-                    {formatPrice(totals.sales_total + totals.delivery_total)}
+                    {formatPrice(totals.sales_total + totals.delivery_total + (totals.table_total || 0))}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {totals.sales_count + totals.delivery_count + (totals.table_count || 0)} vendas
                   </p>
                   <p className="text-xs text-gray-500">
                     {totals.sales_count + totals.delivery_count} vendas
@@ -668,6 +724,7 @@ const PDVCashRegistersReport: React.FC = () => {
                               {formatPrice(register.sales_total)}
                             </p>
                             <p className="text-xs text-gray-400">{register.sales_count} vendas</p>
+                            <p className="text-xs text-gray-400">{register.sales_count} vendas</p>
                           </div>
                           
                           <div>
@@ -675,6 +732,15 @@ const PDVCashRegistersReport: React.FC = () => {
                             <p className="font-medium text-blue-600">
                               {formatPrice(register.delivery_total)}
                             </p>
+                            <p className="text-xs text-gray-400">{register.delivery_count} pedidos</p>
+                          </div>
+                          
+                          <div>
+                            <p className="text-xs text-gray-500">Mesas</p>
+                            <p className="font-medium text-orange-600">
+                              {formatPrice(register.table_total || 0)}
+                            </p>
+                            <p className="text-xs text-gray-400">{register.table_count} mesas</p>
                             <p className="text-xs text-gray-400">{register.delivery_count} pedidos</p>
                           </div>
                           
