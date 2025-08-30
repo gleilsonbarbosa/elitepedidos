@@ -13,6 +13,7 @@ interface UploadedImage {
   size: number;
   created_at: string;
 }
+
 export const useImageUpload = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -117,6 +118,7 @@ export const useImageUpload = () => {
       throw err;
     }
   };
+
   const deleteImage = async (imagePath: string): Promise<void> => {
     setDeleting(true);
     setError(null);
@@ -152,6 +154,17 @@ export const useImageUpload = () => {
   const getProductImage = async (productId: string): Promise<string | null> => {
     try {
       // Verificar se Supabase está configurado
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl.includes('placeholder') || 
+          supabaseKey.includes('placeholder')) {
+        console.warn('⚠️ Supabase não configurado - não é possível buscar imagens');
+        return null;
+      }
+
+      // Verificar se Supabase está configurado
       if (!supabase) {
         console.warn('Supabase não configurado');
         return null;
@@ -171,6 +184,11 @@ export const useImageUpload = () => {
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
 
       if (error) {
+        if (error.code === 'PGRST116') {
+          // Nenhuma imagem encontrada - isso é normal
+          return null;
+        }
+        console.error('Erro ao buscar imagem do produto:', error);
         // Não logar erros de conectividade como erros críticos
         if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
           console.warn('Problema de conectividade ao buscar imagem:', error.message);
@@ -193,6 +211,11 @@ export const useImageUpload = () => {
         console.warn('Timeout na requisição - imagens não disponíveis no momento');
       } else {
         console.error('Erro ao buscar imagem:', err);
+      }
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        console.warn('⚠️ Erro de conectividade com Supabase - trabalhando offline');
+      } else {
+        console.error('Erro ao buscar imagem do produto:', err);
       }
       return null;
     }

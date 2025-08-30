@@ -59,7 +59,7 @@ export const useAttendance = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Credenciais padrão
-  const DEFAULT_CREDENTIALS = {
+  const FALLBACK_CREDENTIALS = {
     username: 'admin',
     password: 'elite2024'
   };
@@ -329,44 +329,81 @@ export const useAttendance = () => {
   // Login
   const login = (username: string, password: string): boolean => {
     console.log('🔐 useAttendance - Tentativa de login:', { username, password: password ? '***' : 'vazio' });
+    console.log('👥 Usuários disponíveis:', users.map(u => ({ username: u.username, name: u.name, role: u.role, is_active: u.is_active })));
     
-    // Verificar usuários cadastrados
+    // PRIMEIRO: Verificar usuários cadastrados no banco de dados
     const user = users.find(u => 
       u.username === username && 
       u.password_hash === password && 
       u.is_active
     );
 
-    // Se não encontrou usuário cadastrado, verificar credenciais padrão
-    if (!user && username === DEFAULT_CREDENTIALS.username && password === DEFAULT_CREDENTIALS.password) {
-      const adminUser = users.find(u => u.username === username) || DEFAULT_USERS[0];
-      
-      const newSession = {
-        isAuthenticated: true,
-        user: adminUser
-      };
-      
-      setSession(newSession);
-      localStorage.setItem('attendance_session', JSON.stringify(newSession));
-      
-      console.log('✅ useAttendance - Login bem-sucedido (credenciais padrão)');
-      return true;
-    }
+    console.log('🔍 Usuário encontrado:', user ? { username: user.username, name: user.name, role: user.role } : 'NENHUM');
 
     if (user) {
+      console.log('✅ Login bem-sucedido - Usuário:', user.name, 'Role:', user.role);
+      
       const newSession = {
         isAuthenticated: true,
-        user
+        user: user  // Usar o usuário REAL encontrado no banco
       };
       
+      console.log('💾 Salvando sessão:', { username: user.username, role: user.role, name: user.name });
       setSession(newSession);
       localStorage.setItem('attendance_session', JSON.stringify(newSession));
       
-      console.log('✅ useAttendance - Login bem-sucedido (usuário cadastrado):', user.username);
+      // Atualizar último login
+      updateLastLogin(user.id);
+      
       return true;
     }
 
-    console.log('❌ useAttendance - Login falhou para:', username);
+    // FALLBACK: Credenciais hardcoded apenas se não encontrou usuário cadastrado
+    if (username === FALLBACK_CREDENTIALS.username && password === FALLBACK_CREDENTIALS.password) {
+      console.log('⚠️ Login com credenciais fallback - criando admin temporário');
+      
+      const fallbackAdmin: AttendanceUser = {
+        id: 'fallback-admin',
+        username: 'admin',
+        password_hash: 'elite2024',
+        name: 'Administrador (Fallback)',
+        role: 'admin',
+        is_active: true,
+        permissions: {
+          can_chat: true,
+          can_view_orders: true,
+          can_print_orders: true,
+          can_update_status: true,
+          can_create_manual_orders: true,
+          can_view_cash_register: true,
+          can_view_sales: true,
+          can_view_reports: true,
+          can_view_cash_report: true,
+          can_view_sales_report: true,
+          can_manage_products: true,
+          can_view_operators: true,
+          can_view_attendance: true,
+          can_manage_settings: true,
+          can_use_scale: true,
+          can_discount: true,
+          can_cancel: true,
+          can_view_expected_balance: true
+        },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const newSession = {
+        isAuthenticated: true,
+        user: fallbackAdmin
+      };
+
+      setSession(newSession);
+      localStorage.setItem('attendance_session', JSON.stringify(newSession));
+      return true;
+    }
+
+    console.log('❌ Login falhou - credenciais inválidas');
     return false;
   };
 
@@ -375,6 +412,27 @@ export const useAttendance = () => {
     console.log('🚪 useAttendance - Logout');
     setSession({ isAuthenticated: false });
     localStorage.removeItem('attendance_session');
+  };
+
+  const updateLastLogin = async (userId: string) => {
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl.includes('placeholder') || 
+          supabaseKey.includes('placeholder')) {
+        return;
+      }
+
+      await supabase
+        .from('attendance_users')
+        .update({ last_login: new Date().toISOString() })
+        .eq('id', userId);
+        
+    } catch (error) {
+      console.warn('Erro ao atualizar último login:', error);
+    }
   };
 
   // Carregar usuários quando o hook for inicializado

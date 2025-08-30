@@ -37,7 +37,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [isFirstOrder, setIsFirstOrder] = useState(false);
   const [checkingCustomer, setCheckingCustomer] = useState(false);
   const [selectedNeighborhood, setSelectedNeighborhood] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'money' | 'pix' | 'card'>('money');
+  const [paymentMethod, setPaymentMethod] = useState<'money' | 'pix_entregador' | 'pix_online' | 'card'>('money');
   const [changeFor, setChangeFor] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [customerBalance, setCustomerBalance] = useState<any>(null);
@@ -238,6 +238,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         }
       }
       
+      // Map payment methods to database-compatible values
+      const dbPaymentMethod = paymentMethod === 'pix_entregador' || paymentMethod === 'pix_online' ? 'pix' : paymentMethod;
+      
       // Create order data
       const orderData = {
         customer_name: customerData.name,
@@ -246,7 +249,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         customer_neighborhood: selectedNeighborhood,
         customer_complement: customerData.complement,
         customer_id: customerId,
-        payment_method: paymentMethod,
+        payment_method: dbPaymentMethod,
         change_for: changeFor,
         items: items.filter(item => item && item.product).map(item => ({
           product_name: item.product.name,
@@ -277,6 +280,19 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
       // Handle cashback transactions
       if (customerId) {
+        // Re-fetch customer balance to ensure it's current
+        const currentBalance = await getCustomerBalance(customerId);
+        
+        // Check if applied cashback is still valid
+        if (appliedCashback > 0) {
+          const availableBalance = currentBalance?.available_balance || 0;
+          if (appliedCashback > availableBalance) {
+            // Reset applied cashback and inform user
+            setAppliedCashback(0);
+            throw new Error(`Saldo de cashback insuficiente. Saldo atual: ${formatPrice(availableBalance)}`);
+          }
+        }
+
         // Create purchase transaction (earn cashback)
         await createPurchaseTransaction(
           customerId,
@@ -1060,7 +1076,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     Finalizar Pedido - {formatPrice(getFinalTotal())} ({
                       paymentMethod === 'money' ? 'Dinheiro' :
                       paymentMethod === 'pix_entregador' ? 'PIX Entregador' :
-                      paymentMethod === 'pix_online' ? 'PIX Online' : 'Cartão'
+                      paymentMethod === 'pix_online' ? 'PIX Online' :
+                      'Cartão'
                     })
                   </>
                 )}
