@@ -885,4 +885,4 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
   );
 };
 
-export default PDVSalesScreen;
+export default PDVSalesScreen; 

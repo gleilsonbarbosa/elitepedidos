@@ -28,12 +28,11 @@ interface TableSalesPanelProps {
   storeId: 1 | 2;
   operatorName?: string;
   isCashRegisterOpen: boolean;
-  isAdmin?: boolean;
 }
 
-const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName = 'Operador', isCashRegisterOpen = false, isAdmin = false }) => {
+const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName = 'Operador', isCashRegisterOpen = false }) => {
   const { currentRegister, addCashEntry } = usePDVCashRegister();
-  const { tables, loading, error, stats, createTableSale, closeSale, getSaleDetails, updateTableStatus, refetch, addItemToSale, deleteItemFromSale, cancelSale } = useTableSales(storeId, currentRegister, addCashEntry);
+  const { tables, loading, error, stats, createTableSale, closeSale, getSaleDetails, updateTableStatus, refetch, addItemToSale, deleteItemFromSale } = useTableSales(storeId, currentRegister, addCashEntry);
   const { products, loading: productsLoading, searchProducts } = usePDVProducts();
   
   const [selectedTable, setSelectedTable] = useState<RestaurantTable | null>(null);
@@ -292,39 +291,6 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
       }
     }
   };
-
-  const handleCancelSale = async (saleId: string) => {
-    try {
-      await cancelSale(saleId, 'Cancelada pelo administrador via sistema de mesas');
-      
-      // Close modals and reset state
-      setShowDetailsModal(false);
-      setShowProductsModal(false);
-      setSelectedTable(null);
-      setSaleDetails(null);
-      
-      // Show success message
-      const successMessage = document.createElement('div');
-      successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
-      successMessage.innerHTML = `
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-        </svg>
-        Venda cancelada e mesa liberada com sucesso!
-      `;
-      document.body.appendChild(successMessage);
-      
-      setTimeout(() => {
-        if (document.body.contains(successMessage)) {
-          document.body.removeChild(successMessage);
-        }
-      }, 3000);
-    } catch (error) {
-      console.error('Erro ao cancelar venda:', error);
-      alert(`Erro ao cancelar venda: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    }
-  };
-
   const handleAddProduct = async (product: PDVProduct, quantity: number = 1, weight?: number) => {
     if (!selectedTable?.current_sale_id) return;
 
@@ -669,18 +635,24 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => setCustomerCount(Math.max(1, customerCount - 1))}
-                    className="w-10 h-10 bg-gray-200 hover:bg-gray-300 rounded-lg flex items-center justify-center"
+                    className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
                   >
-                    -
+                    <Plus size={16} className="rotate-45" />
                   </button>
                   <span className="text-xl font-semibold w-12 text-center">{customerCount}</span>
                   <button
                     onClick={() => setCustomerCount(customerCount + 1)}
-                    className="w-10 h-10 bg-gray-200 hover:bg-gray-300 rounded-lg flex items-center justify-center"
+                    className="p-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
                   >
-                    +
+                    <Plus size={16} />
                   </button>
                 </div>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-blue-800 text-sm">
+                  <strong>Mesa:</strong> {selectedTable.name} (Capacidade: {selectedTable.capacity} pessoas)
+                </p>
               </div>
             </div>
 
@@ -692,13 +664,14 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
                   setCustomerName('');
                   setCustomerCount(1);
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                className="flex-1 px-4 py-3 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
                 Cancelar
               </button>
               <button
                 onClick={handleCreateSale}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                disabled={!supabaseConfigured}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-3 rounded-lg transition-colors"
               >
                 Abrir Mesa
               </button>
@@ -707,280 +680,344 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
         </div>
       )}
 
-      {/* Products Modal */}
-      {showProductsModal && selectedTable && saleDetails && (
+      {/* Table Details Modal */}
+      {showDetailsModal && selectedTable && saleDetails && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <div>
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-gray-800">
-                  Mesa {selectedTable.number} - Adicionar Produtos
+                  Mesa {selectedTable.number} - Detalhes
                 </h2>
-                <p className="text-gray-600">
-                  Cliente: {saleDetails.customer_name || 'Não informado'} | 
-                  Pessoas: {saleDetails.customer_count} | 
-                  Total: {formatPrice(saleDetails.total_amount)}
-                </p>
+                <button
+                  onClick={() => {
+                    setShowDetailsModal(false);
+                    setSelectedTable(null);
+                    setSaleDetails(null);
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <XCircle size={20} />
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  setShowProductsModal(false);
-                  setSelectedTable(null);
-                  setSaleDetails(null);
-                }}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <X size={20} />
-              </button>
             </div>
 
-            <div className="flex h-[calc(90vh-120px)]">
-              {/* Products List */}
-              <div className="flex-1 p-6 border-r border-gray-200">
-                <div className="mb-4 space-y-3">
-                  <div className="relative">
-                    <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                    <input
-                      type="text"
-                      placeholder="Buscar produtos..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+            <div className="p-6 space-y-4">
+              {/* Sale Info */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h3 className="font-medium text-gray-800 mb-2">Informações da Venda</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Venda #:</span>
+                    <span className="ml-2 font-medium">{saleDetails.sale_number}</span>
                   </div>
-
-                  <div className="flex gap-2 flex-wrap">
-                    {categories.map((category) => (
-                      <button
-                        key={category.id}
-                        onClick={() => setSelectedCategory(category.id)}
-                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                          selectedCategory === category.id
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                      >
-                        {category.label}
-                      </button>
-                    ))}
+                  <div>
+                    <span className="text-gray-600">Status:</span>
+                    <span className="ml-2 font-medium capitalize">{saleDetails.status}</span>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-[calc(100%-120px)] overflow-y-auto">
-                  {filteredProducts.map((product) => (
-                    <div
-                      key={product.id}
-                      onClick={() => handleProductClick(product)}
-                      className="bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300 hover:shadow-lg hover:scale-105 cursor-pointer border border-gray-200 hover:border-blue-300"
-                    >
-                      {/* Product Image */}
-                      <div className="relative h-32">
-                        <img
-                          src={product.image_url || 'https://images.pexels.com/photos/1092730/pexels-photo-1092730.jpeg?auto=compress&cs=tinysrgb&w=400'}
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.src = 'https://images.pexels.com/photos/1092730/pexels-photo-1092730.jpeg?auto=compress&cs=tinysrgb&w=400';
-                          }}
-                        />
-                        
-                        {/* Weighable Badge */}
-                        {product.is_weighable && (
-                          <div className="absolute top-2 right-2 bg-yellow-500 text-white px-2 py-1 rounded-full text-xs font-bold shadow-md">
-                            Pesável
-                          </div>
-                        )}
-                        
-                        {/* Category Badge */}
-                        <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded-full text-xs font-medium">
-                          {product.category}
-                        </div>
-                      </div>
-                      
-                      {/* Product Info */}
-                      <div className="p-3">
-                        <h4 className="font-bold text-sm mb-2 text-gray-800 line-clamp-2">{product.name}</h4>
-                        
-                        <div className="flex items-center justify-between">
-                          <span className="text-lg font-bold text-green-600">
-                            {product.is_weighable && product.price_per_gram
-                              ? `${formatPrice(product.price_per_gram)}/g`
-                              : formatPrice(product.unit_price || 0)
-                            }
-                          </span>
-                          
-                          <button className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-full text-xs font-medium transition-colors">
-                            Adicionar
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Sale Items */}
-              <div className="w-80 p-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">Itens da Mesa</h3>
-                
-                <div className="space-y-3 max-h-[calc(100%-200px)] overflow-y-auto">
-                  {saleDetails.items && saleDetails.items.length > 0 ? (
-                    saleDetails.items.map((item) => (
-                      <div key={item.id} className="p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-medium text-sm">{item.product_name}</h4>
-                            <div className="text-xs text-gray-600 mt-1">
-                              {item.weight_kg ? (
-                                <span>Peso: {(item.weight_kg * 1000).toFixed(0)}g</span>
-                              ) : (
-                                <span>Qtd: {item.quantity}</span>
-                              )}
-                            </div>
-                            <div className="text-sm font-semibold text-blue-600 mt-1">
-                              {formatPrice(item.subtotal)}
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleDeleteItem(item.id)}
-                            className="p-1 text-red-500 hover:bg-red-50 rounded"
-                            title="Excluir item"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-8 text-gray-500">
-                      <Package size={32} className="mx-auto mb-2 text-gray-300" />
-                      <p className="text-sm">Nenhum item adicionado</p>
+                  {saleDetails.customer_name && (
+                    <div>
+                      <span className="text-gray-600">Cliente:</span>
+                      <span className="ml-2 font-medium">{saleDetails.customer_name}</span>
                     </div>
                   )}
-                </div>
-
-                <div className="mt-6 pt-4 border-t border-gray-200">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-lg font-semibold">Total:</span>
-                    <span className="text-xl font-bold text-blue-600">
+                  <div>
+                    <span className="text-gray-600">Pessoas:</span>
+                    <span className="ml-2 font-medium">{saleDetails.customer_count}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Aberta em:</span>
+                    <span className="ml-2 font-medium">
+                      {new Date(saleDetails.opened_at).toLocaleString('pt-BR')}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Total:</span>
+                    <span className="ml-2 font-bold text-green-600">
                       {formatPrice(saleDetails.total_amount)}
                     </span>
                   </div>
-                  
+                </div>
+              </div>
+
+              {/* Items */}
+              {saleDetails.items && saleDetails.items.length > 0 && (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-medium text-gray-800 mb-2">
+                    Itens ({saleDetails.items.length})
+                  </h3>
                   <div className="space-y-2">
+                    {saleDetails.items.map((item) => (
+                      <div key={item.id} className="bg-white rounded p-3 flex justify-between">
+                        <div>
+                          <p className="font-medium">{item.product_name}</p>
+                          <p className="text-sm text-gray-600">
+                            {item.weight_kg ? 
+                              `${item.weight_kg}kg × ${formatPrice((item.price_per_gram || 0) * 1000)}/kg` :
+                              `${item.quantity}x × ${formatPrice(item.unit_price || 0)}`
+                            }
+                          </p>
+                        </div>
+                        <p className="font-semibold text-green-600">
+                          {formatPrice(item.subtotal)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                {saleDetails.status === 'aberta' && (
+                  <>
                     <button
                       onClick={() => handleUpdateStatus(selectedTable.id, 'aguardando_conta')}
-                      className="w-full bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded-lg transition-colors"
+                      className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg font-medium transition-colors"
                     >
                       Solicitar Conta
                     </button>
-                    
-                    {isAdmin && (
-                      <button
-                        onClick={() => handleCancelSale(saleDetails.id)}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition-colors"
-                      >
-                        Cancelar Venda
-                      </button>
-                    )}
-                  </div>
-                </div>
+                    <button
+                      onClick={() => handleCloseSale(saleDetails)}
+                      className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium transition-colors"
+                    >
+                      Fechar Mesa
+                    </button>
+                  </>
+                )}
+                
+                {selectedTable.status === 'limpeza' && (
+                  <button
+                    onClick={() => handleUpdateStatus(selectedTable.id, 'livre')}
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Marcar como Livre
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Sale Details Modal */}
-      {showDetailsModal && selectedTable && saleDetails && (
+      {/* Products Modal */}
+      {showProductsModal && selectedTable && saleDetails && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <div>
+          <div className="bg-white rounded-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-gray-800">
-                  Mesa {selectedTable.number} - Detalhes da Venda
+                  Mesa {selectedTable.number} - Adicionar Produtos
                 </h2>
-                <p className="text-gray-600">
-                  Cliente: {saleDetails.customer_name || 'Não informado'} | 
-                  Pessoas: {saleDetails.customer_count}
-                </p>
+                <button
+                  onClick={() => {
+                    setShowProductsModal(false);
+                    setSelectedTable(null);
+                    setSaleDetails(null);
+                  }}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <XCircle size={20} />
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  setShowDetailsModal(false);
-                  setSelectedTable(null);
-                  setSaleDetails(null);
-                }}
-                className="p-2 hover:bg-gray-100 rounded-lg"
-              >
-                <X size={20} />
-              </button>
             </div>
 
             <div className="p-6">
-              <div className="space-y-4 max-h-[50vh] overflow-y-auto">
-                {saleDetails.items && saleDetails.items.length > 0 ? (
-                  saleDetails.items.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <h4 className="font-medium">{item.product_name}</h4>
-                        <p className="text-sm text-gray-600">
-                          {item.weight_kg ? (
-                            `Peso: ${(item.weight_kg * 1000).toFixed(0)}g`
-                          ) : (
-                            `Quantidade: ${item.quantity}`
-                          )}
-                        </p>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Products Panel */}
+                <div className="lg:col-span-2 space-y-4">
+                  {/* Search and Filters */}
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <div className="flex flex-col md:flex-row gap-4">
+                      <div className="flex-1">
+                        <div className="relative">
+                          <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                          <input
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Buscar produtos..."
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold">{formatPrice(item.subtotal)}</p>
+                      <div className="md:w-48">
+                        <select
+                          value={selectedCategory}
+                          onChange={(e) => setSelectedCategory(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          {categories.map(cat => (
+                            <option key={cat.id} value={cat.id}>{cat.label}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Package size={32} className="mx-auto mb-2 text-gray-300" />
-                    <p>Nenhum item na venda</p>
                   </div>
-                )}
-              </div>
 
-              <div className="mt-6 pt-4 border-t border-gray-200">
-                <div className="flex items-center justify-between mb-6">
-                  <span className="text-xl font-semibold">Total:</span>
-                  <span className="text-2xl font-bold text-blue-600">
-                    {formatPrice(saleDetails.total_amount)}
-                  </span>
+                  {/* Products Grid */}
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Produtos Disponíveis</h3>
+                    {productsLoading ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="text-gray-600 mt-2">Carregando produtos...</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-96 overflow-y-auto">
+                        {filteredProducts.map((product) => (
+                          <button
+                            key={product.id}
+                            onClick={() => handleProductClick(product)}
+                            className="p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-left"
+                          >
+                            <div className="aspect-square bg-gray-100 rounded-lg mb-2 flex items-center justify-center">
+                              {product.image_url ? (
+                                <img 
+                                  src={product.image_url} 
+                                  alt={product.name}
+                                  className="w-full h-full object-cover rounded-lg"
+                                />
+                              ) : (
+                                <Package size={24} className="text-gray-400" />
+                              )}
+                            </div>
+                            <h4 className="font-medium text-gray-800 text-sm mb-1 line-clamp-2">{product.name}</h4>
+                            <div className="flex items-center justify-between">
+                              <span className="text-blue-600 font-semibold text-sm">
+                                {product.is_weighable ? (
+                                  <div className="flex items-center gap-1">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                                    </svg>
+                                    {formatPrice((product.price_per_gram || 0) * 1000)}/kg
+                                  </div>
+                                ) : (
+                                  formatPrice(product.unit_price || 0)
+                                )}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {product.code}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {filteredProducts.length === 0 && !productsLoading && (
+                      <div className="text-center py-8">
+                        <Package size={48} className="mx-auto text-gray-300 mb-4" />
+                        <p className="text-gray-500">
+                          {searchTerm ? 'Nenhum produto encontrado' : 'Nenhum produto disponível'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => {
-                      setShowDetailsModal(false);
-                      setShowProductsModal(true);
-                    }}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg transition-colors"
-                  >
-                    Adicionar Itens
-                  </button>
-                  
-                  <button
-                    onClick={() => handleCloseSale(saleDetails)}
-                    disabled={!saleDetails.items || saleDetails.items.length === 0 || saleDetails.total_amount <= 0}
-                    className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white py-3 rounded-lg transition-colors"
-                  >
-                    Fechar Mesa
-                  </button>
-                  
-                  {isAdmin && (
+                {/* Sale Details Panel */}
+                <div className="space-y-4">
+                  {/* Sale Info */}
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <h3 className="font-medium text-blue-800 mb-2">Venda Atual</h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Venda #:</span>
+                        <span className="font-medium">{saleDetails.sale_number}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Cliente:</span>
+                        <span className="font-medium">{saleDetails.customer_name || 'Não informado'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Pessoas:</span>
+                        <span className="font-medium">{saleDetails.customer_count}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-blue-700">Status:</span>
+                        <span className="font-medium capitalize">{saleDetails.status}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Current Items */}
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h3 className="font-medium text-gray-800 mb-2">
+                      Itens da Venda ({saleDetails.items?.length || 0})
+                    </h3>
+                    {saleDetails.items && saleDetails.items.length > 0 ? (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {saleDetails.items.map((item) => (
+                          <div key={item.id} className="bg-white rounded p-3 flex justify-between">
+                            <div>
+                              <p className="font-medium text-sm">{item.product_name}</p>
+                              <p className="text-xs text-gray-600">
+                                {item.weight_kg ? 
+                                  `${item.weight_kg}kg × ${formatPrice((item.price_per_gram || 0) * 1000)}/kg` :
+                                  `${item.quantity}x × ${formatPrice(item.unit_price || 0)}`
+                                }
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-semibold text-green-600 text-sm">
+                                {formatPrice(item.subtotal)}
+                              </p>
+                              <button
+                                onClick={() => handleDeleteItem(item.id)}
+                                className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-red-50 transition-colors"
+                                title="Excluir item"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-gray-500">
+                        <Package size={32} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-sm">Nenhum item adicionado</p>
+                        <p className="text-xs">Selecione produtos para adicionar</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Total */}
+                  <div className="bg-green-50 rounded-lg p-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-semibold text-green-800">Total:</span>
+                      <span className="text-2xl font-bold text-green-600">
+                        {formatPrice(saleDetails.total_amount)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="space-y-2">
                     <button
-                      onClick={() => handleCancelSale(saleDetails.id)}
-                      className="flex-1 bg-red-600 hover:bg-red-700 text-white py-3 rounded-lg transition-colors"
+                      onClick={() => handleUpdateStatus(selectedTable.id, 'aguardando_conta')}
+                      className="w-full bg-yellow-500 hover:bg-yellow-600 text-white py-2 rounded-lg font-medium transition-colors"
                     >
-                      Cancelar
+                      Solicitar Conta
                     </button>
-                  )}
+                    <button
+                      onClick={() => handleCloseSale(saleDetails)}
+                      className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg font-medium transition-colors"
+                    >
+                      Fechar Mesa
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowProductsModal(false);
+                        setSelectedTable(null);
+                        setSaleDetails(null);
+                      }}
+                      className="w-full bg-gray-500 hover:bg-gray-600 text-white py-2 rounded-lg font-medium transition-colors"
+                    >
+                      Fechar
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -991,9 +1028,9 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
       {/* Pesagem Modal */}
       {showPesagemModal && selectedProduct && (
         <PesagemModal
-          product={selectedProduct}
-          onConfirm={handleWeightConfirm}
-          onCancel={() => {
+          produto={selectedProduct}
+          onConfirmar={handleWeightConfirm}
+          onFechar={() => {
             setShowPesagemModal(false);
             setSelectedProduct(null);
           }}
@@ -1007,12 +1044,35 @@ const TableSalesPanel: React.FC<TableSalesPanelProps> = ({ storeId, operatorName
           onClose={() => {
             setShowPaymentModal(false);
             setSaleToClose(null);
+            setPaymentMethod('dinheiro');
+            setChangeFor(undefined);
           }}
+          sale={saleToClose}
+          selectedTable={selectedTable}
           onConfirm={handlePaymentConfirm}
+          disableConfirm={!supabaseConfigured || !currentRegister?.id}
+          isCashRegisterOpen={!!currentRegister?.id}
           totalAmount={saleToClose.total_amount}
-          tableNumber={selectedTable?.number || 0}
         />
       )}
+
+      {/* Info Panel */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <div className="flex items-start gap-3">
+          <Utensils size={20} className="text-blue-600 mt-0.5" />
+          <div>
+            <h4 className="font-medium text-blue-800 mb-2">ℹ️ Como usar o Sistema de Mesas</h4>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• <strong>Mesa Livre:</strong> Clique para abrir uma nova venda</li>
+              <li>• <strong>Mesa Ocupada:</strong> Clique para adicionar produtos</li>
+              <li>• <strong>Aguardando Conta:</strong> Cliente solicitou a conta</li>
+              <li>• <strong>Limpeza:</strong> Mesa sendo limpa após fechamento</li>
+              <li>• Adicione produtos diretamente pelo sistema de mesas</li>
+              <li>• O sistema sincroniza automaticamente com o caixa</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

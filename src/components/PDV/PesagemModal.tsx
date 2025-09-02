@@ -1,231 +1,223 @@
-import React, { useState, useEffect } from 'react';
-import { X, Scale, Check, AlertCircle } from 'lucide-react';
-import { PDVProduct } from '../../types/pdv';
-import { useWeightFromScale } from '../../hooks/useWeightFromScale';
+import { useState } from "react";
+import { useWeightFromScale } from "../../hooks/useWeightFromScale";
+import { useScale } from "../../hooks/useScale";
+import { useEffect, useRef } from "react";
+import { Scale, X, Check, AlertCircle, RefreshCw, Zap } from 'lucide-react';
 
-interface PesagemModalProps {
-  product?: PDVProduct | null;
-  onConfirm: (weightInGrams: number) => void;
-  onCancel: () => void;
-}
-
-export const PesagemModal: React.FC<PesagemModalProps> = ({ 
-  product, 
-  onConfirm, 
-  onCancel 
-}) => {
+export function PesagemModal({ produto, onConfirmar, onFechar }) {
+  const { fetchWeight, loading: weightLoading, confirmWeight, isWeightDuplicate } = useWeightFromScale();
+  const scale = useScale();
+  const loading = weightLoading;
+  const [supabaseConfigured, setSupabaseConfigured] = useState(true);
+  const [weight, setWeight] = useState<number | null>(null);
+  const [isReading, setIsReading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [manualWeight, setManualWeight] = useState('');
-  const [useManualWeight, setUseManualWeight] = useState(false);
-  const { fetchWeight, loading } = useWeightFromScale();
-  const [scaleWeight, setScaleWeight] = useState<number | null>(null);
-  const [lastFetch, setLastFetch] = useState<Date>(new Date());
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const intervalRef = useRef<number | null>(null);
+  const [isDuplicate, setIsDuplicate] = useState(false);
+  const confirmedRef = useRef(false);
 
-  // Verificação de segurança para produto
-  if (!product) {
-    return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl max-w-md w-full p-6">
-          <div className="text-center">
-            <AlertCircle size={48} className="mx-auto text-red-500 mb-4" />
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">Erro</h2>
-            <p className="text-gray-600 mb-4">Produto não encontrado para pesagem.</p>
-            <button
-              onClick={onCancel}
-              className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              Fechar
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+  // Verificar se o produto é válido
+  if (!produto) {
+    return null;
   }
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(price);
-  };
-
-  const getWeightFromScale = async () => {
-    try {
-      const weight = await fetchWeight();
-      if (weight !== null) {
-        setScaleWeight(weight);
-        setLastFetch(new Date());
-      }
-    } catch (error) {
-      console.error('Erro ao obter peso da balança:', error);
-    }
-  };
-
-  const handleConfirm = () => {
-    const weightToUse = useManualWeight 
-      ? parseFloat(manualWeight) * 1000 // Converter kg para gramas
-      : scaleWeight ? scaleWeight * 1000 : 0; // Converter kg para gramas
-
-    if (weightToUse <= 0) {
-      alert('Por favor, informe um peso válido');
-      return;
-    }
-
-    onConfirm(weightToUse);
-  };
-
-  const calculatePrice = () => {
-    if (!product.price_per_gram) return 0;
-    
-    const weightInKg = useManualWeight 
-      ? parseFloat(manualWeight) || 0
-      : scaleWeight || 0;
-    
-    return weightInKg * product.price_per_gram * 1000; // price_per_gram já está em gramas
-  };
-
+  const [pesoManual, setPesoManual] = useState<number>(0);
+  const [tentativas, setTentativas] = useState<number>(0);
+  // Check Supabase configuration
   useEffect(() => {
-    // Buscar peso inicial da balança
-    getWeightFromScale();
+    const timer = setTimeout(async () => {
+        const scaleReading = await scale.requestStableWeight();
+    }, 500);
     
-    // Atualizar peso a cada 2 segundos
-    const interval = setInterval(getWeightFromScale, 2000);
-    
-    return () => clearInterval(interval);
+    return () => clearTimeout(timer);
   }, []);
 
+  const usarBalanca = async () => {
+    setTentativas(prev => prev + 1);
+    console.log(`🔄 Tentativa ${tentativas + 1} de leitura da balança`);
+    
+    const peso = await fetchWeight();
+    if (peso === null || isNaN(peso) || peso <= 0) {
+      if (tentativas === 0) {
+        console.log("⚠️ Primeira tentativa falhou, tentando novamente...");
+        setTimeout(() => usarBalanca(), 800);
+      } else {
+        console.log("❌ Não foi possível obter o peso após múltiplas tentativas");
+      }
+      return;
+    }
+    const pesoGramas = Math.round(peso * 1000);
+    setPesoManual(pesoGramas);
+    setIsDuplicate(isWeightDuplicate(peso));
+    console.log("✅ Peso lido:", pesoGramas, "g");
+  };
+
+  const handleConfirmarPeso = () => {
+    if (pesoManual <= 0) return;
+    
+    if (isDuplicate && !confirmedRef.current) {
+      if (confirm("Esse peso é igual ao anterior. Tem certeza que deseja confirmar novamente?")) {
+        confirmedRef.current = true;
+        confirmWeight(pesoManual / 1000);
+        onConfirmar(pesoManual);
+      }
+    } else {
+      confirmWeight(pesoManual / 1000);
+      onConfirmar(pesoManual);
+    }
+  };
+
+  const handleFechar = () => {
+    if (onFechar) {
+      onFechar();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-              <Scale size={24} className="text-blue-600" />
-              Pesagem do Produto
-            </h2>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+        {/* Header com gradiente */}
+        <div className="bg-gradient-to-r from-blue-600 to-green-500 p-6 text-white relative overflow-hidden">
+          <div className="absolute inset-0 bg-black/10"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-3">
+                <div className="bg-white/20 rounded-full p-2 backdrop-blur-sm">
+                  <Scale size={24} className="text-white" />
+                </div>
+                <h2 className="text-xl font-bold">Pesagem de Produto</h2>
+              </div>
+              {onFechar && (
+                <button
+                  onClick={handleFechar}
+                  className="bg-white/20 hover:bg-white/30 rounded-full p-2 transition-colors"
+                >
+                  <X size={20} className="text-white" />
+                </button>
+              )}
+            </div>
+            <p className="text-white/90 truncate">{produto.name || produto.nome}</p>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {/* Botão da balança */}
+          <div className="text-center">
             <button
-              onClick={onCancel}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              onClick={usarBalanca}
+              disabled={loading}
+              className={`w-full py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl ${
+                loading 
+                  ? 'bg-gray-300 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white'
+              }`}
             >
-              <X size={20} />
+              <div className="flex items-center justify-center gap-3">
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                    <span>Pesando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Scale size={24} />
+                    <span>Usar Balança</span>
+                    <Zap size={20} className="animate-pulse" />
+                  </>
+                )}
+              </div>
             </button>
           </div>
-        </div>
 
-        <div className="p-6 space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="font-medium text-blue-800 mb-2">{product.name}</h3>
-            <p className="text-sm text-blue-700">
-              Preço: {formatPrice(product.price_per_gram || 0)}/g
-            </p>
-          </div>
-
-          {/* Peso da Balança */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-gray-800">Peso da Balança</h4>
-              <button
-                onClick={getWeightFromScale}
-                disabled={loading}
-                className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white px-3 py-1 rounded-lg text-sm transition-colors"
-              >
-                {loading ? (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                ) : (
-                  <Scale size={16} />
-                )}
-                Atualizar
-              </button>
-            </div>
-            
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-gray-800">
-                  {scaleWeight !== null ? `${scaleWeight.toFixed(3)} kg` : 'Sem leitura'}
-                </p>
-                <p className="text-sm text-gray-600">
-                  Última atualização: {lastFetch.toLocaleTimeString('pt-BR')}
-                </p>
+          {/* Resultado da pesagem */}
+          {pesoManual > 0 && (
+            <div className={`rounded-xl p-4 border-2 transition-all duration-300 ${
+              isDuplicate 
+                ? 'bg-yellow-50 border-yellow-300' 
+                : 'bg-green-50 border-green-300'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`rounded-full p-2 ${
+                  isDuplicate ? 'bg-yellow-100' : 'bg-green-100'
+                }`}>
+                  {isDuplicate ? (
+                    <AlertCircle size={20} className="text-yellow-600" />
+                  ) : (
+                    <Check size={20} className="text-green-600" />
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className={`font-semibold ${
+                    isDuplicate ? 'text-yellow-800' : 'text-green-800'
+                  }`}>
+                    Peso: {pesoManual}g ({(pesoManual / 1000).toFixed(3)} kg)
+                  </p>
+                  {isDuplicate && (
+                    <p className="text-sm text-yellow-600 mt-1">
+                      ⚠️ Peso igual ao anterior
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-            
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="weightSource"
-                checked={!useManualWeight}
-                onChange={() => setUseManualWeight(false)}
-                className="text-blue-600"
-              />
-              <span className="text-sm text-gray-700">Usar peso da balança</span>
-            </label>
-          </div>
+          )}
 
-          {/* Peso Manual */}
-          <div className="space-y-3">
-            <label className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="weightSource"
-                checked={useManualWeight}
-                onChange={() => setUseManualWeight(true)}
-                className="text-blue-600"
-              />
-              <span className="text-sm text-gray-700">Informar peso manualmente</span>
-            </label>
-            
-            {useManualWeight && (
-              <div>
-                <input
-                  type="number"
-                  step="0.001"
-                  min="0.001"
-                  value={manualWeight}
-                  onChange={(e) => setManualWeight(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="0,000 kg"
-                  autoFocus
-                />
+          {/* Input manual */}
+          <div className="space-y-4">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200"></div>
               </div>
-            )}
+              <div className="relative flex justify-center text-sm">
+                <span className="px-4 bg-white text-gray-500 font-medium">ou digite o peso</span>
+              </div>
+            </div>
+
+            <div>
+              <input
+                type="number"
+                value={pesoManual}
+                onChange={(e) => setPesoManual(parseInt(e.target.value) || 0)}
+                placeholder="Peso em gramas"
+                className="w-full p-4 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              />
+            </div>
+            
+            {/* Botões de peso rápido */}
+            <div className="grid grid-cols-3 gap-2">
+              {[100, 200, 300, 500, 750, 1000].map((g) => (
+                <button
+                  key={g}
+                  onClick={() => setPesoManual(g)}
+                  className="py-2 px-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors text-sm"
+                >
+                  {g}g
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Cálculo do Preço */}
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-green-700">Preço calculado:</span>
-              <span className="text-xl font-bold text-green-800">
-                {formatPrice(calculatePrice())}
-              </span>
-            </div>
-            <div className="text-sm text-green-600 mt-1">
-              Peso: {useManualWeight 
-                ? `${parseFloat(manualWeight) || 0} kg` 
-                : `${scaleWeight || 0} kg`
-              }
-            </div>
-          </div>
-        </div>
-
-        <div className="p-6 border-t border-gray-200 flex gap-3">
+          {/* Botão confirmar */}
           <button
-            onClick={onCancel}
-            className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            onClick={handleConfirmarPeso}
+            disabled={pesoManual <= 0}
+            className={`w-full py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl ${
+              pesoManual <= 0
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : isDuplicate 
+                  ? 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white'
+                  : 'bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white'
+            }`}
           >
-            Cancelar
-          </button>
-          <button
-            onClick={handleConfirm}
-            disabled={
-              (useManualWeight && (!manualWeight || parseFloat(manualWeight) <= 0)) ||
-              (!useManualWeight && (!scaleWeight || scaleWeight <= 0))
-            }
-            className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
-          >
-            <Check size={16} />
-            Confirmar Pesagem
+            <div className="flex items-center justify-center gap-3">
+              <Check size={24} />
+              <span>Confirmar Peso</span>
+            </div>
           </button>
         </div>
       </div>
     </div>
   );
-};
+} 
