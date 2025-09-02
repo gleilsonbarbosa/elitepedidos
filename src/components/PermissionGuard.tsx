@@ -43,14 +43,18 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
         // Check if it's a session object with user property
         const user = operator.user || operator;
         
-        const code = String(user?.code || '').toUpperCase();
+        const code = String(user?.code || user?.username || '').toUpperCase();
+        const role = String(user?.role || '').toLowerCase();
         
-        isAdmin = code === 'ADMIN';
+        isAdmin = code === 'ADMIN' || role === 'admin' || 
+                 String(user?.name || '').toUpperCase().includes('ADMIN');
                   
         console.log('🔍 Admin check from localStorage:', {
           user: user ? {
             name: user.name,
             code: user.code,
+            username: user.username,
+            role: user.role,
             id: user.id
           } : 'No user',
           isAdmin

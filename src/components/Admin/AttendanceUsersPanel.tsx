@@ -783,7 +783,7 @@ const AttendanceUsersPanel: React.FC = () => {
                       className="w-4 h-4 text-blue-600"
                     />
                     <span className="text-sm text-gray-700">
-                      Gerenciar entradas de caixa
+                      <strong>Gerenciar entradas de caixa</strong>
                     </span>
                   </label>
                   

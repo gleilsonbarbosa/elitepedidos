@@ -24,6 +24,36 @@ import { usePDVCashRegister } from '../hooks/usePDVCashRegister';
 import { useStoreHours } from '../hooks/useStoreHours';
 import { PDVOperator } from '../types/pdv';
 
+// Função auxiliar para verificar se é admin
+const isUserAdmin = (operator?: PDVOperator): boolean => {
+  if (!operator) return false;
+  
+  // Verificar TODAS as condições possíveis para admin
+  const isAdminByCode = operator.code?.toUpperCase() === 'ADMIN';
+  const isAdminByUsername = operator.username?.toUpperCase() === 'ADMIN';
+  const isAdminByName = operator.name?.toUpperCase().includes('ADMIN');
+  const isAdminByRole = operator.role === 'admin';
+  const isAdminById = operator.id === '1' || operator.id === '00000000-0000-0000-0000-000000000001';
+  
+  const result = isAdminByCode || isAdminByUsername || isAdminByName || isAdminByRole || isAdminById;
+  
+  console.log('🔍 isUserAdmin check:', {
+    operatorId: operator.id,
+    operatorCode: operator.code,
+    operatorUsername: operator.username,
+    operatorName: operator.name,
+    operatorRole: operator.role,
+    isAdminByCode,
+    isAdminByUsername,
+    isAdminByName,
+    isAdminByRole,
+    isAdminById,
+    finalResult: result
+  });
+  
+  return result;
+};
+
 interface UnifiedAttendancePanelProps {
   operator?: PDVOperator;
   storeSettings?: any;
@@ -40,10 +70,8 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
   const { orders } = useOrders();
   const [supabaseConfigured, setSupabaseConfigured] = useState(true);
   
-  // Check if user is admin for sale deletion permissions
-  const isAdmin = !operator || 
-                  operator.code?.toUpperCase() === 'ADMIN' ||
-                  operator.name?.toUpperCase().includes('ADMIN');
+  // Check if user is admin - mais permissivo
+  const isAdmin = isUserAdmin(operator);
 
   // Calculate pending orders count from the orders data
   const pendingOrdersCount = orders.filter(order => order.status === 'pending').length;
@@ -272,7 +300,7 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
               </button>
             )}
             
-            {(isAdmin || hasPermission('can_view_cash_register')) && (
+            {(isAdmin || hasPermission('can_view_cash_register') || operator?.code?.toUpperCase() === 'ADMIN') && (
               <button
                 onClick={() => setActiveTab('cash')}
                 className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 ${
@@ -320,7 +348,14 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
         <div className="transition-all duration-300 print:hidden">
           {activeTab === 'sales' && (isAdmin || hasPermission('can_view_sales')) && <PDVSalesScreen operator={operator} scaleHook={scaleHook || scale} storeSettings={settings} isAdmin={isAdmin} />}
           {activeTab === 'orders' && (isAdmin || hasPermission('can_view_orders')) && <AttendantPanel storeSettings={settings} />}
-          {activeTab === 'cash' && (isAdmin || hasPermission('can_view_cash_register')) && <CashRegisterMenu isAdmin={isAdmin} operator={operator} />}
+          {activeTab === 'cash' && (isAdmin || 
+            hasPermission('can_view_cash_register') || 
+            hasPermission('can_view_cash_report') ||
+            hasPermission('can_manage_cash_entries') ||
+            hasPermission('can_view_expected_balance') ||
+            operator?.code?.toUpperCase() === 'ADMIN' ||
+            operator?.username?.toUpperCase() === 'ADMIN' ||
+            operator?.role === 'admin') && <CashRegisterMenu isAdmin={isAdmin} operator={operator} />}
           {activeTab === 'tables' && (isAdmin || hasPermission('can_view_sales')) && <TableSalesPanel storeId={1} operatorName={operator?.name} isCashRegisterOpen={isCashRegisterOpen} isAdmin={isAdmin} />}
           {activeTab === 'history' && (isAdmin || hasPermission('can_view_sales')) && <SalesHistoryPanel storeId={1} operator={operator} isAdmin={isAdmin} />}
         </div>

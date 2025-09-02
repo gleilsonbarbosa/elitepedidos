@@ -31,8 +31,10 @@ const AttendancePage: React.FC = () => {
       id: attendanceUser.id,
       name: attendanceUser.name, // Usar o nome real do usuário
       code: attendanceUser.username.toUpperCase(),
+      username: attendanceUser.username, // Adicionar username para verificações
       password_hash: attendanceUser.password_hash,
       is_active: attendanceUser.is_active,
+      role: attendanceUser.role, // Adicionar role do usuário
       permissions: {
         can_cancel: attendanceUser.permissions?.can_cancel || false,
         can_discount: attendanceUser.permissions?.can_discount || false,
