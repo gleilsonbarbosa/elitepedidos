@@ -28,7 +28,8 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
   // 2) Bypass em desenvolvimento
   const isDevelopment = import.meta.env.DEV || 
                        import.meta.env.MODE === 'development' ||
-                       window.location.hostname === 'localhost';
+                       window.location.hostname === 'localhost' ||
+                       window.location.hostname.includes('bolt.host');
 
   // 3) Bypass para admin (via localStorage.pdv_operator)
   let isAdmin = false;

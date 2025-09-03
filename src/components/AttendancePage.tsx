@@ -91,9 +91,12 @@ const AttendancePage: React.FC = () => {
     
     console.log('✅ Usuário convertido para operador PDV:', {
       originalName: session.user.name,
+      originalUsername: session.user.username,
+      originalId: session.user.id,
       convertedName: pdvOperator.name,
       username: session.user.username,
-      code: pdvOperator.code
+      code: pdvOperator.code,
+      permissions: pdvOperator.permissions
     });
 
     return (

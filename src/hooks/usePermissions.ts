@@ -8,7 +8,7 @@ export const usePermissions = (operator?: PDVOperator | null) => {
       return false;
     }
 
-    // BYPASS EXPANDIDO para usuários ADMIN - sempre permitir acesso
+    // BYPASS apenas para usuários ADMIN - sempre permitir acesso
     const isAdmin = operator.code?.toUpperCase() === 'ADMIN' || 
                    operator.name?.toUpperCase().includes('ADMIN') ||
                    operator.username?.toUpperCase() === 'ADMIN' ||
@@ -27,25 +27,6 @@ export const usePermissions = (operator?: PDVOperator | null) => {
       return true;
     }
 
-    // VERIFICAÇÃO ESPECIAL para permissões de caixa - mais permissiva
-    if (permission === 'can_view_cash_register') {
-      // Permitir acesso se tem qualquer uma dessas permissões relacionadas a caixa
-      const hasCashPermissions = operator.permissions?.can_view_cash_register ||
-                                operator.permissions?.can_view_cash_report ||
-                                operator.permissions?.can_manage_cash_entries ||
-                                operator.permissions?.can_view_expected_balance ||
-                                operator.permissions?.can_view_sales ||
-                                operator.permissions?.can_view_reports;
-      
-      if (hasCashPermissions) {
-        console.log('✅ [PERMISSIONS] Acesso ao caixa permitido por permissões relacionadas:', {
-          permission,
-          operatorName: operator.name,
-          permissions: operator.permissions
-        });
-        return true;
-      }
-    }
 
     // Verificar permissão específica para usuários não-admin
     const hasSpecificPermission = operator.permissions?.[permission] === true;
@@ -55,6 +36,7 @@ export const usePermissions = (operator?: PDVOperator | null) => {
       operatorCode: operator.code,
       operatorName: operator.name,
       operatorUsername: operator.username,
+      operatorId: operator.id,
       isAdmin,
       hasSpecificPermission,
       allPermissions: operator.permissions,

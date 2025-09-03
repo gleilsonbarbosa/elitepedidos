@@ -303,7 +303,8 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
               </button>
             )}
             
-            {(isAdmin || hasPermission('can_view_cash_register') || operator?.code?.toUpperCase() === 'ADMIN') && (
+            {(isAdmin || 
+              hasPermission('can_view_cash_register')) && (
               <button
                 onClick={() => setActiveTab('cash')}
                 className={`px-6 py-3 rounded-lg font-medium transition-colors flex items-center gap-2 ${
@@ -351,14 +352,60 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
         <div className="transition-all duration-300 print:hidden">
           {activeTab === 'sales' && (isAdmin || hasPermission('can_view_sales')) && <PDVSalesScreen operator={operator} scaleHook={scaleHook || scale} storeSettings={settings} isAdmin={isAdmin} />}
           {activeTab === 'orders' && (isAdmin || hasPermission('can_view_orders')) && <AttendantPanel storeSettings={settings} operator={operator} />}
-          {activeTab === 'cash' && (isAdmin || 
-            hasPermission('can_view_cash_register') || 
-            hasPermission('can_view_cash_report') ||
-            hasPermission('can_manage_cash_entries') ||
-            hasPermission('can_view_expected_balance') ||
-            operator?.code?.toUpperCase() === 'ADMIN' ||
-            operator?.username?.toUpperCase() === 'ADMIN' ||
-            operator?.role === 'admin') && <CashRegisterMenu isAdmin={isAdmin} operator={operator} />}
+          {activeTab === 'cash' && (
+            <div>
+              {(isAdmin || hasPermission('can_view_cash_register')) ? (
+                <CashRegisterMenu isAdmin={isAdmin} operator={operator} />
+              ) : (
+                <div className="bg-white rounded-xl shadow-sm p-8 text-center">
+                  <div className="bg-red-100 rounded-full p-3 w-16 h-16 mx-auto mb-4">
+                    <DollarSign size={32} className="text-red-600 mx-auto" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">Acesso Negado ao Caixa</h3>
+                  <p className="text-gray-600 mb-4">
+                    Você não tem permissão para acessar o controle de caixa.
+                  </p>
+                  
+                  {/* Debug Info */}
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4 text-left">
+                    <h4 className="font-medium text-gray-800 mb-2">🐛 Debug - Informações do Usuário:</h4>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <p><strong>Nome:</strong> {operator?.name || 'N/A'}</p>
+                      <p><strong>Username:</strong> {operator?.username || 'N/A'}</p>
+                      <p><strong>ID:</strong> {operator?.id || 'N/A'}</p>
+                      <p><strong>Role:</strong> {operator?.role || 'N/A'}</p>
+                      <p><strong>Is Admin:</strong> {isAdmin ? 'Sim' : 'Não'}</p>
+                      <p><strong>can_view_cash_register:</strong> {operator?.permissions?.can_view_cash_register ? 'Sim' : 'Não'}</p>
+                      <p><strong>Todas as permissões:</strong></p>
+                      <pre className="text-xs bg-white p-2 rounded border overflow-auto">
+                        {JSON.stringify(operator?.permissions || {}, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                    <h4 className="font-medium text-yellow-800 mb-2">💡 Como Liberar Acesso:</h4>
+                    <ol className="text-sm text-yellow-700 space-y-1 text-left">
+                      <li>1. Acesse <strong>/administrativo</strong> (admin / elite2024)</li>
+                      <li>2. Vá na aba <strong>"Usuários"</strong></li>
+                      <li>3. Edite o usuário <strong>"{operator?.name}"</strong></li>
+                      <li>4. Marque a permissão <strong>"Visualizar Caixa"</strong></li>
+                      <li>5. Salve as alterações</li>
+                      <li>6. Faça logout e login novamente aqui</li>
+                      <li>7. <strong>OU</strong> clique no botão abaixo para forçar atualização</li>
+                    </ol>
+                    
+                    <button
+                      onClick={() => window.location.reload()}
+                      className="mt-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                    >
+                      🔄 Recarregar Página
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           {activeTab === 'tables' && (isAdmin || hasPermission('can_view_sales')) && <TableSalesPanel storeId={1} operatorName={operator?.name} isCashRegisterOpen={isCashRegisterOpen} isAdmin={isAdmin} />}
           {activeTab === 'history' && (isAdmin || hasPermission('can_view_sales')) && <SalesHistoryPanel storeId={1} operator={operator} isAdmin={isAdmin} />}
         </div>

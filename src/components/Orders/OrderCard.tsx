@@ -232,7 +232,7 @@ const OrderCard: React.FC<OrderCardProps> = ({
                   <Printer size={16} />
                   Imprimir
                 </button>
-                {isAttendant && (
+                {isAttendant && order.customer_phone && order.customer_phone.trim() !== '' && (
                   <a
                     href={generateWhatsAppLink()}
                     target="_blank"

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
 interface AttendanceUser {
@@ -127,10 +127,10 @@ export const useAttendance = () => {
         can_print_orders: true,
         can_update_status: true,
         can_create_manual_orders: true,
-        can_view_cash_register: true, // Permitir acesso ao caixa
+        can_view_cash_register: true,
         can_view_sales: true,
         can_view_reports: true,
-        can_view_cash_report: true, // Permitir relatórios de caixa
+        can_view_cash_report: true,
         can_view_sales_report: true,
         can_manage_products: true,
         can_view_operators: true,
@@ -139,11 +139,11 @@ export const useAttendance = () => {
         can_use_scale: true,
         can_discount: true,
         can_cancel: true,
-        can_view_expected_balance: true, // Permitir ver saldo esperado
+        can_view_expected_balance: true,
         can_edit_orders: true,
         can_delete_orders: true,
         can_cancel_orders: true,
-        can_manage_cash_entries: true, // Permitir gerenciar entradas de caixa
+        can_manage_cash_entries: true,
         can_edit_sales: true,
         can_delete_sales: true,
         can_edit_cash_entries: true,
@@ -166,10 +166,10 @@ export const useAttendance = () => {
         can_print_orders: true,
         can_update_status: true,
         can_create_manual_orders: true,
-        can_view_cash_register: true, // Permitir acesso ao caixa
+        can_view_cash_register: true,
         can_view_sales: true,
         can_view_reports: true,
-        can_view_cash_report: true, // Permitir relatórios de caixa
+        can_view_cash_report: true,
         can_view_sales_report: true,
         can_manage_products: true,
         can_view_operators: true,
@@ -178,11 +178,11 @@ export const useAttendance = () => {
         can_use_scale: true,
         can_discount: true,
         can_cancel: true,
-        can_view_expected_balance: true, // Permitir ver saldo esperado
+        can_view_expected_balance: true,
         can_edit_orders: true,
         can_delete_orders: true,
         can_cancel_orders: true,
-        can_manage_cash_entries: true, // Permitir gerenciar entradas de caixa
+        can_manage_cash_entries: true,
         can_edit_sales: true,
         can_delete_sales: true,
         can_edit_cash_entries: true,
@@ -336,79 +336,71 @@ export const useAttendance = () => {
       const existingUsernames = existingUsers?.map(u => u.username) || [];
       console.log('👥 Usuários existentes:', existingUsernames);
       
-      // Filtrar apenas usuários que não existem
-      const usersToCreate = DEFAULT_USERS.filter(user => 
-        !existingUsernames.includes(user.username)
-      );
-      
-      if (usersToCreate.length === 0) {
-        console.log('ℹ️ Todos os usuários padrão já existem');
-        // Carregar usuários existentes
-        const { data: allUsers, error: loadError } = await supabase
+      // Se não existem usuários, criar todos os padrão
+      // Se existem, atualizar permissões dos usuários existentes
+      if (existingUsernames.length === 0) {
+        console.log('📝 Criando todos os usuários padrão...');
+        const { data, error } = await supabase
           .from('attendance_users')
-          .select('*')
-          .order('name');
+          .insert(DEFAULT_USERS)
+          .select();
         
-        if (loadError) {
-          console.error('❌ Erro ao carregar usuários existentes:', loadError);
-          if (loadError.message?.includes('Failed to fetch')) {
-            console.warn('🌐 Erro de conectividade - usando localStorage');
+        if (error) throw error;
+        console.log('✅ Usuários padrão criados:', data?.length);
+      } else {
+        console.log('🔄 Atualizando permissões dos usuários existentes...');
+        
+        // FORÇAR atualização das permissões para Sarah Santos e Kevelly
+        for (const defaultUser of DEFAULT_USERS) {
+          if (existingUsernames.includes(defaultUser.username)) {
+            console.log(`🔄 FORÇANDO atualização de permissões para ${defaultUser.username}...`);
+            console.log(`📋 Permissões que serão aplicadas:`, defaultUser.permissions);
+            
+            const { error: updateError } = await supabase
+              .from('attendance_users')
+              .update({
+                permissions: defaultUser.permissions,
+                role: defaultUser.role,
+                is_active: defaultUser.is_active,
+                updated_at: new Date().toISOString()
+              })
+              .eq('username', defaultUser.username);
+            
+            if (updateError) {
+              console.error(`❌ Erro ao atualizar ${defaultUser.username}:`, updateError);
+            } else {
+              console.log(`✅ Permissões atualizadas para ${defaultUser.username}`);
+              
+              // Verificar se a atualização foi aplicada
+              const { data: verifyData, error: verifyError } = await supabase
+                .from('attendance_users')
+                .select('username, permissions')
+                .eq('username', defaultUser.username)
+                .single();
+              
+              if (!verifyError && verifyData) {
+                console.log(`✅ VERIFICAÇÃO - Permissões salvas para ${verifyData.username}:`, verifyData.permissions);
+              }
+            }
           }
-          loadUsersFromLocalStorage();
-          return;
         }
         
-        setUsers(allUsers || []);
-        if (allUsers) {
-          localStorage.setItem('attendance_users', JSON.stringify(allUsers));
-        }
-        return;
-      }
-      
-      console.log(`📝 Criando ${usersToCreate.length} novos usuários...`);
-      
-      const { data, error } = await supabase
-        .from('attendance_users')
-        .insert(usersToCreate)
-        .select();
-      
-      if (error) {
-        console.error('❌ Erro ao criar usuários padrão:', error);
+        // Criar usuários que não existem
+        const usersToCreate = DEFAULT_USERS.filter(user => 
+          !existingUsernames.includes(user.username)
+        );
         
-        // Tratamento específico para erro de conectividade
-        if (error.message?.includes('Failed to fetch')) {
-          console.warn('🌐 Erro de conectividade ao criar usuários - usando localStorage');
-          loadUsersFromLocalStorage();
-          return;
-        }
-        
-        // Se é erro de duplicata, carregar usuários existentes
-        if (error.code === '23505') {
-          console.log('ℹ️ Usuários já existem, carregando do banco...');
-          const { data: allUsers, error: loadError } = await supabase
+        if (usersToCreate.length > 0) {
+          console.log(`📝 Criando ${usersToCreate.length} novos usuários...`);
+          const { data, error } = await supabase
             .from('attendance_users')
-            .select('*')
-            .order('name');
+            .insert(usersToCreate)
+            .select();
           
-          if (loadError) {
-            console.error('❌ Erro ao carregar após duplicata:', loadError);
-            loadUsersFromLocalStorage();
-            return;
-          }
-          
-          setUsers(allUsers || DEFAULT_USERS);
-          if (allUsers) {
-            localStorage.setItem('attendance_users', JSON.stringify(allUsers));
-          }
-          return;
+          if (error) throw error;
+          console.log('✅ Novos usuários criados:', data?.length);
         }
-        
-        // Para outros erros, usar localStorage
-        loadUsersFromLocalStorage();
-        return;
       }
-      
-      console.log('✅ Usuários padrão criados no banco:', data?.length);
       
       // Carregar todos os usuários após criação
       const { data: allUsers, error: finalLoadError } = await supabase
@@ -617,110 +609,106 @@ export const useAttendance = () => {
     }
   };
 
+  // Buscar usuário no banco de dados
+  const findUserInDatabase = useCallback(async (searchUsername: string, searchPassword: string): Promise<AttendanceUser | null> => {
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (supabaseUrl && supabaseKey && 
+          !supabaseUrl.includes('placeholder') && 
+          !supabaseKey.includes('placeholder')) {
+        
+        console.log('🔍 Buscando usuário atualizado no banco...');
+        const { data: dbUser, error } = await supabase
+          .from('attendance_users')
+          .select('*')
+          .eq('username', searchUsername)
+          .eq('is_active', true)
+          .single();
+        
+        if (!error && dbUser && dbUser.password_hash === searchPassword) {
+          console.log('✅ Usuário encontrado no banco com permissões atualizadas');
+          console.log('🔍 Permissões do banco:', dbUser.permissions);
+          
+          // Atualizar lista local com dados do banco
+          setUsers(prev => {
+            const updated = prev.filter(u => u.id !== dbUser.id);
+            return [...updated, dbUser];
+          });
+          
+          // Se já há uma sessão ativa, atualizar com dados do banco
+          const currentSession = JSON.parse(localStorage.getItem('attendance_session') || '{}');
+          if (currentSession.isAuthenticated && currentSession.user?.username === searchUsername) {
+            const updatedSession = {
+              isAuthenticated: true,
+              user: dbUser
+            };
+            setSession(updatedSession);
+            localStorage.setItem('attendance_session', JSON.stringify(updatedSession));
+            console.log('🔄 Sessão atualizada com dados do banco');
+          }
+          
+          return dbUser;
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ Erro ao buscar usuário no banco:', err);
+    }
+    
+    return null;
+  }, []);
+
   // Login
   const login = (username: string, password: string): boolean => {
     console.log('🔐 useAttendance - Tentativa de login:', { username, password: password ? '***' : 'vazio' });
     console.log('👥 Usuários disponíveis:', users.map(u => ({ username: u.username, name: u.name, role: u.role, is_active: u.is_active })));
     
-    // SEMPRE buscar usuário atualizado do banco de dados PRIMEIRO
-    const findUserInDatabase = async (): Promise<AttendanceUser | null> => {
-      try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        
-        if (supabaseUrl && supabaseKey && 
-            !supabaseUrl.includes('placeholder') && 
-            !supabaseKey.includes('placeholder')) {
-          
-          console.log('🔍 Buscando usuário atualizado no banco...');
-          const { data: dbUser, error } = await supabase
-            .from('attendance_users')
-            .select('*')
-            .eq('username', username)
-            .eq('is_active', true)
-            .single();
-          
-          if (!error && dbUser && dbUser.password_hash === password) {
-            console.log('✅ Usuário encontrado no banco com permissões atualizadas');
-            console.log('🔍 Permissões do banco:', dbUser.permissions);
-            
-            // Atualizar lista local com dados do banco
-            setUsers(prev => {
-              const updated = prev.filter(u => u.id !== dbUser.id);
-              return [...updated, dbUser];
-            });
-            
-            return dbUser;
-          }
-        }
-      } catch (err) {
-        console.warn('⚠️ Erro ao buscar usuário no banco:', err);
-      }
-      
-      return null;
-    };
-    
-    // Buscar usuário do banco PRIMEIRO
-    findUserInDatabase().then(dbUser => {
-      if (dbUser) {
-        console.log('✅ Login bem-sucedido com dados do banco - Usuário:', dbUser.name, 'Role:', dbUser.role);
-        console.log('🔍 Permissões atualizadas do banco:', dbUser.permissions);
-        
-        const newSession = {
-          isAuthenticated: true,
-          user: dbUser  // Usar dados SEMPRE do banco
-        };
-        
-        console.log('💾 Salvando sessão com dados do banco:', { username: dbUser.username, role: dbUser.role, name: dbUser.name });
-        setSession(newSession);
-        localStorage.setItem('attendance_session', JSON.stringify(newSession));
-        
-        // Atualizar último login
-        updateLastLogin(dbUser.id);
-        
-        return;
-      }
-      
-      // Fallback para usuários locais apenas se banco falhar
-      const localUser = users.find(u => 
-        u.username === username && 
-        u.password_hash === password && 
-        u.is_active
-      );
-
-      console.log('🔍 Usuário local encontrado:', localUser ? { username: localUser.username, name: localUser.name, role: localUser.role } : 'NENHUM');
-
-      if (localUser) {
-        console.log('⚠️ Login com dados locais (fallback) - Usuário:', localUser.name, 'Role:', localUser.role);
-        console.log('🔍 Permissões do usuário local:', localUser.permissions);
-        
-        const newSession = {
-          isAuthenticated: true,
-          user: localUser
-        };
-        
-        console.log('💾 Salvando sessão com dados locais:', { username: localUser.username, role: localUser.role, name: localUser.name });
-        setSession(newSession);
-        localStorage.setItem('attendance_session', JSON.stringify(newSession));
-        
-        // Atualizar último login
-        updateLastLogin(localUser.id);
-        
-        return true;
-      }
-    });
-
-    // Verificar usuários locais para resposta imediata
-    const user = users.find(u => 
+    // Verificar usuários locais PRIMEIRO para resposta imediata
+    const localUser = users.find(u => 
       u.username === username && 
       u.password_hash === password && 
       u.is_active
     );
 
-    if (user) {
-      // Login imediato com dados locais, mas será substituído pelos dados do banco
+    console.log('🔍 Usuário local encontrado:', localUser ? { 
+      username: localUser.username, 
+      name: localUser.name, 
+      role: localUser.role,
+      id: localUser.id,
+      permissions: localUser.permissions 
+    } : 'NENHUM');
+
+    if (localUser) {
+      console.log('✅ Login imediato com dados locais:', {
+        username: localUser.username,
+        name: localUser.name,
+        role: localUser.role,
+        id: localUser.id,
+        permissions: localUser.permissions
+      });
+      
+      const newSession = {
+        isAuthenticated: true,
+        user: localUser
+      };
+      
+      setSession(newSession);
+      localStorage.setItem('attendance_session', JSON.stringify(newSession));
+      
+      // Atualizar último login
+      updateLastLogin(localUser.id);
+      
+      // DEPOIS buscar usuário atualizado do banco de dados em background
+      setTimeout(() => {
+        findUserInDatabase(username, password);
+      }, 100);
+      
       return true;
     }
+    
+    // Buscar no banco em background para sincronizar permissões
+    findUserInDatabase(username, password);
     
     console.log('❌ Login falhou - credenciais inválidas');
     return false;
