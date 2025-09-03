@@ -29,7 +29,7 @@ const AttendancePage: React.FC = () => {
   const convertToPDVOperator = (attendanceUser: any): PDVOperator => {
     return {
       id: attendanceUser.id,
-      name: attendanceUser.name, // Usar o nome real do usuário
+      name: attendanceUser.name,
       code: attendanceUser.username.toUpperCase(),
       password_hash: attendanceUser.password_hash,
       is_active: attendanceUser.is_active,
@@ -87,13 +87,6 @@ const AttendancePage: React.FC = () => {
     // Converter usuário de atendimento para operador PDV
     const pdvOperator = convertToPDVOperator(session.user);
     
-    console.log('✅ Usuário convertido para operador PDV:', {
-      originalName: session.user.name,
-      convertedName: pdvOperator.name,
-      username: session.user.username,
-      code: pdvOperator.code
-    });
-
     return (
       <UnifiedAttendancePage 
         operator={pdvOperator}
@@ -106,14 +99,7 @@ const AttendancePage: React.FC = () => {
   return (
     <AttendanceLogin 
       onLogin={(username, password) => {
-        console.log('🔐 AttendanceLogin - Tentativa de login:', { username });
         const success = login(username, password);
-        console.log('🔐 AttendanceLogin - Resultado do login:', success);
-        
-        if (success) {
-          console.log('✅ AttendanceLogin - Login bem-sucedido');
-        }
-        
         return success;
       }} 
     />

@@ -61,6 +61,7 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [debugMode, setDebugMode] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showSplitModal, setShowSplitModal] = useState(false);
@@ -531,7 +532,6 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
                   </button>
                   
                   <button
-                    onClick={() => window.print()}
                     onClick={() => {
                       // Criar dados de venda atual para impressão
                       const currentSaleData = {
@@ -885,4 +885,4 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
   );
 };
 
-export default PDVSalesScreen; 
+export default PDVSalesScreen;

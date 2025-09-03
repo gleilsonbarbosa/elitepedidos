@@ -114,20 +114,7 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
 
   // Debug logging
   React.useEffect(() => {
-    console.log('🔍 UnifiedAttendancePage - Estado completo:', {
-      operator: operator ? {
-        id: operator.id || 'no-id',
-        username: operator.username || 'no-username',
-        name: operator.name || 'no-name', 
-        code: operator.code || 'no-code',
-        role: operator.role || 'no-role',
-        permissions: operator.permissions || {}
-      } : 'No operator',
-      isAdmin,
-      activeTab,
-      isCashRegisterOpen,
-      pendingOrdersCount
-    });
+    // Debug logging removed
   }, [operator, isAdmin, activeTab, isCashRegisterOpen, pendingOrdersCount]);
 
   const settings = storeSettings || localStoreSettings;
@@ -206,8 +193,8 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
               <div>
                 <h3 className="font-medium text-yellow-800">Sistema em Modo Demonstração</h3>
                 <p className="text-yellow-700 text-sm">
-                  O Supabase não está configurado. Algumas funcionalidades estarão limitadas.
-                  Configure as variáveis de ambiente VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY para acesso completo.
+                  Supabase não configurado ou sem conexão. Usando produtos de demonstração.
+                  Os produtos do banco aparecerão quando a conexão for restaurada.
                 </p>
               </div>
             </div>
@@ -318,11 +305,11 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
 
         {/* Content */}
         <div className="transition-all duration-300 print:hidden">
-          {activeTab === 'sales' && (isAdmin || hasPermission('can_view_sales')) && <PDVSalesScreen operator={operator} scaleHook={scaleHook || scale} storeSettings={settings} isAdmin={isAdmin} />}
-          {activeTab === 'orders' && (isAdmin || hasPermission('can_view_orders')) && <AttendantPanel storeSettings={settings} />}
+        {activeTab === 'orders' && (isAdmin || hasPermission('can_view_orders')) && <AttendantPanel storeSettings={settings} />}
+        {activeTab === 'sales' && (isAdmin || hasPermission('can_view_sales')) && <PDVSalesScreen operator={operator} scaleHook={scaleHook || scale} storeSettings={settings} />}
           {activeTab === 'cash' && (isAdmin || hasPermission('can_view_cash_register')) && <CashRegisterMenu isAdmin={isAdmin} operator={operator} />}
-          {activeTab === 'tables' && (isAdmin || hasPermission('can_view_sales')) && <TableSalesPanel storeId={1} operatorName={operator?.name} isCashRegisterOpen={isCashRegisterOpen} isAdmin={isAdmin} />}
-          {activeTab === 'history' && (isAdmin || hasPermission('can_view_sales')) && <SalesHistoryPanel storeId={1} operator={operator} isAdmin={isAdmin} />}
+        {activeTab === 'tables' && (isAdmin || hasPermission('can_view_sales')) && <TableSalesPanel storeId={1} operatorName={operator?.name} isCashRegisterOpen={isCashRegisterOpen} />}
+        {activeTab === 'history' && (isAdmin || hasPermission('can_view_sales')) && <SalesHistoryPanel storeId={1} operator={operator} isAdmin={isAdmin} />}
         </div>
       </div>
     </div>
