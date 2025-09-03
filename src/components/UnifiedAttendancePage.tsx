@@ -12,6 +12,7 @@ import {
   LogOut,
   Users
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import AttendantPanel from './Orders/AttendantPanel'; 
 import PDVSalesScreen from './PDV/PDVSalesScreen';
 import CashRegisterMenu from './PDV/CashRegisterMenu';
@@ -132,11 +133,11 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
 
   // Recarregar permissões quando a aba muda
   useEffect(() => {
-    if (operator) {
+    if (operator && activeTab === 'cash') {
       console.log('🔄 Verificando permissões atualizadas para:', operator.name, 'na aba:', activeTab);
       console.log('📋 Permissões atuais do operador:', operator.permissions);
       
-      // Forçar recarregamento das permissões do banco quando mudar de aba
+      // Verificar permissões apenas quando acessar a aba de caixa
       const reloadPermissions = async () => {
         try {
           const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -151,33 +152,15 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
             const { data: updatedUser, error } = await supabase
               .from('attendance_users')
               .select('*')
-              .eq('id', operator.id)
-              .single();
-            
-            if (!error && updatedUser) {
-              console.log('🔄 Permissões recarregadas do banco para', updatedUser.name, ':', updatedUser.permissions);
+              .eq('id', operator.id);
               
-              // Verificar se as permissões mudaram
-              if (JSON.stringify(updatedUser.permissions) !== JSON.stringify(operator.permissions)) {
-                console.log('📊 Permissões diferentes detectadas!');
-                console.log('📋 Permissões antigas:', operator.permissions);
-                console.log('📋 Permissões novas:', updatedUser.permissions);
-                console.log('🔄 Atualizando sessão e recarregando página...');
-                
-                // Atualizar sessão com permissões atualizadas
-                const currentSession = JSON.parse(localStorage.getItem('attendance_session') || '{}');
-                if (currentSession.user) {
-                  currentSession.user = updatedUser;
-                  localStorage.setItem('attendance_session', JSON.stringify(currentSession));
-                  
-                  // Forçar reload da página para aplicar novas permissões
-                  console.log('🔄 Recarregando página em 1 segundo para aplicar novas permissões...');
-                  setTimeout(() => {
-                    window.location.reload();
-                  }, 1000);
-                }
-              } else {
-                console.log('✅ Permissões estão sincronizadas');
+            if (!error && updatedUser) {
+              // Atualizar sessão silenciosamente sem reload
+              const currentSession = JSON.parse(localStorage.getItem('attendance_session') || '{}');
+              if (currentSession.user) {
+                currentSession.user = updatedUser;
+                localStorage.setItem('attendance_session', JSON.stringify(currentSession));
+                console.log('✅ Permissões atualizadas silenciosamente');
               }
             } else if (error) {
               console.error('❌ Erro ao buscar permissões atualizadas:', error);
@@ -188,8 +171,8 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
         }
       };
       
-      // Delay para evitar múltiplas chamadas
-      const timeoutId = setTimeout(reloadPermissions, 500);
+      // Delay para evitar múltiplas chamadas - apenas na aba de caixa
+      const timeoutId = setTimeout(reloadPermissions, 1000);
       return () => clearTimeout(timeoutId);
     }
   }, [activeTab, operator]);
