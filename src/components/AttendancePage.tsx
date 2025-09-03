@@ -18,9 +18,9 @@ const AttendancePage: React.FC = () => {
         username: session.user.username,
         name: session.user.name,
         role: session.user.role,
-        permissions: session.user.permissions ? Object.keys(session.user.permissions).filter(key => 
+        permissions: Object.keys(session.user.permissions).filter(key => 
           session.user.permissions[key as keyof typeof session.user.permissions]
-        ) : []
+        )
       } : 'No user'
     });
   }, [session]);
@@ -30,7 +30,7 @@ const AttendancePage: React.FC = () => {
     return {
       id: attendanceUser.id,
       name: attendanceUser.name, // Usar o nome real do usuário
-      code: (attendanceUser.username || '').toUpperCase(),
+      code: attendanceUser.username.toUpperCase(),
       username: attendanceUser.username, // Adicionar username para verificações
       password_hash: attendanceUser.password_hash,
       is_active: attendanceUser.is_active,
@@ -88,13 +88,6 @@ const AttendancePage: React.FC = () => {
 
     // Converter usuário de atendimento para operador PDV
     const pdvOperator = convertToPDVOperator(session.user);
-    
-    console.log('🔄 [PRODUÇÃO] Operador convertido com permissões atualizadas:', {
-      originalUser: session.user,
-      convertedOperator: pdvOperator,
-      can_view_cash_register: pdvOperator.permissions.can_view_cash_register,
-      environment: import.meta.env.MODE
-    });
     
     console.log('✅ Usuário convertido para operador PDV:', {
       originalName: session.user.name,

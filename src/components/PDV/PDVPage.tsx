@@ -214,6 +214,8 @@ const PDVPage: React.FC = () => {
         return <PDVSalesReport />;
       case 'cash_registers_report':
         return <PDVCashRegistersReport />;
+      case 'cash_registers_report':
+        return <PDVCashRegistersReport />;
       case 'reports':
         return <PDVReports />;
       case 'daily_report':
