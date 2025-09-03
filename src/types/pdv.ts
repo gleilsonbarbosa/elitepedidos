@@ -70,10 +70,8 @@ export interface PDVOperator {
   id: string;
   name: string;
   code: string;
-  username?: string; // Adicionar username para verificações de permissão
   password_hash: string;
   is_active: boolean;
-  role?: string; // Adicionar role para verificações de admin
   permissions: {
     can_cancel: boolean;
     can_discount: boolean;

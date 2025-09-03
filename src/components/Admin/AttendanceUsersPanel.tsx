@@ -91,10 +91,7 @@ const AttendanceUsersPanel: React.FC = () => {
         can_cancel_orders: true,
         can_manage_cash_entries: true,
         can_edit_sales: true,
-        can_delete_sales: true,
-        can_edit_cash_entries: true,
-        can_delete_cash_entries: true,
-        can_cancel_cash_entries: true
+        can_delete_sales: true
       },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -595,7 +592,7 @@ const AttendanceUsersPanel: React.FC = () => {
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={editingUser.permissions?.can_view_cash_register === true}
+                      checked={editingUser.permissions?.can_view_cash_register || false}
                       onChange={(e) => setEditingUser({
                         ...editingUser,
                         permissions: {
@@ -606,7 +603,7 @@ const AttendanceUsersPanel: React.FC = () => {
                       className="w-4 h-4 text-blue-600"
                     />
                     <span className="text-sm text-gray-700">
-                      <strong>Visualizar Caixa</strong> (acesso à aba Caixas)
+                      Acessar controle de caixa
                     </span>
                   </label>
                   
@@ -786,7 +783,7 @@ const AttendanceUsersPanel: React.FC = () => {
                       className="w-4 h-4 text-blue-600"
                     />
                     <span className="text-sm text-gray-700">
-                      <strong>Gerenciar entradas de caixa</strong>
+                      Gerenciar entradas de caixa
                     </span>
                   </label>
                   

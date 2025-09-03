@@ -28,8 +28,7 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
   // 2) Bypass em desenvolvimento
   const isDevelopment = import.meta.env.DEV || 
                        import.meta.env.MODE === 'development' ||
-                       window.location.hostname === 'localhost' ||
-                       window.location.hostname.includes('bolt.host');
+                       window.location.hostname === 'localhost';
 
   // 3) Bypass para admin (via localStorage.pdv_operator)
   let isAdmin = false;
@@ -44,18 +43,14 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
         // Check if it's a session object with user property
         const user = operator.user || operator;
         
-        const code = String(user?.code || user?.username || '').toUpperCase();
-        const role = String(user?.role || '').toLowerCase();
+        const code = String(user?.code || '').toUpperCase();
         
-        isAdmin = code === 'ADMIN' || role === 'admin' || 
-                 String(user?.name || '').toUpperCase().includes('ADMIN');
+        isAdmin = code === 'ADMIN';
                   
         console.log('🔍 Admin check from localStorage:', {
           user: user ? {
             name: user.name,
             code: user.code,
-            username: user.username,
-            role: user.role,
             id: user.id
           } : 'No user',
           isAdmin

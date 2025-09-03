@@ -24,7 +24,6 @@ interface OrderCardProps {
   storeSettings?: any;
   isAttendant?: boolean;
   className?: string;
-  operator?: any; // Add operator prop
 }
 
 const OrderCard: React.FC<OrderCardProps> = ({ 
@@ -32,10 +31,9 @@ const OrderCard: React.FC<OrderCardProps> = ({
   storeSettings,
   onStatusChange, 
   isAttendant = false,
-  className = '',
-  operator
+  className = ''
 }) => {
-  const { hasPermission } = usePermissions(operator);
+  const { hasPermission } = usePermissions();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showPrintView, setShowPrintView] = useState(false);
 
@@ -78,13 +76,7 @@ const OrderCard: React.FC<OrderCardProps> = ({
       return '#';
     }
     
-    const customerPhone = order.customer_phone ? order.customer_phone.replace(/\D/g, '') : '';
-    
-    if (!customerPhone) {
-      console.error('❌ Customer phone is missing');
-      return '#';
-    }
-    
+    const customerPhone = (order.customer_phone || '').replace(/\D/g, '');
     const phoneWithCountryCode = customerPhone.startsWith('55') ? customerPhone : `55${customerPhone}`;
     
     const statusMessages = {
@@ -232,7 +224,7 @@ const OrderCard: React.FC<OrderCardProps> = ({
                   <Printer size={16} />
                   Imprimir
                 </button>
-                {isAttendant && order.customer_phone && order.customer_phone.trim() !== '' && (
+                {isAttendant && (
                   <a
                     href={generateWhatsAppLink()}
                     target="_blank"
@@ -259,7 +251,7 @@ const OrderCard: React.FC<OrderCardProps> = ({
         </div>
 
         {/* Status Change (Attendant Only) */}
-        {isAttendant && (hasPermission('can_update_status') || hasPermission('can_edit_orders') || !operator) && (
+        {isAttendant && (hasPermission('can_update_status') || hasPermission('can_edit_orders')) && (
           <div className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-100 print:hidden">
             <label className="block text-sm font-medium text-gray-700 mb-2">
               🔄 Alterar Status do Pedido:
@@ -267,7 +259,7 @@ const OrderCard: React.FC<OrderCardProps> = ({
             <select
               value={order.status}
               onChange={(e) => onStatusChange(order.id, e.target.value as OrderStatus)}
-              disabled={operator && !hasPermission('can_update_status') && !hasPermission('can_edit_orders')}
+              disabled={!hasPermission('can_update_status') && !hasPermission('can_edit_orders')}
               className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white/70 backdrop-blur-sm transition-all duration-300 font-medium"
             >
               {statusOptions.map(option => (
@@ -276,11 +268,6 @@ const OrderCard: React.FC<OrderCardProps> = ({
                 </option>
               ))}
             </select>
-            {operator && !hasPermission('can_update_status') && !hasPermission('can_edit_orders') && (
-              <p className="text-xs text-red-600 mt-1">
-                Você não tem permissão para alterar status de pedidos
-              </p>
-            )}
           </div>
         )}
 

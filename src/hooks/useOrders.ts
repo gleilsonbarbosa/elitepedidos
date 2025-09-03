@@ -1,117 +1,70 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Order, OrderStatus, ChatMessage } from '../types/order';
+import { usePDVCashRegister } from './usePDVCashRegister';
 
 export const useOrders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { currentRegister, isOpen: isCashRegisterOpen } = usePDVCashRegister();
 
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
       console.log('🔄 Buscando pedidos...');
       
-      // Check if Supabase is properly configured
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      let query = supabase
+        .from('orders')
+        .select('*');
       
-      if (!supabaseUrl || !supabaseKey || 
-          supabaseUrl === 'your_supabase_url_here' || 
-          supabaseKey === 'your_supabase_anon_key_here' ||
-          supabaseUrl.includes('placeholder')) {
-        console.warn('⚠️ Supabase não configurado - usando pedidos de demonstração');
-        
-        // Mock orders for demonstration
-        const mockOrders = [
-          {
-            id: 'demo-order-1',
-            customer_name: 'Cliente Demo',
-            customer_phone: '85999999999',
-            customer_address: 'Rua Demo, 123',
-            customer_neighborhood: 'Centro',
-            payment_method: 'pix',
-            items: [
-              {
-                id: 'item-1',
-                product_name: 'Açaí 500ml',
-                product_image: 'https://images.pexels.com/photos/1092730/pexels-photo-1092730.jpeg?auto=compress&cs=tinysrgb&w=400',
-                quantity: 1,
-                unit_price: 22.90,
-                total_price: 22.90,
-                complements: []
-              }
-            ],
-            total_price: 27.90,
-            status: 'pending',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            channel: 'delivery'
-          }
-        ];
-        
-        setOrders(mockOrders);
-        setLoading(false);
-        return;
+      if (currentRegister) {
+        // If there's an open register, show orders linked to it OR orders without register
+        query = query.or(`cash_register_id.eq.${currentRegister.id},cash_register_id.is.null`);
+      } else {
+        // If no register is open, show only orders without register
+        query = query.is('cash_register_id', null);
       }
       
-      // Buscar TODOS os pedidos de delivery, independente do caixa
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('channel', 'delivery')
-        .order('created_at', { ascending: false })
-        .limit(100);
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
+      
+      // If there's an open register, automatically link orders without register to it
+      if (currentRegister && data) {
+        const ordersWithoutRegister = data.filter(order => !order.cash_register_id);
+        
+        if (ordersWithoutRegister.length > 0) {
+          console.log(`🔗 Vinculando ${ordersWithoutRegister.length} pedidos ao caixa aberto`);
+          
+          // Update orders to link them to current register
+          const { error: updateError } = await supabase
+            .from('orders')
+            .update({ cash_register_id: currentRegister.id })
+            .in('id', ordersWithoutRegister.map(o => o.id));
+          
+          if (updateError) {
+            console.warn('⚠️ Erro ao vincular pedidos ao caixa:', updateError);
+          } else {
+            console.log('✅ Pedidos vinculados ao caixa com sucesso');
+            // Update local data to reflect the changes
+            data.forEach(order => {
+              if (!order.cash_register_id) {
+                order.cash_register_id = currentRegister.id;
+              }
+            });
+          }
+        }
+      }
       
       setOrders(data || []);
       console.log(`✅ ${data?.length || 0} pedidos carregados`);
     } catch (err) {
-      console.error('❌ Erro ao carregar pedidos:', err);
-      
-      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
-        console.warn('🌐 Erro de conectividade - usando pedidos de demonstração');
-        setError('Sem conexão com o servidor - usando modo offline');
-        
-        // Load demo orders as fallback
-        const mockOrders = [
-          {
-            id: 'demo-order-1',
-            customer_name: 'Cliente Demo',
-            customer_phone: '85999999999',
-            customer_address: 'Rua Demo, 123',
-            customer_neighborhood: 'Centro',
-            payment_method: 'pix',
-            items: [
-              {
-                id: 'item-1',
-                product_name: 'Açaí 500ml',
-                product_image: 'https://images.pexels.com/photos/1092730/pexels-photo-1092730.jpeg?auto=compress&cs=tinysrgb&w=400',
-                quantity: 1,
-                unit_price: 22.90,
-                total_price: 22.90,
-                complements: []
-              }
-            ],
-            total_price: 27.90,
-            status: 'pending',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            channel: 'delivery'
-          }
-        ];
-        
-        setOrders(mockOrders);
-      } else {
-        setError(err instanceof Error ? err.message : 'Erro ao carregar pedidos');
-        setOrders([]);
-      }
+      setError(err instanceof Error ? err.message : 'Erro ao carregar pedidos');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentRegister]);
 
   const createOrder = useCallback(async (orderData: Omit<Order, 'id' | 'created_at' | 'updated_at'>) => {
     try {
@@ -125,7 +78,9 @@ export const useOrders = () => {
       // For manual orders, keep the channel as 'manual'
       const orderWithChannel = orderData.channel === 'manual' ? orderData : {
         ...orderData,
-        channel: orderData.channel || 'delivery'
+        channel: orderData.channel || 'delivery',
+        // Don't associate with cash register for zero-total orders (fully paid with cashback)
+        cash_register_id: (currentRegister && Math.round(orderData.total_price * 100) / 100 > 0.01) ? currentRegister.id : null
       };
       
       const { data, error } = await supabase
@@ -161,7 +116,7 @@ export const useOrders = () => {
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Erro ao criar pedido');
     }
-  }, []);
+  }, [currentRegister]);
 
   const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus) => {
     try {
@@ -288,52 +243,56 @@ export const useOrders = () => {
   useEffect(() => {
     fetchOrders();
 
-    // Configurar realtime para todos os pedidos de delivery
+    // Only set up realtime if there's an open cash register
     let ordersChannel: any = null;
     
-    ordersChannel = supabase
-      .channel('orders')
-      .on('postgres_changes',
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'orders',
-          filter: `channel=eq.delivery`
-        },
-        (payload) => {
-          console.log('🔔 Novo pedido recebido via realtime:', payload);
-          setOrders(prev => [payload.new as Order, ...prev]);
-          // Tocar som de notificação
-          playNotificationSound();
-        }
-      )
-      .on('postgres_changes', 
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
-          table: 'orders',
-          filter: `channel=eq.delivery`
-        },
-        (payload) => {
-          console.log('🔄 Pedido atualizado via realtime:', payload);
-          setOrders(prev => prev.map(order => 
-            order.id === payload.new.id ? payload.new as Order : order
-          ));
-        }
-      )
-      .subscribe((status) => console.log('🔌 Status da inscrição de pedidos:', status));
+    if (currentRegister) {
+      // Configurar realtime para pedidos do caixa atual
+      ordersChannel = supabase
+        .channel('orders')
+        .on('postgres_changes',
+          { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'orders',
+            filter: `cash_register_id=eq.${currentRegister.id}`
+          },
+          (payload) => {
+            console.log('🔔 Novo pedido recebido via realtime:', payload);
+            setOrders(prev => [payload.new as Order, ...prev]);
+            // Tocar som de notificação
+            playNotificationSound();
+          }
+        )
+        .on('postgres_changes', 
+          { 
+            event: 'UPDATE', 
+            schema: 'public', 
+            table: 'orders',
+            filter: `cash_register_id=eq.${currentRegister.id}`
+          },
+          (payload) => {
+            console.log('🔄 Pedido atualizado via realtime:', payload);
+            setOrders(prev => prev.map(order => 
+              order.id === payload.new.id ? payload.new as Order : order
+            ));
+          }
+        )
+        .subscribe((status) => console.log('🔌 Status da inscrição de pedidos:', status));
+    }
 
     return () => {
       if (ordersChannel) {
         supabase.removeChannel(ordersChannel);
       }
     };
-  }, [fetchOrders]);
+  }, [fetchOrders, currentRegister]);
 
   return {
     orders,
     loading,
     error,
+    isCashRegisterOpen,
     createOrder,
     updateOrderStatus,
     refetch: fetchOrders
