@@ -662,6 +662,7 @@ export const useAttendance = () => {
   // Login
   const login = (username: string, password: string): boolean => {
     console.log('🔐 useAttendance - Tentativa de login:', { username, password: password ? '***' : 'vazio' });
+    console.log('🌍 [AMBIENTE] Modo:', import.meta.env.MODE, 'Desenvolvimento:', import.meta.env.DEV);
     console.log('👥 Usuários disponíveis:', users.map(u => ({ username: u.username, name: u.name, role: u.role, is_active: u.is_active })));
     
     // Verificar usuários locais PRIMEIRO para resposta imediata
@@ -680,6 +681,15 @@ export const useAttendance = () => {
     } : 'NENHUM');
 
     if (localUser) {
+      console.log('✅ [PRODUÇÃO] Login com dados locais - salvando permissões completas:', {
+        username: localUser.username,
+        name: localUser.name,
+        role: localUser.role,
+        id: localUser.id,
+        permissions: localUser.permissions,
+        can_view_cash_register: localUser.permissions?.can_view_cash_register
+      });
+      
       console.log('✅ Login imediato com dados locais:', {
         username: localUser.username,
         name: localUser.name,
@@ -690,11 +700,42 @@ export const useAttendance = () => {
       
       const newSession = {
         isAuthenticated: true,
-        user: localUser
+        user: {
+          ...localUser,
+          // Garantir que as permissões estão corretas
+          permissions: {
+            ...localUser.permissions,
+            // Forçar permissões para admin
+            ...(localUser.role === 'admin' || localUser.username === 'admin' ? {
+              can_view_cash_register: true,
+              can_view_sales: true,
+              can_view_reports: true,
+              can_manage_products: true,
+              can_manage_settings: true,
+              can_view_operators: true,
+              can_view_attendance: true,
+              can_use_scale: true,
+              can_discount: true,
+              can_cancel: true,
+              can_view_expected_balance: true,
+              can_edit_orders: true,
+              can_delete_orders: true,
+              can_cancel_orders: true,
+              can_manage_cash_entries: true,
+              can_edit_sales: true,
+              can_delete_sales: true,
+              can_edit_cash_entries: true,
+              can_delete_cash_entries: true,
+              can_cancel_cash_entries: true
+            } : {})
+          }
+        }
       };
       
       setSession(newSession);
       localStorage.setItem('attendance_session', JSON.stringify(newSession));
+      
+      console.log('💾 [PRODUÇÃO] Sessão salva com permissões:', newSession.user.permissions);
       
       // Atualizar último login
       updateLastLogin(localUser.id);

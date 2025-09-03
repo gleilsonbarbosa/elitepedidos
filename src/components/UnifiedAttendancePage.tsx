@@ -73,6 +73,60 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
   // Check if user is admin - mais permissivo
   const isAdmin = isUserAdmin(operator);
 
+  // Force reload permissions from database in production
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  
+  useEffect(() => {
+    const forceLoadPermissions = async () => {
+      if (!operator || permissionsLoaded) return;
+      
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        if (supabaseUrl && supabaseKey && 
+            !supabaseUrl.includes('placeholder') && 
+            !supabaseKey.includes('placeholder')) {
+          
+          console.log('🔄 [PRODUÇÃO] Forçando reload de permissões para:', operator.name);
+          
+          const { data: updatedUser, error } = await supabase
+            .from('attendance_users')
+            .select('*')
+            .eq('username', operator.username || operator.code)
+            .eq('is_active', true)
+            .single();
+          
+          if (!error && updatedUser) {
+            console.log('✅ [PRODUÇÃO] Permissões recarregadas:', {
+              username: updatedUser.username,
+              can_view_cash_register: updatedUser.permissions?.can_view_cash_register,
+              allPermissions: updatedUser.permissions
+            });
+            
+            // Update session with fresh permissions
+            const currentSession = JSON.parse(localStorage.getItem('attendance_session') || '{}');
+            if (currentSession.user) {
+              currentSession.user = {
+                ...currentSession.user,
+                permissions: updatedUser.permissions
+              };
+              localStorage.setItem('attendance_session', JSON.stringify(currentSession));
+              console.log('🔄 [PRODUÇÃO] Sessão atualizada com novas permissões');
+            }
+          }
+        }
+        
+        setPermissionsLoaded(true);
+      } catch (err) {
+        console.error('❌ [PRODUÇÃO] Erro ao recarregar permissões:', err);
+        setPermissionsLoaded(true);
+      }
+    };
+    
+    forceLoadPermissions();
+  }, [operator, permissionsLoaded]);
+
   // Calculate pending orders count from the orders data
   const pendingOrdersCount = orders.filter(order => order.status === 'pending').length;
 
