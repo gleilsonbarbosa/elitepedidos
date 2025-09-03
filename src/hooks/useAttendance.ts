@@ -393,10 +393,14 @@ export const useAttendance = () => {
         })
         .eq('id', id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 
+      if (!data) {
+        console.warn(`⚠️ Usuário com ID ${id} não foi encontrado para atualização`);
+        return null;
+      }
       console.log('✅ Usuário atualizado no banco:', data);
       
       // Atualizar lista local

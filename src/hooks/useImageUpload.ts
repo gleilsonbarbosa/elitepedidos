@@ -204,18 +204,13 @@ export const useImageUpload = () => {
 
       return (data.product_images as any).public_url;
     } catch (err) {
-      // Tratar erros de rede de forma mais silenciosa
+      // Consolidate network error handling
       if (err instanceof TypeError && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
-        console.warn('Problema de conectividade - imagens não disponíveis no momento');
+        console.warn('⚠️ Problema de conectividade com Supabase - imagens não disponíveis no momento');
       } else if (err instanceof Error && err.message.includes('Timeout')) {
-        console.warn('Timeout na requisição - imagens não disponíveis no momento');
+        console.warn('⚠️ Timeout na requisição - imagens não disponíveis no momento');
       } else {
-        console.warn('Erro ao buscar imagem:', err);
-      }
-      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
-        console.warn('⚠️ Erro de conectividade com Supabase - trabalhando offline');
-      } else {
-        console.warn('Erro ao buscar imagem do produto:', err);
+        console.warn('⚠️ Erro ao buscar imagem do produto:', err);
       }
       return null;
     }

@@ -128,6 +128,13 @@ const AttendanceUsersPanel: React.FC = () => {
         console.log('✅ Usuário criado com sucesso:', newUser);
       } else {
         const updatedUser = await updateUser(editingUser.id, editingUser);
+        if (updatedUser === null) {
+          alert('Usuário não foi encontrado no banco de dados. A lista será atualizada.');
+          setEditingUser(null);
+          setIsCreating(false);
+          await fetchUsers(); // Re-fetch to synchronize with database
+          return;
+        }
         console.log('✅ Usuário atualizado com sucesso:', updatedUser);
       }
       
@@ -152,7 +159,7 @@ const AttendanceUsersPanel: React.FC = () => {
       }, 3000);
     } catch (error) {
       console.error('Erro ao salvar usuário:', error);
-      alert('Erro ao salvar usuário');
+      alert(error instanceof Error ? error.message : 'Erro ao salvar usuário');
     } finally {
       setSaving(false);
     }
