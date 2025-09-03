@@ -89,13 +89,6 @@ const AttendancePage: React.FC = () => {
     // Converter usuário de atendimento para operador PDV
     const pdvOperator = convertToPDVOperator(session.user);
     
-    console.log('🔄 [PRODUÇÃO] Operador convertido com permissões atualizadas:', {
-      originalUser: session.user,
-      convertedOperator: pdvOperator,
-      can_view_cash_register: pdvOperator.permissions.can_view_cash_register,
-      environment: import.meta.env.MODE
-    });
-    
     console.log('✅ Usuário convertido para operador PDV:', {
       originalName: session.user.name,
       originalUsername: session.user.username,
