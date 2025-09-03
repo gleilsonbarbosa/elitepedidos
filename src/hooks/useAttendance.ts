@@ -126,29 +126,29 @@ export const useAttendance = () => {
         can_view_orders: true,
         can_print_orders: true,
         can_update_status: true,
-        can_create_manual_orders: false,
+        can_create_manual_orders: true,
         can_view_cash_register: true, // Permitir acesso ao caixa
         can_view_sales: true,
-        can_view_reports: false,
+        can_view_reports: true,
         can_view_cash_report: true, // Permitir relatórios de caixa
-        can_view_sales_report: false,
-        can_manage_products: false,
-        can_view_operators: false,
-        can_view_attendance: false,
-        can_manage_settings: false,
-        can_use_scale: false,
-        can_discount: false,
-        can_cancel: false,
+        can_view_sales_report: true,
+        can_manage_products: true,
+        can_view_operators: true,
+        can_view_attendance: true,
+        can_manage_settings: true,
+        can_use_scale: true,
+        can_discount: true,
+        can_cancel: true,
         can_view_expected_balance: true, // Permitir ver saldo esperado
-        can_edit_orders: false,
-        can_delete_orders: false,
-        can_cancel_orders: false,
+        can_edit_orders: true,
+        can_delete_orders: true,
+        can_cancel_orders: true,
         can_manage_cash_entries: true, // Permitir gerenciar entradas de caixa
-        can_edit_sales: false,
-        can_delete_sales: false,
-        can_edit_cash_entries: false,
-        can_delete_cash_entries: false,
-        can_cancel_cash_entries: false
+        can_edit_sales: true,
+        can_delete_sales: true,
+        can_edit_cash_entries: true,
+        can_delete_cash_entries: true,
+        can_cancel_cash_entries: true
       },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -165,29 +165,29 @@ export const useAttendance = () => {
         can_view_orders: true,
         can_print_orders: true,
         can_update_status: true,
-        can_create_manual_orders: false,
+        can_create_manual_orders: true,
         can_view_cash_register: true, // Permitir acesso ao caixa
         can_view_sales: true,
-        can_view_reports: false,
+        can_view_reports: true,
         can_view_cash_report: true, // Permitir relatórios de caixa
-        can_view_sales_report: false,
-        can_manage_products: false,
-        can_view_operators: false,
-        can_view_attendance: false,
-        can_manage_settings: false,
-        can_use_scale: false,
-        can_discount: false,
-        can_cancel: false,
+        can_view_sales_report: true,
+        can_manage_products: true,
+        can_view_operators: true,
+        can_view_attendance: true,
+        can_manage_settings: true,
+        can_use_scale: true,
+        can_discount: true,
+        can_cancel: true,
         can_view_expected_balance: true, // Permitir ver saldo esperado
-        can_edit_orders: false,
-        can_delete_orders: false,
-        can_cancel_orders: false,
+        can_edit_orders: true,
+        can_delete_orders: true,
+        can_cancel_orders: true,
         can_manage_cash_entries: true, // Permitir gerenciar entradas de caixa
-        can_edit_sales: false,
-        can_delete_sales: false,
-        can_edit_cash_entries: false,
-        can_delete_cash_entries: false,
-        can_cancel_cash_entries: false
+        can_edit_sales: true,
+        can_delete_sales: true,
+        can_edit_cash_entries: true,
+        can_delete_cash_entries: true,
+        can_cancel_cash_entries: true
       },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -215,6 +215,45 @@ export const useAttendance = () => {
         return;
       }
 
+      // Verificar se já existem usuários no banco antes de tentar criar
+      console.log('🔍 Verificando se usuários já existem no banco...');
+      const { data: existingUsers, error: checkError } = await supabase
+        .from('attendance_users')
+        .select('id, username, name')
+        .limit(1);
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        console.warn('⚠️ Erro ao verificar usuários existentes:', checkError);
+        if (checkError.message?.includes('Failed to fetch')) {
+          console.warn('🌐 Erro de conectividade - usando localStorage');
+        }
+        loadUsersFromLocalStorage();
+        return;
+      }
+
+      if (existingUsers && existingUsers.length > 0) {
+        console.log('ℹ️ Usuários já existem no banco, carregando...');
+        const { data: allUsers, error: loadError } = await supabase
+          .from('attendance_users')
+          .select('*')
+          .order('name');
+
+        if (loadError) {
+          console.error('❌ Erro ao carregar usuários existentes:', loadError);
+          if (loadError.message?.includes('Failed to fetch')) {
+            console.warn('🌐 Erro de conectividade - usando localStorage');
+          }
+          loadUsersFromLocalStorage();
+          return;
+        }
+
+        setUsers(allUsers || []);
+        if (allUsers && allUsers.length > 0) {
+          localStorage.setItem('attendance_users', JSON.stringify(allUsers));
+        }
+        return;
+      }
+
       console.log('🔄 Carregando usuários de atendimento do banco...');
 
       const { data, error } = await supabase
@@ -224,9 +263,21 @@ export const useAttendance = () => {
 
       if (error) {
         console.error('❌ Erro ao carregar usuários:', error);
-        // Se não há dados no banco, criar usuários padrão
-        console.log('📝 Criando usuários padrão no banco...');
-        await createDefaultUsersInDatabase();
+        
+        // Se é erro de rede (Failed to fetch), usar localStorage
+        if (error.message?.includes('Failed to fetch') || error.message?.includes('fetch')) {
+          console.warn('🌐 Erro de conectividade - usando localStorage');
+          loadUsersFromLocalStorage();
+          return;
+        }
+        
+        // Para outros erros, tentar criar usuários padrão
+        if (error.code === 'PGRST116' || !data || data.length === 0) {
+          console.log('📝 Criando usuários padrão no banco...');
+          await createDefaultUsersInDatabase();
+        } else {
+          loadUsersFromLocalStorage();
+        }
         return;
       }
 
@@ -246,6 +297,14 @@ export const useAttendance = () => {
 
     } catch (err) {
       console.error('❌ Erro ao carregar usuários:', err);
+      
+      // Se é erro de rede, usar localStorage
+      if (err instanceof Error && (err.message.includes('Failed to fetch') || err.message.includes('fetch'))) {
+        console.warn('🌐 Erro de conectividade - usando localStorage');
+        loadUsersFromLocalStorage();
+        return;
+      }
+      
       setError(err instanceof Error ? err.message : 'Erro ao carregar usuários');
       // Em caso de erro, tentar criar usuários padrão
       await createDefaultUsersInDatabase();
@@ -259,26 +318,125 @@ export const useAttendance = () => {
     try {
       console.log('📝 Inserindo usuários padrão no banco...');
       
+      // Verificar quais usuários já existem com tratamento de erro
+      const { data: existingUsers, error: existingError } = await supabase
+        .from('attendance_users')
+        .select('id, username, name');
+      
+      if (existingError) {
+        console.error('❌ Erro ao verificar usuários existentes:', existingError);
+        if (existingError.message?.includes('Failed to fetch')) {
+          console.warn('🌐 Erro de conectividade - usando localStorage');
+          loadUsersFromLocalStorage();
+          return;
+        }
+        throw existingError;
+      }
+      
+      const existingUsernames = existingUsers?.map(u => u.username) || [];
+      console.log('👥 Usuários existentes:', existingUsernames);
+      
+      // Filtrar apenas usuários que não existem
+      const usersToCreate = DEFAULT_USERS.filter(user => 
+        !existingUsernames.includes(user.username)
+      );
+      
+      if (usersToCreate.length === 0) {
+        console.log('ℹ️ Todos os usuários padrão já existem');
+        // Carregar usuários existentes
+        const { data: allUsers, error: loadError } = await supabase
+          .from('attendance_users')
+          .select('*')
+          .order('name');
+        
+        if (loadError) {
+          console.error('❌ Erro ao carregar usuários existentes:', loadError);
+          if (loadError.message?.includes('Failed to fetch')) {
+            console.warn('🌐 Erro de conectividade - usando localStorage');
+          }
+          loadUsersFromLocalStorage();
+          return;
+        }
+        
+        setUsers(allUsers || []);
+        if (allUsers) {
+          localStorage.setItem('attendance_users', JSON.stringify(allUsers));
+        }
+        return;
+      }
+      
+      console.log(`📝 Criando ${usersToCreate.length} novos usuários...`);
+      
       const { data, error } = await supabase
         .from('attendance_users')
-        .insert(DEFAULT_USERS)
+        .insert(usersToCreate)
         .select();
       
       if (error) {
         console.error('❌ Erro ao criar usuários padrão:', error);
-        // Fallback para localStorage apenas se falhar completamente
+        
+        // Tratamento específico para erro de conectividade
+        if (error.message?.includes('Failed to fetch')) {
+          console.warn('🌐 Erro de conectividade ao criar usuários - usando localStorage');
+          loadUsersFromLocalStorage();
+          return;
+        }
+        
+        // Se é erro de duplicata, carregar usuários existentes
+        if (error.code === '23505') {
+          console.log('ℹ️ Usuários já existem, carregando do banco...');
+          const { data: allUsers, error: loadError } = await supabase
+            .from('attendance_users')
+            .select('*')
+            .order('name');
+          
+          if (loadError) {
+            console.error('❌ Erro ao carregar após duplicata:', loadError);
+            loadUsersFromLocalStorage();
+            return;
+          }
+          
+          setUsers(allUsers || DEFAULT_USERS);
+          if (allUsers) {
+            localStorage.setItem('attendance_users', JSON.stringify(allUsers));
+          }
+          return;
+        }
+        
+        // Para outros erros, usar localStorage
         loadUsersFromLocalStorage();
         return;
       }
       
       console.log('✅ Usuários padrão criados no banco:', data?.length);
-      setUsers(data || DEFAULT_USERS);
+      
+      // Carregar todos os usuários após criação
+      const { data: allUsers, error: finalLoadError } = await supabase
+        .from('attendance_users')
+        .select('*')
+        .order('name');
+      
+      if (finalLoadError) {
+        console.error('❌ Erro ao carregar usuários após criação:', finalLoadError);
+        loadUsersFromLocalStorage();
+        return;
+      }
+      
+      setUsers(allUsers || DEFAULT_USERS);
       
       // Salvar backup no localStorage
-      localStorage.setItem('attendance_users', JSON.stringify(data || DEFAULT_USERS));
+      if (allUsers) {
+        localStorage.setItem('attendance_users', JSON.stringify(allUsers));
+      }
       
     } catch (err) {
       console.error('❌ Erro ao criar usuários padrão no banco:', err);
+      
+      // Se é erro de rede, usar localStorage
+      if (err instanceof Error && (err.message.includes('Failed to fetch') || err.message.includes('fetch'))) {
+        console.warn('🌐 Erro de conectividade - usando localStorage');
+      }
+      
       loadUsersFromLocalStorage();
     }
   };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useOrders } from '../../hooks/useOrders';
 import { usePermissions } from '../../hooks/usePermissions';
+import { AlertCircle } from 'lucide-react';
 import PermissionGuard from '../PermissionGuard';
 import OrderPrintView from './OrderPrintView';
 import OrderCard from './OrderCard';
@@ -23,11 +24,12 @@ import {
 interface AttendantPanelProps {
   onBackToAdmin?: () => void;
   storeSettings?: any;
+  operator?: any; // Add operator prop
 }
 
-const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSettings }) => {
-  const { hasPermission } = usePermissions();
-  const { orders, loading, updateOrderStatus } = useOrders();
+const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSettings, operator }) => {
+  const { hasPermission } = usePermissions(operator);
+  const { orders, loading, error: ordersError, updateOrderStatus, refetch } = useOrders();
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('pending');
   const [showManualOrderForm, setShowManualOrderForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,6 +57,22 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
     auto_print_delivery: false,
     auto_print_enabled: false
   });
+  
+  // Debug: Log orders state
+  useEffect(() => {
+    console.log('📊 AttendantPanel - Estado dos pedidos:', {
+      ordersCount: orders.length,
+      loading,
+      error: ordersError,
+      orders: orders.map(o => ({ id: o.id.slice(-8), status: o.status, customer: o.customer_name }))
+    });
+  }, [orders, loading, ordersError]);
+  
+  // Função para forçar recarregamento dos pedidos
+  const handleRefreshOrders = () => {
+    console.log('🔄 Forçando recarregamento dos pedidos...');
+    refetch();
+  };
   
   useEffect(() => {
     try {
@@ -431,6 +449,27 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
           </div>
         </header>
 
+        {/* Error Display */}
+        {ordersError && (
+          <div className="max-w-7xl mx-auto px-4 mb-6">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle size={20} className="text-red-600" />
+                <div>
+                  <h3 className="font-medium text-red-800">Erro ao carregar pedidos</h3>
+                  <p className="text-red-700 text-sm">{ordersError}</p>
+                  <button
+                    onClick={handleRefreshOrders}
+                    className="mt-2 bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+                  >
+                    Tentar Novamente
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="max-w-7xl mx-auto px-4 py-6">
           {/* Filters */}
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 mb-6 print:hidden">
@@ -471,6 +510,17 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
                 const Icon = option.icon;
                 const isActive = statusFilter === option.value;
                 
+                <button
+                  onClick={handleRefreshOrders}
+                  className="flex items-center justify-center gap-1 sm:gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 sm:px-4 py-2 rounded-lg font-medium transition-colors text-sm"
+                  title="Recarregar pedidos"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span className="hidden sm:inline">Recarregar</span>
+                </button>
+                
                 return (
                   <button
                     key={option.value}
@@ -507,9 +557,19 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
                 <p className="text-gray-500">
                   {searchTerm || statusFilter !== 'all' 
                     ? 'Tente ajustar os filtros de busca'
-                    : 'Aguardando novos pedidos...'
+                    : ordersError 
+                      ? 'Erro ao carregar pedidos. Clique em "Recarregar" para tentar novamente.'
+                      : 'Aguardando novos pedidos...'
                   }
                 </p>
+                {!ordersError && (
+                  <button
+                    onClick={handleRefreshOrders}
+                    className="mt-4 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Recarregar Pedidos
+                  </button>
+                )}
                 {statusFilter === 'pending' && (
                   <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
                     <p className="text-blue-700 text-sm">
@@ -525,6 +585,7 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
                   order={order}
                   onStatusChange={updateOrderStatus}
                   isAttendant={true}
+                  operator={operator}
                   className="transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
                 />
               ))

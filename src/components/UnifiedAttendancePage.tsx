@@ -67,7 +67,7 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
   const { storeSettings: localStoreSettings } = useStoreHours();
   const { isOpen: isCashRegisterOpen, currentRegister } = usePDVCashRegister();
   const scale = useScale();
-  const { orders } = useOrders();
+  const { orders, loading: ordersLoading, error: ordersError } = useOrders();
   const [supabaseConfigured, setSupabaseConfigured] = useState(true);
   
   // Check if user is admin - mais permissivo
@@ -154,9 +154,12 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
       isAdmin,
       activeTab,
       isCashRegisterOpen,
-      pendingOrdersCount
+      pendingOrdersCount,
+      ordersLoading,
+      ordersError,
+      totalOrders: orders.length
     });
-  }, [operator, isAdmin, activeTab, isCashRegisterOpen, pendingOrdersCount]);
+  }, [operator, isAdmin, activeTab, isCashRegisterOpen, pendingOrdersCount, ordersLoading, ordersError, orders.length]);
 
   const settings = storeSettings || localStoreSettings;
   
@@ -244,7 +247,7 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
       )}
 
       {/* Cash Register Warning */}
-      {supabaseConfigured && !isCashRegisterOpen && (activeTab === 'sales' || activeTab === 'orders') && (
+      {supabaseConfigured && !isCashRegisterOpen && activeTab === 'sales' && (
         <div className="max-w-7xl mx-auto px-4 mt-6 print:hidden">
           <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
             <div className="flex items-center gap-3">
@@ -254,7 +257,7 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
               <div>
                 <h3 className="font-medium text-yellow-800">Caixa Fechado</h3>
                 <p className="text-yellow-700 text-sm">
-                  Não é possível {activeTab === 'sales' ? 'realizar vendas' : 'visualizar pedidos'} sem um caixa aberto.
+                  Não é possível realizar vendas sem um caixa aberto.
                   Por favor, abra um caixa primeiro na aba "Caixas".
                 </p>
               </div>
@@ -347,7 +350,7 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
         {/* Content */}
         <div className="transition-all duration-300 print:hidden">
           {activeTab === 'sales' && (isAdmin || hasPermission('can_view_sales')) && <PDVSalesScreen operator={operator} scaleHook={scaleHook || scale} storeSettings={settings} isAdmin={isAdmin} />}
-          {activeTab === 'orders' && (isAdmin || hasPermission('can_view_orders')) && <AttendantPanel storeSettings={settings} />}
+          {activeTab === 'orders' && (isAdmin || hasPermission('can_view_orders')) && <AttendantPanel storeSettings={settings} operator={operator} />}
           {activeTab === 'cash' && (isAdmin || 
             hasPermission('can_view_cash_register') || 
             hasPermission('can_view_cash_report') ||
