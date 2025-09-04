@@ -383,6 +383,18 @@ export const useDeliveryProducts = () => {
        cleanUpdates.original_price = updates.original_price;
      }
      
+     // Garantir que complement_groups seja incluído se fornecido
+     if (updates.complement_groups !== undefined) {
+       cleanUpdates.complement_groups = updates.complement_groups;
+       console.log('📝 Incluindo complement_groups na atualização:', updates.complement_groups);
+     }
+     
+     // Garantir que has_complements seja incluído se fornecido
+     if (updates.has_complements !== undefined) {
+       cleanUpdates.has_complements = updates.has_complements;
+       console.log('📝 Incluindo has_complements na atualização:', updates.has_complements);
+     }
+     
       const safeUpdate = Object.fromEntries(
         Object.entries({
           ...cleanUpdates,

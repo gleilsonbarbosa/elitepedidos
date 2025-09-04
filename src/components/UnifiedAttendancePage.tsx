@@ -31,7 +31,7 @@ interface UnifiedAttendancePanelProps {
   onLogout?: () => void;
 }
 
-const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator, storeSettings, scaleHook, onLogout }) => {
+function UnifiedAttendancePage({ operator, storeSettings, scaleHook, onLogout }: UnifiedAttendancePanelProps) {
   const [activeTab, setActiveTab] = useState<'sales' | 'orders' | 'cash' | 'tables' | 'history'>('sales');
   const { hasPermission } = usePermissions(operator);
   const { storeSettings: localStoreSettings } = useStoreHours();
@@ -64,7 +64,11 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
               !supabaseUrl.includes('placeholder') && 
               !supabaseKey.includes('placeholder')) {
             
-            console.log('🔍 Buscando permissões atualizadas do banco para operador:', operator.id);
+            console.log('🔍 Buscando permissões atualizadas do banco para operador:', {
+              operatorId: operator.id,
+              operatorName: operator.name,
+              currentTab: activeTab
+            });
             
             const { data: updatedUser, error } = await supabase
               .from('attendance_users')
@@ -73,26 +77,39 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
               .single();
             
             if (!error && updatedUser) {
-              console.log('🔄 Permissões recarregadas do banco para', updatedUser.name, ':', updatedUser.permissions);
+              console.log('🔄 Permissões recarregadas do banco:', {
+                userName: updatedUser.name,
+                permissions: updatedUser.permissions,
+                activePermissions: Object.keys(updatedUser.permissions).filter(key => updatedUser.permissions[key])
+              });
               
               // Verificar se as permissões mudaram
               if (JSON.stringify(updatedUser.permissions) !== JSON.stringify(operator.permissions)) {
-                console.log('📊 Permissões diferentes detectadas!');
+                console.log('📊 Permissões diferentes detectadas! Atualizando sessão...');
                 console.log('📋 Permissões antigas:', operator.permissions);
                 console.log('📋 Permissões novas:', updatedUser.permissions);
-                console.log('🔄 Atualizando sessão e recarregando página...');
-                
                 // Atualizar sessão com permissões atualizadas
                 const currentSession = JSON.parse(localStorage.getItem('attendance_session') || '{}');
                 if (currentSession.user) {
                   currentSession.user = updatedUser;
                   localStorage.setItem('attendance_session', JSON.stringify(currentSession));
                   
-                  // Forçar reload da página para aplicar novas permissões
-                  console.log('🔄 Recarregando página em 1 segundo para aplicar novas permissões...');
+                  // Show notification about permission update
+                  const permissionMessage = document.createElement('div');
+                  permissionMessage.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
+                  permissionMessage.innerHTML = `
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Permissões atualizadas! Recarregue a página para aplicar.
+                  `;
+                  document.body.appendChild(permissionMessage);
+                  
                   setTimeout(() => {
-                    window.location.reload();
-                  }, 1000);
+                    if (document.body.contains(permissionMessage)) {
+                      document.body.removeChild(permissionMessage);
+                    }
+                  }, 5000);
                 }
               } else {
                 console.log('✅ Permissões estão sincronizadas');
@@ -162,7 +179,7 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg">
                   <User size={18} className="text-gray-600" />
-                  <span className="text-sm font-medium text-gray-700" title={`Código: ${operator.code}`}>
+                  <span className="text-sm font-medium text-gray-700" title={"Código: " + operator.code}>
                     {operator.name}
                   </span>
                 </div>
@@ -303,15 +320,15 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePanelProps> = ({ operator
 
         {/* Content */}
         <div className="transition-all duration-300 print:hidden">
-        {activeTab === 'orders' && (isAdmin || hasPermission('can_view_orders')) && <AttendantPanel storeSettings={settings} />}
-        {activeTab === 'sales' && (isAdmin || hasPermission('can_view_sales')) && <PDVSalesScreen operator={operator} scaleHook={scaleHook || scale} storeSettings={settings} />}
+          {activeTab === 'orders' && (isAdmin || hasPermission('can_view_orders')) && <AttendantPanel storeSettings={settings} />}
+          {activeTab === 'sales' && (isAdmin || hasPermission('can_view_sales')) && <PDVSalesScreen operator={operator} scaleHook={scaleHook || scale} storeSettings={settings} />}
           {activeTab === 'cash' && <CashRegisterMenu isAdmin={isAdmin} operator={operator} />}
-        {activeTab === 'tables' && (isAdmin || hasPermission('can_view_sales')) && <TableSalesPanel storeId={1} operatorName={operator?.name} isCashRegisterOpen={isCashRegisterOpen} />}
-        {activeTab === 'history' && (isAdmin || hasPermission('can_view_sales')) && <SalesHistoryPanel storeId={1} operator={operator} isAdmin={isAdmin} />}
+          {activeTab === 'tables' && (isAdmin || hasPermission('can_view_sales')) && <TableSalesPanel storeId={1} operatorName={operator?.name} isCashRegisterOpen={isCashRegisterOpen} />}
+          {activeTab === 'history' && (isAdmin || hasPermission('can_view_sales')) && <SalesHistoryPanel storeId={1} operator={operator} isAdmin={isAdmin} />}
         </div>
       </div>
     </div>
   );
-};
+}
 
 export default UnifiedAttendancePage;

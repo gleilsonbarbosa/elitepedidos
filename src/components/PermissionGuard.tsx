@@ -17,7 +17,11 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
   const navigate = useNavigate();
 
   // Debug logging
-  console.log('🛡️ PermissionGuard check:', { hasPermission, showMessage });
+  console.log('🛡️ PermissionGuard check:', { 
+    hasPermission, 
+    showMessage,
+    currentPath: window.location.pathname
+  });
 
   // 1) Se tem permissão explícita, libera imediatamente
   if (hasPermission) {
@@ -60,9 +64,12 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
             code: user.code,
             username: user.username,
             id: user.id,
-            role: user.role
+            role: user.role,
+            permissions: user.permissions ? Object.keys(user.permissions).filter(key => user.permissions[key]) : 'No permissions'
           } : 'No user',
-          isAdmin
+          isAdmin,
+          hasPermission,
+          currentPath: window.location.pathname
         });
       }
     }
@@ -76,17 +83,27 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
                             window.location.pathname.includes('/cash');
 
   if (isDevelopment || isAdmin) {
-    console.log('✅ Access granted via development mode or admin status');
+    console.log('✅ Access granted via development mode or admin status:', {
+      isDevelopment,
+      isAdmin,
+      reason: isDevelopment ? 'Development mode' : 'Admin status'
+    });
     return <>{children}</>;
   }
 
   // 5) Liberar acesso para funcionalidades essenciais mesmo sem permissão específica
   if (isEssentialFeature) {
-    console.log('✅ Access granted for essential feature');
+    console.log('✅ Access granted for essential feature:', window.location.pathname);
     return <>{children}</>;
   }
 
-  console.log('❌ Access denied, showing fallback');
+  console.log('❌ Access denied, showing fallback:', {
+    hasPermission,
+    isAdmin,
+    isDevelopment,
+    isEssentialFeature,
+    currentPath: window.location.pathname
+  });
   
   // 6) Sem permissão -> mensagem amigável OU redirect
   if (showMessage) {
@@ -101,7 +118,12 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Acesso Negado</h2>
           <p className="text-gray-600 mb-6">
-            Você não tem permissão para acessar esta página. Entre em contato com o administrador para obter acesso.
+            Você não tem permissão para acessar esta funcionalidade. 
+            {window.location.pathname.includes('/atendimento') && (
+              <span className="block mt-2 text-sm">
+                Configure suas permissões em <strong>/administrativo → Usuários</strong>
+              </span>
+            )}
           </p>
           <button
             onClick={() => navigate('/')}

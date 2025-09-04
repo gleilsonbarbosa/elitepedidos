@@ -100,13 +100,13 @@ export const useAttendance = () => {
         can_use_scale: true,
         can_discount: true,
         can_cancel: true,
-       can_view_expected_balance: true,
-       can_edit_orders: true,
-       can_delete_orders: true,
-       can_cancel_orders: true,
-       can_manage_cash_entries: true,
-       can_edit_sales: true,
         can_view_expected_balance: true,
+        can_edit_orders: true,
+        can_delete_orders: true,
+        can_cancel_orders: true,
+        can_manage_cash_entries: true,
+        can_edit_sales: true,
+        can_delete_sales: true,
         can_edit_cash_entries: true,
         can_delete_cash_entries: true,
         can_cancel_cash_entries: true,
@@ -146,8 +146,8 @@ export const useAttendance = () => {
         can_manage_cash_entries: false,
         can_edit_sales: false,
         can_delete_sales: false,
-        can_edit_cash_entries: true,
-        can_delete_cash_entries: true,
+        can_edit_cash_entries: false,
+        can_delete_cash_entries: false,
         can_cancel_cash_entries: false
       },
       created_at: new Date().toISOString(),
@@ -185,8 +185,8 @@ export const useAttendance = () => {
         can_manage_cash_entries: false,
         can_edit_sales: false,
         can_delete_sales: false,
-        can_edit_cash_entries: true,
-        can_delete_cash_entries: true,
+        can_edit_cash_entries: false,
+        can_delete_cash_entries: false,
         can_cancel_cash_entries: false
       },
       created_at: new Date().toISOString(),
@@ -478,7 +478,7 @@ export const useAttendance = () => {
             !supabaseUrl.includes('placeholder') && 
             !supabaseKey.includes('placeholder')) {
           
-          console.log('🔍 Buscando usuário atualizado no banco...');
+          console.log('🔍 Buscando usuário atualizado no banco para login:', { username });
           const { data: dbUser, error } = await supabase
             .from('attendance_users')
             .select('*')
@@ -487,7 +487,12 @@ export const useAttendance = () => {
             .single();
           
           if (!error && dbUser && dbUser.password_hash === password) {
-            console.log('✅ Usuário encontrado no banco com permissões atualizadas');
+            console.log('✅ Usuário encontrado no banco com permissões atualizadas:', {
+              username: dbUser.username,
+              name: dbUser.name,
+              role: dbUser.role,
+              permissions: Object.keys(dbUser.permissions).filter(key => dbUser.permissions[key])
+            });
             console.log('🔍 Permissões do banco:', dbUser.permissions);
             
             // Atualizar lista local com dados do banco
@@ -497,6 +502,14 @@ export const useAttendance = () => {
             });
             
             return dbUser;
+          } else if (error) {
+            console.log('❌ Erro ao buscar usuário no banco:', error);
+          } else if (!dbUser) {
+            console.log('❌ Usuário não encontrado no banco:', username);
+          } else if (dbUser.password_hash !== password) {
+            console.log('❌ Senha incorreta para usuário:', username);
+          } else if (!dbUser.is_active) {
+            console.log('❌ Usuário inativo no banco:', username);
           }
         }
       } catch (err) {

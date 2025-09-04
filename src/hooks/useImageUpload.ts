@@ -204,10 +204,11 @@ export const useImageUpload = () => {
 
       return (data.product_images as any).public_url;
     } catch (err) {
-      // Consolidate network error handling
-      if (err instanceof TypeError && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
+      // Consolidate network error handling - check message regardless of error type
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
         console.warn('⚠️ Problema de conectividade com Supabase - imagens não disponíveis no momento');
-      } else if (err instanceof Error && err.message.includes('Timeout')) {
+      } else if (errorMessage.includes('Timeout')) {
         console.warn('⚠️ Timeout na requisição - imagens não disponíveis no momento');
       } else {
         console.warn('⚠️ Erro ao buscar imagem do produto:', err);

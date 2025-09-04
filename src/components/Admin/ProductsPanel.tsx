@@ -808,7 +808,12 @@ const ProductsPanel: React.FC = () => {
     console.log('🗑️ Removendo grupo:', { groupIndex });
     
     setFormData(prev => {
-      const filteredGroups = prev.complement_groups?.filter((_, index) => index !== groupIndex) || [];
+      if (!prev.complement_groups || !Array.isArray(prev.complement_groups)) {
+        console.warn('⚠️ complement_groups não é um array válido');
+        return prev;
+      }
+      
+      const filteredGroups = prev.complement_groups.filter((_, index) => index !== groupIndex);
       const updatedData = {
         ...prev,
         complement_groups: filteredGroups,
@@ -1396,7 +1401,7 @@ const ProductsPanel: React.FC = () => {
                               type="text"
                               value={option.name}
                               onChange={(e) => updateComplementOption(groupIndex, optionIndex, { name: e.target.value })}
-                              className="flex-1 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                             className="flex-2 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
                               placeholder="Nome do complemento"
                             />
                             <input
@@ -1408,6 +1413,21 @@ const ProductsPanel: React.FC = () => {
                               className="w-20 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
                               placeholder="0.00"
                             />
+                           <div className="flex items-center gap-1">
+                             <label className="flex items-center gap-1 cursor-pointer">
+                               <input
+                                 type="checkbox"
+                                 checked={option.is_active !== false}
+                                 onChange={(e) => updateComplementOption(groupIndex, optionIndex, { is_active: e.target.checked })}
+                                 className="w-3 h-3 text-green-600"
+                               />
+                               <span className={`text-xs font-medium ${
+                                 option.is_active !== false ? 'text-green-700' : 'text-red-700'
+                               }`}>
+                                 {option.is_active !== false ? 'Ativo' : 'Inativo'}
+                               </span>
+                             </label>
+                           </div>
                             <button
                               type="button"
                               onClick={() => removeComplementOption(groupIndex, optionIndex)}

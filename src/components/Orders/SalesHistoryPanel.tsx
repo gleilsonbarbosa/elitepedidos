@@ -952,7 +952,7 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
                         >
                           <Eye size={16} />
                         </button>
-                        {hasPermission('can_edit_sales') && (
+                        {(isAdmin || hasPermission('can_edit_sales')) && (
                           <button
                             onClick={() => {
                               setEditingSale(sale);
@@ -963,7 +963,7 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
                             <Edit3 size={16} />
                           </button>
                         )}
-                        {hasPermission('can_delete_sales') && (
+                        {(isAdmin || hasPermission('can_delete_sales')) && (
                           <button
                             onClick={() => {
                               if (confirm(`Tem certeza que deseja cancelar a venda #${sale.sale_number}?`)) {
