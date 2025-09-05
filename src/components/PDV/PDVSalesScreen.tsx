@@ -370,7 +370,7 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
         subtotal: getSubtotal(),
         discount_amount: getDiscountAmount(),
         discount_percentage: discount.type === 'percentage' ? discount.value : 0,
-        total_amount: finalTotal,
+        total_amount: getFinalTotal(),
         payment_type: paymentInfo.method,
         payment_details: paymentInfo.method === 'misto' ? {
           mixed_payments: paymentInfo.mixedPayments
@@ -401,8 +401,6 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
       if (!createdSale) {
         throw new Error('Falha ao criar venda: dados inválidos retornados');
       }
-      
-      console.log('✅ Venda criada com sucesso:', newSale);
       
       // Create purchase transaction for cashback (5% of original total, not discounted total) 
       if (finalCustomerId) {
