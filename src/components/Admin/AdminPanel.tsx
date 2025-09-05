@@ -13,6 +13,7 @@ import SalesHistoryPanel from '../Orders/SalesHistoryPanel';
 import PDVReports from '../PDV/PDVReports';
 import PDVSalesReport from '../PDV/PDVSalesReport';
 import PDVDailyCashReport from '../PDV/PDVDailyCashReport';
+import OrderSettingsPanel from './OrderSettingsPanel';
 import { useScale } from '../../hooks/useScale';
 import { useStoreHours } from '../../hooks/useStoreHours';
 
@@ -21,7 +22,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'neighborhoods' | 'hours' | 'users'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'neighborhoods' | 'hours' | 'users' | 'order-settings'>('products');
   const scale = useScale();
   const { storeSettings } = useStoreHours();
 
@@ -35,6 +36,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
         return <StoreHoursPanel />; 
       case 'users':
         return <AttendanceUsersPanel />;
+      case 'order-settings':
+        return <OrderSettingsPanel />;
       default:
         return <ProductsPanel />;
     }
@@ -113,6 +116,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
             >
               <Users size={20} />
               <span className="text-sm">Usuários</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('order-settings')}
+              className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
+                activeTab === 'order-settings'
+                  ? 'bg-orange-600 text-white shadow-lg'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Settings size={20} />
+              <span className="text-sm">Config. Pedidos</span>
             </button>
           </div>
         </div>
