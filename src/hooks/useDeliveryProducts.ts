@@ -55,9 +55,9 @@ export const useDeliveryProducts = () => {
           is_active: product.isActive !== false,
           is_weighable: product.is_weighable || false,
           price_per_gram: product.pricePerGram,
-          complement_groups: product.complementGroups,
-          sizes: product.sizes,
-          scheduled_days: product.scheduledDays,
+          complement_groups: product.complementGroups || [],
+          sizes: product.sizes || [],
+          scheduled_days: product.scheduledDays || {},
           availability_type: product.availability?.type || 'always',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -88,7 +88,13 @@ export const useDeliveryProducts = () => {
       }
       
       console.log(`✅ ${data?.length || 0} produtos carregados do banco`);
-      setProducts(data || []);
+      const safeProducts = (data || []).map(product => ({
+        ...product,
+        complement_groups: product.complement_groups || [],
+        sizes: product.sizes || [],
+        scheduled_days: product.scheduled_days || {}
+      }));
+      setProducts(safeProducts);
     } catch (err) {
       console.error('❌ Erro ao carregar produtos:', err);
       

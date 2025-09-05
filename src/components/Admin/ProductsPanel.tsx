@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Upload, X, Save, Package, Image as ImageIcon, GripVertical, RefreshCw, Wrench, Bug, AlertCircle, Calendar } from 'lucide-react';
+import { Plus, Edit, Trash2, Upload, X, Save, Package, Image as ImageIcon, GripVertical, RefreshCw, Wrench, Bug, AlertCircle, Calendar, Eye, EyeOff, Settings } from 'lucide-react';
 import { usePDVProducts } from '../../hooks/usePDV';
 import { useDeliveryProducts, DeliveryProduct } from '../../hooks/useDeliveryProducts';
 import { useImageUpload } from '../../hooks/useImageUpload';
 import { useProductScheduling } from '../../hooks/useProductScheduling';
+import { standardComplementGroups } from '../../data/products';
 import ImageUploadModal from './ImageUploadModal';
 import ProductScheduleModal from './ProductScheduleModal';
 
@@ -204,6 +205,14 @@ const ProductsPanel: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showComplementToggleDialog, setShowComplementToggleDialog] = useState(false);
+  const [complementToggleData, setComplementToggleData] = useState<{
+    productId: string;
+    groupIndex: number;
+    complementIndex: number;
+    complementName: string;
+    newActiveState: boolean;
+  } | null>(null);
   const [supabaseConfigured, setSupabaseConfigured] = useState(true);
   const [editingProduct, setEditingProduct] = useState<ProductFormData | null>(null);
   const [productImages, setProductImages] = useState<Record<string, string>>({});
@@ -419,7 +428,32 @@ const ProductsPanel: React.FC = () => {
   };
 
   const handleCreate = () => {
-    resetForm();
+    // Usar grupos de complementos padrão para novos produtos
+    setFormData({
+      name: '',
+      category: 'acai',
+      price: 0,
+      original_price: undefined,
+      description: '',
+      image_url: '',
+      is_active: true,
+      is_weighable: false,
+      price_per_gram: undefined,
+      has_complements: true,
+      complement_groups: DEFAULT_COMPLEMENT_GROUPS.map(group => ({
+        name: group.name,
+        required: group.required,
+        min_items: group.min_items,
+        max_items: group.max_items,
+        options: group.options.map(option => ({
+          name: option.name,
+          price: option.price,
+          description: option.description,
+          is_active: true
+        }))
+      }))
+    });
+    setEditingProduct(null);
     setShowModal(true);
   };
 
@@ -510,6 +544,114 @@ const ProductsPanel: React.FC = () => {
       window.location.reload();
     } catch (error) {
       console.error('Erro ao recarregar produtos:', error);
+    }
+  };
+
+  const handleComplementToggle = (productId: string, groupIndex: number, complementIndex: number, complementName: string, newActiveState: boolean) => {
+    setComplementToggleData({
+      productId,
+      groupIndex,
+      complementIndex,
+      complementName,
+      newActiveState
+    });
+    setShowComplementToggleDialog(true);
+  };
+
+  const applyComplementToggle = async (applyToAll: boolean) => {
+    if (!complementToggleData) return;
+
+    try {
+      const { productId, groupIndex, complementIndex, complementName, newActiveState } = complementToggleData;
+
+      if (applyToAll) {
+        // Apply to all products with the same complement name
+        console.log(`🔄 ${newActiveState ? 'Ativando' : 'Desativando'} complemento "${complementName}" em todos os produtos...`);
+        
+        let updatedCount = 0;
+        
+        for (const product of deliveryProducts) {
+          if (!product.complement_groups || !Array.isArray(product.complement_groups)) continue;
+          
+          let productUpdated = false;
+          const updatedGroups = product.complement_groups.map(group => {
+            if (!Array.isArray(group.options)) return group;
+            
+            const updatedOptions = group.options.map(option => {
+              if (option.name === complementName) {
+                productUpdated = true;
+                return { ...option, is_active: newActiveState };
+              }
+              return option;
+            });
+            
+            return { ...group, options: updatedOptions };
+          });
+          
+          if (productUpdated) {
+            await updateDeliveryProduct(product.id, { complement_groups: updatedGroups });
+            updatedCount++;
+          }
+        }
+        
+        // Show success message
+        const successMessage = document.createElement('div');
+        successMessage.className = `fixed top-4 right-4 ${newActiveState ? 'bg-green-500' : 'bg-orange-500'} text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2`;
+        successMessage.innerHTML = `
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+          Complemento "${complementName}" ${newActiveState ? 'ativado' : 'desativado'} em ${updatedCount} produto(s)!
+        `;
+        document.body.appendChild(successMessage);
+        
+        setTimeout(() => {
+          if (document.body.contains(successMessage)) {
+            document.body.removeChild(successMessage);
+          }
+        }, 4000);
+        
+      } else {
+        // Apply only to current product
+        const product = deliveryProducts.find(p => p.id === productId);
+        if (!product || !product.complement_groups) return;
+        
+        const updatedGroups = [...product.complement_groups];
+        if (updatedGroups[groupIndex] && updatedGroups[groupIndex].options[complementIndex]) {
+          updatedGroups[groupIndex] = {
+            ...updatedGroups[groupIndex],
+            options: updatedGroups[groupIndex].options.map((option, idx) => 
+              idx === complementIndex ? { ...option, is_active: newActiveState } : option
+            )
+          };
+          
+          await updateDeliveryProduct(productId, { complement_groups: updatedGroups });
+          
+          // Show success message
+          const successMessage = document.createElement('div');
+          successMessage.className = `fixed top-4 right-4 ${newActiveState ? 'bg-green-500' : 'bg-orange-500'} text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2`;
+          successMessage.innerHTML = `
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            Complemento "${complementName}" ${newActiveState ? 'ativado' : 'desativado'} apenas neste produto!
+          `;
+          document.body.appendChild(successMessage);
+          
+          setTimeout(() => {
+            if (document.body.contains(successMessage)) {
+              document.body.removeChild(successMessage);
+            }
+          }, 3000);
+        }
+      }
+      
+      setShowComplementToggleDialog(false);
+      setComplementToggleData(null);
+      
+    } catch (error) {
+      console.error('Erro ao alterar status do complemento:', error);
+      alert('Erro ao alterar status do complemento. Tente novamente.');
     }
   };
 
@@ -843,7 +985,7 @@ const ProductsPanel: React.FC = () => {
       ...prev,
       complement_groups: prev.complement_groups?.map((group, index) =>
         index === groupIndex 
-          ? { ...group, options: [...group.options, newOption] }
+          ? { ...group, options: [...(group.options || []), newOption] }
           : group
       ) || []
     }));
@@ -1314,18 +1456,33 @@ const ProductsPanel: React.FC = () => {
               {/* Complement Groups */}
               {formData.has_complements && formData.complement_groups && formData.complement_groups.length > 0 && (
                 <div className="space-y-4">
-                  <h4 className="text-lg font-medium text-gray-800">Grupos de Complementos</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-semibold text-gray-800">Grupos de Complementos</h4>
+                    <button
+                      type="button"
+                      onClick={addComplementGroup}
+                      className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2"
+                    >
+                      <Plus size={16} />
+                      Novo Grupo
+                    </button>
+                  </div>
                   {formData.complement_groups.map((group, groupIndex) => (
                     <div key={groupIndex} className="border border-gray-200 rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <h5 className="font-medium text-gray-800">Grupo {groupIndex + 1}</h5>
-                        <button
-                          type="button"
-                          onClick={() => removeComplementGroup(groupIndex)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-500">
+                            {(group.options || []).filter(c => c.is_active !== false).length} ativo(s)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeComplementGroup(groupIndex)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -1384,57 +1541,93 @@ const ProductsPanel: React.FC = () => {
                       {/* Complement Options */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <h6 className="text-sm font-medium text-gray-700">Opções ({group.options.length})</h6>
+                          <h6 className="text-sm font-medium text-gray-700">Opções ({(group.options || []).length})</h6>
                           <button
                             type="button"
                             onClick={() => addComplementOption(groupIndex)}
-                            className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm transition-colors flex items-center gap-1"
+                            className="bg-green-500 hover:bg-green-600 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
                           >
                             <Plus size={12} />
                             Adicionar
                           </button>
                         </div>
 
-                        {group.options.map((option, optionIndex) => (
-                          <div key={optionIndex} className="flex gap-2 items-center bg-gray-50 p-2 rounded">
-                            <input
-                              type="text"
-                              value={option.name}
-                              onChange={(e) => updateComplementOption(groupIndex, optionIndex, { name: e.target.value })}
-                             className="flex-2 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
-                              placeholder="Nome do complemento"
-                            />
-                            <input
-                              type="number"
-                              step="0.01"
-                              min="0"
-                              value={option.price}
-                              onChange={(e) => updateComplementOption(groupIndex, optionIndex, { price: parseFloat(e.target.value) || 0 })}
-                              className="w-20 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
-                              placeholder="0.00"
-                            />
-                           <div className="flex items-center gap-1">
-                             <label className="flex items-center gap-1 cursor-pointer">
-                               <input
-                                 type="checkbox"
-                                 checked={option.is_active !== false}
-                                 onChange={(e) => updateComplementOption(groupIndex, optionIndex, { is_active: e.target.checked })}
-                                 className="w-3 h-3 text-green-600"
-                               />
-                               <span className={`text-xs font-medium ${
-                                 option.is_active !== false ? 'text-green-700' : 'text-red-700'
-                               }`}>
-                                 {option.is_active !== false ? 'Ativo' : 'Inativo'}
-                               </span>
-                             </label>
-                           </div>
-                            <button
-                              type="button"
-                              onClick={() => removeComplementOption(groupIndex, optionIndex)}
-                              className="text-red-500 hover:text-red-700 p-1"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                        {(group.options || []).map((option, optionIndex) => (
+                          <div key={optionIndex} className={`border rounded-lg p-3 transition-all ${
+                            (option.is_active === false)
+                              ? 'bg-red-50 border-red-200 opacity-60'
+                              : 'bg-gray-50 border-gray-200'
+                          }`}>
+                            <div className="flex gap-2 items-center">
+                              <input
+                                type="text"
+                                value={option.name}
+                                onChange={(e) => updateComplementOption(groupIndex, optionIndex, { name: e.target.value })}
+                                className="flex-2 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                placeholder="Nome do complemento"
+                              />
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={option.price}
+                                onChange={(e) => updateComplementOption(groupIndex, optionIndex, { price: parseFloat(e.target.value) || 0 })}
+                                className="w-20 p-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-purple-500"
+                                placeholder="0.00"
+                              />
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-gray-800">
+                                    {option.name}
+                                  </span>
+                                  {option.price > 0 && (
+                                    <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                                      +{new Intl.NumberFormat('pt-BR', {
+                                        style: 'currency',
+                                        currency: 'BRL'
+                                      }).format(option.price)}
+                                    </span>
+                                  )}
+                                  {(option.is_active === false) && (
+                                    <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
+                                      INATIVO
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => handleComplementToggle(
+                                    formData.id || '',
+                                    groupIndex,
+                                    optionIndex,
+                                    option.name,
+                                    !(option.is_active !== false)
+                                  )}
+                                  className={`p-1 rounded-full transition-colors border-2 ${
+                                    (option.is_active !== false)
+                                      ? 'text-green-600 hover:bg-green-100'
+                                      : 'text-red-600 hover:bg-red-100 bg-red-50 border-red-200'
+                                  }`}
+                                  title={
+                                    (option.is_active !== false)
+                                      ? 'Clique para desativar este complemento'
+                                      : 'Clique para ativar este complemento'
+                                  }
+                                >
+                                  {(option.is_active !== false) ? (
+                                    <Eye size={16} />
+                                  ) : (
+                                    <EyeOff size={16} />
+                                  )}
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeComplementOption(groupIndex, optionIndex)}
+                                className="text-red-500 hover:text-red-700 p-1"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1490,6 +1683,133 @@ const ProductsPanel: React.FC = () => {
           onSave={handleSaveSchedule}
           currentSchedule={getProductSchedule(selectedProductForSchedule.id)}
         />
+      )}
+
+      {/* Complement Toggle Confirmation Dialog */}
+      {showComplementToggleDialog && complementToggleData && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-xl">
+            <div className="p-6 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-800">
+                {complementToggleData.newActiveState ? '✅ Ativar' : '❌ Desativar'} Complemento
+              </h2>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className={`p-4 rounded-lg border-2 ${
+                complementToggleData.newActiveState 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-orange-50 border-orange-200'
+              }`}>
+                <p className={`font-medium ${
+                  complementToggleData.newActiveState ? 'text-green-800' : 'text-orange-800'
+                }`}>
+                  Complemento: "{complementToggleData.complementName}"
+                </p>
+                <p className={`text-sm mt-1 ${
+                  complementToggleData.newActiveState ? 'text-green-700' : 'text-orange-700'
+                }`}>
+                  Você deseja {complementToggleData.newActiveState ? 'ativar' : 'desativar'} este complemento em:
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => applyComplementToggle(false)}
+                  className="w-full p-4 border-2 border-blue-200 rounded-lg hover:bg-blue-50 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="bg-blue-100 rounded-full p-2">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-medium text-blue-800">❌ NÃO - Apenas este produto</p>
+                      <p className="text-sm text-blue-700">
+                        {complementToggleData.newActiveState ? 'Ativar' : 'Desativar'} apenas neste produto específico
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => applyComplementToggle(true)}
+                  className={`w-full p-4 border-2 rounded-lg hover:bg-opacity-50 transition-colors text-left ${
+                    complementToggleData.newActiveState 
+                      ? 'border-green-200 hover:bg-green-50' 
+                      : 'border-orange-200 hover:bg-orange-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`rounded-full p-2 ${
+                      complementToggleData.newActiveState ? 'bg-green-100' : 'bg-orange-100'
+                    }`}>
+                      <svg className={`w-5 h-5 ${
+                        complementToggleData.newActiveState ? 'text-green-600' : 'text-orange-600'
+                      }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 7a2 2 0 012-2h10a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className={`font-medium ${
+                        complementToggleData.newActiveState ? 'text-green-800' : 'text-orange-800'
+                      }`}>
+                        ✅ SIM - Todos os produtos
+                      </p>
+                      <p className={`text-sm ${
+                        complementToggleData.newActiveState ? 'text-green-700' : 'text-orange-700'
+                      }`}>
+                        {complementToggleData.newActiveState ? 'Ativar' : 'Desativar'} em TODOS os produtos que tenham "{complementToggleData.complementName}"
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              <div className={`p-3 rounded-lg ${
+                complementToggleData.newActiveState 
+                  ? 'bg-yellow-50 border border-yellow-200' 
+                  : 'bg-red-50 border border-red-200'
+              }`}>
+                <div className="flex items-start gap-2">
+                  <svg className={`w-4 h-4 mt-0.5 ${
+                    complementToggleData.newActiveState ? 'text-yellow-600' : 'text-red-600'
+                  }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <div>
+                    <p className={`text-sm font-medium ${
+                      complementToggleData.newActiveState ? 'text-yellow-800' : 'text-red-800'
+                    }`}>
+                      ⚠️ Atenção
+                    </p>
+                    <p className={`text-xs ${
+                      complementToggleData.newActiveState ? 'text-yellow-700' : 'text-red-700'
+                    }`}>
+                      {complementToggleData.newActiveState 
+                        ? 'Esta ação ativará o complemento em todos os produtos que o possuem.'
+                        : 'Esta ação desativará o complemento em todos os produtos que o possuem.'
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowComplementToggleDialog(false);
+                  setComplementToggleData(null);
+                }}
+                className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
