@@ -370,26 +370,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
           </div>
         </div>
 
-        {/* Cashback Section */}
-        <div className="p-6 space-y-6">
-          {customerBalance && customerBalance.available_balance > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <Gift size={20} className="text-purple-600" />
-                Seu Cashback
-              </h3>
-              
-              <CashbackButton
-                availableBalance={customerBalance.available_balance}
-                onApplyCashback={handleApplyCashback}
-                onRemoveCashback={handleRemoveCashback}
-                appliedAmount={appliedCashback}
-                maxAmount={totalPrice + getDeliveryFee()}
-                disabled={isSubmitting}
-              />
-            </div>
-          )}
-        </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Delivery Type Selection */}
           <DeliveryTypeSelector
