@@ -242,6 +242,20 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
       const printWindow = window.open('', '_blank', 'width=300,height=600');
       if (!printWindow) {
         console.error('❌ Não foi possível abrir janela de impressão - pop-ups bloqueados');
+        
+        // Mostrar notificação amigável ao usuário
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('⚠️ Pop-ups Bloqueados', {
+            body: 'Para impressão automática, permita pop-ups neste site nas configurações do navegador.',
+            icon: '/vite.svg'
+          });
+        }
+        
+        // Fallback: mostrar alerta se notificações não estiverem disponíveis
+        setTimeout(() => {
+          alert('⚠️ Pop-ups Bloqueados\n\nPara impressão automática funcionar:\n\n1. Clique no ícone de bloqueio na barra de endereços\n2. Permita pop-ups para este site\n3. Recarregue a página\n\nOu desative o bloqueador de pop-ups temporariamente.');
+        }, 1000);
+        
         return;
       }
 
