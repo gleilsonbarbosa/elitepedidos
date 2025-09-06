@@ -165,10 +165,13 @@ export const useCashback = () => {
           mesRegistro: new Date(transaction.created_at).toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' })
         });
         
+        // Round transaction amounts to avoid floating-point precision issues
+        const roundedCashbackAmount = Math.round(transaction.cashback_amount * 100) / 100;
+        
         if (transaction.type === 'purchase' && transaction.cashback_amount > 0) {
-          availableBalance += transaction.cashback_amount;
+          availableBalance += roundedCashbackAmount;
         } else if (transaction.type === 'redemption' && transaction.cashback_amount < 0) {
-          availableBalance += transaction.cashback_amount; // Já é negativo
+          availableBalance += roundedCashbackAmount; // Já é negativo
         }
       });
       
@@ -265,14 +268,15 @@ export const useCashback = () => {
         return null;
       }
 
-      // Calculate cashback (5%)
-      const cashbackAmount = amount * 0.05;
+      // Calculate cashback (5%) with proper rounding to avoid floating-point precision issues
+      const roundedAmount = Math.round(amount * 100) / 100;
+      const cashbackAmount = Math.round(roundedAmount * 0.05 * 100) / 100;
 
       const { data, error } = await supabase
         .from('transactions')
         .insert([{
           customer_id: customerId,
-          amount: amount,
+          amount: roundedAmount,
           cashback_amount: cashbackAmount,
           type: 'purchase',
           status: 'approved',
@@ -286,7 +290,12 @@ export const useCashback = () => {
         return null;
       }
 
-      console.log('✅ Transação de compra criada:', data);
+      console.log('✅ Transação de compra criada:', {
+        ...data,
+        roundedAmount,
+        cashbackAmount,
+        originalAmount: amount
+      });
       return data;
     } catch (error) {
       console.error('❌ Erro ao criar transação de compra:', error);
@@ -334,10 +343,13 @@ export const useCashback = () => {
       
       let monthlyBalance = 0;
       currentMonthTransactions.forEach(transaction => {
+        // Round transaction amounts to avoid floating-point precision issues
+        const roundedCashbackAmount = Math.round(transaction.cashback_amount * 100) / 100;
+        
         if (transaction.type === 'purchase' && transaction.cashback_amount > 0) {
-          monthlyBalance += transaction.cashback_amount;
+          monthlyBalance += roundedCashbackAmount;
         } else if (transaction.type === 'redemption' && transaction.cashback_amount < 0) {
-          monthlyBalance += transaction.cashback_amount; // Já é negativo
+          monthlyBalance += roundedCashbackAmount; // Já é negativo
         }
       });
 
