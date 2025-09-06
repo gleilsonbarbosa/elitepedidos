@@ -8,10 +8,16 @@
  * @returns Formatted price string
  */
 export const formatPrice = (price: number): string => {
+  // Ensure we have a valid number
+  const numericPrice = typeof price === 'number' && !isNaN(price) ? price : 0;
+  
+  // Round to 2 decimal places to avoid floating-point precision issues
+  const roundedPrice = Math.round(numericPrice * 100) / 100;
+  
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL'
-  }).format(price);
+  }).format(roundedPrice);
 };
 
 /**

@@ -314,16 +314,32 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       console.error('Erro ao criar pedido:', error);
       let errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       
-      // Fix malformed currency in error messages
-      const currencyMatch = errorMessage.match(/R\$ ([\d.]+)(?:\.2f)?/);
+      // Fix malformed currency in error messages - improved regex
+      const currencyMatch = errorMessage.match(/R\$\s*(-?[\d.,]+)(?:\.2f|f)?/);
       if (currencyMatch) {
-        const numericValue = parseFloat(currencyMatch[1]);
+        // Clean the numeric value and parse it
+        const cleanValue = currencyMatch[1].replace(/[^\d.,-]/g, '').replace(',', '.');
+        const numericValue = parseFloat(cleanValue);
         if (!isNaN(numericValue)) {
           const formattedCurrency = new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL'
           }).format(numericValue);
-          errorMessage = errorMessage.replace(/R\$ [\d.]+(?:\.2f)?/, formattedCurrency);
+          errorMessage = errorMessage.replace(/R\$\s*-?[\d.,]+(?:\.2f|f)?/, formattedCurrency);
+        }
+      }
+      
+      // Also fix patterns like "-R$ 18,91f"
+      const negativeMatch = errorMessage.match(/-R\$\s*([\d.,]+)f?/);
+      if (negativeMatch) {
+        const cleanValue = negativeMatch[1].replace(',', '.');
+        const numericValue = parseFloat(cleanValue);
+        if (!isNaN(numericValue)) {
+          const formattedCurrency = new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+          }).format(-numericValue);
+          errorMessage = errorMessage.replace(/-R\$\s*[\d.,]+f?/, formattedCurrency);
         }
       }
       

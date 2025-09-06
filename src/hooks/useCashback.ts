@@ -153,8 +153,8 @@ export const useCashback = () => {
         mesAtual: `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`
       });
       
-      // Calcular saldo das transações do mês atual
-      let availableBalance = 0;
+      // Calcular saldo das transações do mês atual usando centavos para precisão
+      let availableBalanceCents = 0;
       
       allTransactions.forEach(transaction => {
         console.log('💰 Processando transação do mês atual:', {
@@ -165,25 +165,28 @@ export const useCashback = () => {
           mesRegistro: new Date(transaction.created_at).toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' })
         });
         
-        // Round transaction amounts to avoid floating-point precision issues
-        const roundedCashbackAmount = Math.round(transaction.cashback_amount * 100) / 100;
+        // Converter para centavos para evitar problemas de precisão
+        const cashbackAmountCents = Math.round(transaction.cashback_amount * 100);
         
         if (transaction.type === 'purchase' && transaction.cashback_amount > 0) {
-          availableBalance += roundedCashbackAmount;
+          availableBalanceCents += cashbackAmountCents;
         } else if (transaction.type === 'redemption' && transaction.cashback_amount < 0) {
-          availableBalance += roundedCashbackAmount; // Já é negativo
+          availableBalanceCents += cashbackAmountCents; // Já é negativo
         }
       });
+      
+      // Converter de volta para reais
+      const availableBalance = availableBalanceCents / 100;
       
       // Calcular data de expiração (fim do mês atual)
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
       const daysUntilEndOfMonth = Math.ceil((endOfMonth.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       
       // Garantir que o saldo nunca seja negativo
-      availableBalance = Math.max(0, Math.round(availableBalance * 100) / 100);
+      const finalBalance = Math.max(0, availableBalance);
       
       console.log('✅ SALDO MENSAL - Baseado apenas no mês atual:', {
-        availableBalance,
+        availableBalance: finalBalance,
         mesAtual: `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`,
         transacoesDoMes: allTransactions.length,
         expiraEm: `${daysUntilEndOfMonth} dias (fim do mês)`,
@@ -192,8 +195,8 @@ export const useCashback = () => {
       
       return {
         customer_id: customerId,
-        available_balance: Math.max(0, Math.round(availableBalance * 100) / 100),
-        expiring_amount: daysUntilEndOfMonth <= 7 ? availableBalance : 0, // Todo saldo expira no fim do mês
+        available_balance: finalBalance,
+        expiring_amount: daysUntilEndOfMonth <= 7 ? finalBalance : 0, // Todo saldo expira no fim do mês
         expiration_date: endOfMonth.toISOString()
       };
     } catch (error) {
@@ -341,24 +344,25 @@ export const useCashback = () => {
         return transactionDate >= currentMonthStart && transactionDate < nextMonthStart;
       });
       
-      let monthlyBalance = 0;
+      // Usar centavos para cálculos precisos
+      let monthlyBalanceCents = 0;
       currentMonthTransactions.forEach(transaction => {
-        // Round transaction amounts to avoid floating-point precision issues
-        const roundedCashbackAmount = Math.round(transaction.cashback_amount * 100) / 100;
+        // Converter para centavos
+        const cashbackAmountCents = Math.round(transaction.cashback_amount * 100);
         
         if (transaction.type === 'purchase' && transaction.cashback_amount > 0) {
-          monthlyBalance += roundedCashbackAmount;
+          monthlyBalanceCents += cashbackAmountCents;
         } else if (transaction.type === 'redemption' && transaction.cashback_amount < 0) {
-          monthlyBalance += roundedCashbackAmount; // Já é negativo
+          monthlyBalanceCents += cashbackAmountCents; // Já é negativo
         }
       });
 
-      // Explicitly round monthlyBalance to prevent floating-point precision issues
-      monthlyBalance = Math.round(monthlyBalance * 100) / 100;
+      // Converter de volta para reais
+      const monthlyBalance = monthlyBalanceCents / 100;
 
-      // Round amounts to 2 decimal places to avoid floating-point precision issues
+      // Garantir valores não negativos
+      const availableBalance = Math.max(0, monthlyBalance);
       const roundedAmount = Math.round(amount * 100) / 100;
-      const availableBalance = Math.max(0, Math.round(monthlyBalance * 100) / 100);
       
       // Convert to integer cents to avoid floating-point precision issues
       const availableBalanceCents = Math.round(availableBalance * 100);
