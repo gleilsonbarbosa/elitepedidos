@@ -229,27 +229,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      // Process cashback transactions if applied
+      // Process cashback redemption if applied (validation already done when applying)
       if (appliedCashback > 0 && customerId) {
-        // Double-check balance before processing redemption
-        const currentBalance = await getCustomerBalance(customerId);
-        if (!currentBalance || currentBalance.available_balance <= 0) {
-          throw new Error('Cashback não disponível. Saldo atual: R$ 0,00');
-        }
-        
-        if (currentBalance.available_balance < appliedCashback) {
-          const formattedBalance = formatPrice(currentBalance.available_balance);
-          throw new Error(`Saldo insuficiente. Disponível: ${formattedBalance}`);
-        }
-        
-        console.log('🎁 Processando resgate de cashback:', { customerId, appliedCashback });
-        try {
-          const redemptionResult = await createRedemptionTransaction(customerId, appliedCashback);
-          console.log('✅ Cashback resgatado com sucesso:', redemptionResult);
-        } catch (redemptionError) {
-          console.error('❌ Falha no resgate de cashback:', redemptionError);
-          throw redemptionError; // Re-throw to stop order creation
-        }
+        console.log('🎁 Processando resgate de cashback (já validado):', { customerId, appliedCashback });
+        const redemptionResult = await createRedemptionTransaction(customerId, appliedCashback);
+        console.log('✅ Cashback resgatado com sucesso:', redemptionResult);
       }
 
       const neighborhood = neighborhoods.find(n => n.name === customerNeighborhood);
