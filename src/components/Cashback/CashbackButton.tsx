@@ -18,6 +18,10 @@ const CashbackButton: React.FC<CashbackButtonProps> = ({
   disabled = false,
   maxAmount
 }) => {
+  // Ensure balance is never negative
+  const safeAvailableBalance = Math.max(0, availableBalance);
+  const safeAppliedAmount = Math.max(0, appliedAmount);
+  
   const [showInput, setShowInput] = useState(false);
   const [inputAmount, setInputAmount] = useState('');
 
@@ -29,7 +33,7 @@ const CashbackButton: React.FC<CashbackButtonProps> = ({
   };
 
   const handleApplyAll = () => {
-    const amount = maxAmount ? Math.min(availableBalance, maxAmount) : availableBalance;
+    const amount = maxAmount ? Math.min(safeAvailableBalance, maxAmount) : safeAvailableBalance;
     onApplyCashback(amount);
     setShowInput(false);
   };
@@ -41,7 +45,7 @@ const CashbackButton: React.FC<CashbackButtonProps> = ({
       return;
     }
 
-    const maxAllowed = maxAmount ? Math.min(availableBalance, maxAmount) : availableBalance;
+    const maxAllowed = maxAmount ? Math.min(safeAvailableBalance, maxAmount) : safeAvailableBalance;
     if (amount > maxAllowed) {
       alert(`Valor máximo permitido: ${formatPrice(maxAllowed)}`);
       return;
@@ -58,11 +62,11 @@ const CashbackButton: React.FC<CashbackButtonProps> = ({
     setInputAmount('');
   };
 
-  if (availableBalance <= 0) {
+  if (safeAvailableBalance <= 0) {
     return null;
   }
 
-  if (appliedAmount > 0) {
+  if (safeAppliedAmount > 0) {
     return (
       <div className="bg-green-50 border border-green-200 rounded-lg p-4">
         <div className="flex items-center justify-between">
@@ -73,7 +77,7 @@ const CashbackButton: React.FC<CashbackButtonProps> = ({
                 Cashback aplicado
               </p>
               <p className="text-xs text-green-600">
-                Desconto de {formatPrice(appliedAmount)}
+                Desconto de {formatPrice(safeAppliedAmount)}
               </p>
             </div>
           </div>
@@ -97,7 +101,7 @@ const CashbackButton: React.FC<CashbackButtonProps> = ({
           <div className="flex items-center gap-2">
             <Gift size={18} className="text-purple-600" />
             <p className="text-sm font-medium text-purple-800">
-              Usar cashback ({formatPrice(availableBalance)} disponível)
+              Usar cashback ({formatPrice(safeAvailableBalance)} disponível)
             </p>
           </div>
 
@@ -107,7 +111,7 @@ const CashbackButton: React.FC<CashbackButtonProps> = ({
               disabled={disabled}
               className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white py-2 px-3 rounded-lg text-sm font-medium transition-colors"
             >
-              Usar tudo ({formatPrice(maxAmount ? Math.min(availableBalance, maxAmount) : availableBalance)})
+              Usar tudo ({formatPrice(maxAmount ? Math.min(safeAvailableBalance, maxAmount) : safeAvailableBalance)})
             </button>
             <button
               onClick={() => setShowInput(false)}
@@ -122,7 +126,7 @@ const CashbackButton: React.FC<CashbackButtonProps> = ({
               type="number"
               step="0.01"
               min="0.01"
-              max={maxAmount ? Math.min(availableBalance, maxAmount) : availableBalance}
+              max={maxAmount ? Math.min(safeAvailableBalance, maxAmount) : safeAvailableBalance}
               value={inputAmount}
               onChange={(e) => setInputAmount(e.target.value)}
               placeholder="Valor personalizado"
@@ -148,7 +152,7 @@ const CashbackButton: React.FC<CashbackButtonProps> = ({
       className="w-full bg-gradient-to-r from-purple-600 to-green-600 hover:from-purple-700 hover:to-green-700 disabled:from-gray-300 disabled:to-gray-300 text-white py-3 px-4 rounded-lg font-semibold transition-all duration-300 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl"
     >
       <Gift size={20} />
-      Usar Cashback ({formatPrice(availableBalance)})
+      Usar Cashback ({formatPrice(safeAvailableBalance)})
     </button>
   );
 };
