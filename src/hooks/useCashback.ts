@@ -338,13 +338,22 @@ export const useCashback = () => {
         .eq('status', 'approved')
         .gte('created_at', currentMonthStart.toISOString())
         .lt('created_at', nextMonthStart.toISOString());
-        .gte('created_at', currentMonthStart.toISOString())
-        .lt('created_at', nextMonthStart.toISOString());
 
       if (customerError) throw customerError;
 
       // Transações já filtradas pela query do banco
       const currentMonthTransactions = balanceData || [];
+      
+      // Calcular saldo do mês atual usando centavos para precisão
+      let monthlyBalanceCents = 0;
+      
+      currentMonthTransactions.forEach(transaction => {
+        // Converter para centavos para evitar problemas de precisão
+        const cashbackAmountCents = Math.round(transaction.cashback_amount * 100);
+        
+        if (transaction.type === 'purchase' && transaction.cashback_amount > 0) {
+          monthlyBalanceCents += cashbackAmountCents;
+        } else if (transaction.type === 'redemption' && transaction.cashback_amount < 0) {
           monthlyBalanceCents += cashbackAmountCents; // Já é negativo
         }
       });
