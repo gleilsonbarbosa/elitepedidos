@@ -242,8 +242,8 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({ onClose, onOrderCreat
                   Tipo de Entrega *
                 </label>
                 <DeliveryTypeSelector
-                  deliveryType={deliveryType}
-                  onDeliveryTypeChange={setDeliveryType}
+                  selectedType={deliveryType}
+                  onTypeChange={setDeliveryType}
                 />
               </div>
               
