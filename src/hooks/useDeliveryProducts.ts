@@ -869,8 +869,7 @@ export const useDeliveryProducts = () => {
     debugProduct,
     forceSync,
     syncWithDatabase,
-    fixProduct,
-    getMostOrderedProducts
+    fixProduct
   };
 };
 
