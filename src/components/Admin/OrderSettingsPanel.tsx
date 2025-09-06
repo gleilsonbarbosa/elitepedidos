@@ -7,8 +7,8 @@ import {
   Save, 
   RefreshCw,
   Printer,
-  Clock,
   Zap,
+  Clock,
   Eye,
   AlertCircle,
   Check,
@@ -524,6 +524,48 @@ const OrderSettingsPanel: React.FC = () => {
               </select>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Thermal Printer Integration */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+          <Printer size={20} className="text-green-600" />
+          🖨️ Impressão Térmica Automática
+        </h3>
+
+        <div className="space-y-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <Zap size={20} className="text-green-600 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-green-800 mb-2">Nova Funcionalidade: Impressão Direta</h4>
+                <ul className="text-sm text-green-700 space-y-1">
+                  <li>• <strong>Impressão 100% automática</strong> via Web Serial API</li>
+                  <li>• <strong>Sem cliques manuais</strong> - vai direto para a impressora</li>
+                  <li>• <strong>Suporte a impressoras ESC/POS</strong> (térmicas)</li>
+                  <li>• <strong>Configuração uma vez só</strong> - funciona para todos os pedidos</li>
+                  <li>• <strong>Fallback inteligente</strong> - se falhar, usa método tradicional</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <Printer size={20} className="text-blue-600 mt-0.5" />
+              <div>
+                <h4 className="font-medium text-blue-800 mb-2">Como Configurar</h4>
+                <ol className="text-sm text-blue-700 space-y-1">
+                  <li><strong>1.</strong> Conecte sua impressora térmica via USB</li>
+                  <li><strong>2.</strong> Clique no ícone da impressora no cabeçalho</li>
+                  <li><strong>3.</strong> Selecione a porta da impressora</li>
+                  <li><strong>4.</strong> Faça um teste de impressão</li>
+                  <li><strong>5.</strong> Ative a impressão automática acima</li>
+                </ol>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
