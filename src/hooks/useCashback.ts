@@ -330,23 +330,15 @@ export const useCashback = () => {
         .from('transactions')
         .select('*')
         .eq('customer_id', customerId)
-        .eq('status', 'approved');
+        .eq('status', 'approved')
+        .gte('created_at', currentMonthStart.toISOString())
+        .lt('created_at', nextMonthStart.toISOString());
 
       if (customerError) throw customerError;
 
-      // Calcular saldo do mês atual
-      const now = new Date();
-      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-      const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      
-      const currentMonthTransactions = (balanceData || []).filter(transaction => {
-        const transactionDate = new Date(transaction.created_at);
-        return transactionDate >= currentMonthStart && transactionDate < nextMonthStart;
-      });
-      
       // Usar centavos para cálculos precisos
       let monthlyBalanceCents = 0;
-      currentMonthTransactions.forEach(transaction => {
+      (balanceData || []).forEach(transaction => {
         // Converter para centavos
         const cashbackAmountCents = Math.round(transaction.cashback_amount * 100);
         
@@ -379,7 +371,7 @@ export const useCashback = () => {
         requestedAmount: roundedAmount,
         sufficient: availableBalanceCents >= roundedAmountCents,
         mesAtual: `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`,
-        transacoesDoMes: currentMonthTransactions.length
+        transacoesDoMes: (balanceData || []).length
       });
       
       // CRÍTICO: Se saldo é zero ou negativo, bloquear imediatamente
