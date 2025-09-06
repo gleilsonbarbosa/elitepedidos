@@ -360,6 +360,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
               />
             </div>
           )}
+
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {/* Delivery Type Selection */}
           <DeliveryTypeSelector
@@ -710,6 +711,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
             )}
           </button>
         </form>
+        </div>
       </div>
     </div>
   );
