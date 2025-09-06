@@ -358,21 +358,32 @@ export const useCashback = () => {
       });
 
       // Converter de volta para reais
-      const monthlyBalance = monthlyBalanceCents / 100;
+      const monthlyBalance = Math.round(monthlyBalanceCents) / 100;
 
       // Garantir valores não negativos
-      const availableBalance = Math.max(0, monthlyBalance);
+      const availableBalance = Math.max(0, Math.round(monthlyBalance * 100) / 100);
       const roundedAmount = Math.round(amount * 100) / 100;
       
       // Convert to integer cents to avoid floating-point precision issues
       const availableBalanceCents = Math.round(availableBalance * 100);
       const roundedAmountCents = Math.round(roundedAmount * 100);
       
+      // CRÍTICO: Se saldo é zero ou negativo, bloquear imediatamente
+      if (availableBalance <= 0) {
+        console.warn('🚫 Tentativa de resgate com saldo zero/negativo:', {
+          availableBalance,
+          monthlyBalance,
+          requestedAmount: roundedAmount
+        });
+        throw new Error('Você não possui cashback disponível no mês atual.');
+      }
+      
       console.log('💰 Verificação de saldo mensal:', {
-        requestedAmount: roundedAmount,
-        availableBalance: availableBalance,
+      // CRÍTICO: Se saldo é negativo, retornar 0 para evitar erro no banco
+      const finalBalance = Math.max(0, monthlyBalance);
         requestedCents: roundedAmountCents,
         availableCents: availableBalanceCents,
+        monthlyBalanceRaw: monthlyBalance,
         sufficient: availableBalanceCents >= roundedAmountCents,
         mesAtual: `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`,
         transacoesDoMes: currentMonthTransactions.length
@@ -384,12 +395,7 @@ export const useCashback = () => {
           currency: 'BRL'
         }).format(availableBalance);
         
-        // Se o saldo é negativo, não permitir resgate
-        if (availableBalance <= 0) {
-          throw new Error(`Você não possui cashback disponível no mês atual.`);
-        } else {
-          throw new Error(`Saldo insuficiente no mês atual. Disponível: ${formattedBalance}`);
-        }
+        throw new Error(`Saldo insuficiente no mês atual. Disponível: ${formattedBalance}`);
       }
 
       const { data, error } = await supabase
