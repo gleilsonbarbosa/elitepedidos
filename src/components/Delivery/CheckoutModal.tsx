@@ -8,6 +8,10 @@ import { useStoreHours } from '../../hooks/useStoreHours';
 import DeliveryTypeSelector from './DeliveryTypeSelector';
 import PickupScheduler from './PickupScheduler';
 import CashbackButton from '../Cashback/CashbackButton';
+import AISalesAssistant from './AISalesAssistant';
+import { useDeliveryProducts } from '../../hooks/useDeliveryProducts';
+import PushNotificationBanner from './PushNotificationBanner';
+import { useWebPush } from '../../hooks/useWebPush';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -28,6 +32,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const { createOrder } = useOrders();
   const { getCustomerByPhone, getCustomerBalance, createPurchaseTransaction, createRedemptionTransaction } = useCashback();
   const { storeSettings } = useStoreHours();
+  const { products: availableProducts } = useDeliveryProducts();
+  const { sendServerNotification } = useWebPush();
   
   const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
   const [customerName, setCustomerName] = useState('');
@@ -43,6 +49,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [customerBalance, setCustomerBalance] = useState<any>(null);
   const [appliedCashback, setAppliedCashback] = useState(0);
   const [customerId, setCustomerId] = useState<string | null>(null);
+  const [showAISuggestions, setShowAISuggestions] = useState(true);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -59,6 +66,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setCustomerBalance(null);
       setAppliedCashback(0);
       setCustomerId(null);
+      setShowAISuggestions(true);
     }
   }, [isOpen]);
 
@@ -276,6 +284,35 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
 
       const newOrder = await createOrder(orderData);
 
+      // Send push notification about order status
+      if (customerId && customerPhone) {
+        try {
+          await sendServerNotification(customerPhone.replace(/\D/g, ''), {
+            title: '🎉 Pedido Confirmado!',
+            body: `Seu pedido #${newOrder.id.slice(-8)} foi recebido e está sendo processado.`,
+            tag: 'order-confirmed',
+            data: {
+              orderId: newOrder.id,
+              type: 'order_confirmed',
+              url: `/pedido/${newOrder.id}`
+            },
+            actions: [
+              {
+                action: 'view',
+                title: 'Ver Pedido'
+              },
+              {
+                action: 'close',
+                title: 'Fechar'
+              }
+            ]
+          });
+          console.log('✅ Notificação Push enviada para o cliente');
+        } catch (pushError) {
+          console.warn('⚠️ Erro ao enviar notificação Push (não crítico):', pushError);
+        }
+      }
+
       // Create purchase transaction for cashback (5% of original total, not discounted total)
       if (customerId) {
         const purchaseAmount = totalPrice + getDeliveryFee();
@@ -491,6 +528,78 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
           )}
 
           {/* Cashback Section */}
+
+          {/* Push Notification Banner */}
+          {customerPhone && customerPhone.replace(/\D/g, '').length >= 11 && (
+            <div className="space-y-4">
+              <PushNotificationBanner
+                customerPhone={customerPhone.replace(/\D/g, '')}
+                customerName={customerName}
+                onSubscribed={(subscription) => {
+                  console.log('✅ Cliente inscrito para notificações:', subscription);
+                }}
+              />
+            </div>
+          )}
+
+          {/* AI Sales Assistant */}
+          {showAISuggestions && items.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-800">🤖 Sugestões Personalizadas</h3>
+                <button
+                  onClick={() => setShowAISuggestions(false)}
+                  className="text-gray-400 hover:text-gray-600 p-1"
+                  title="Ocultar sugestões"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              
+              <AISalesAssistant
+                cartItems={items}
+                availableProducts={availableProducts.map(dbProduct => ({
+                  id: dbProduct.id,
+                  name: dbProduct.name,
+                  category: dbProduct.category as any,
+                  price: dbProduct.price,
+                  originalPrice: dbProduct.original_price,
+                  description: dbProduct.description,
+                  image: dbProduct.image_url || 'https://images.pexels.com/photos/1092730/pexels-photo-1092730.jpeg?auto=compress&cs=tinysrgb&w=400',
+                  isActive: dbProduct.is_active,
+                  complementGroups: dbProduct.complement_groups || [],
+                  sizes: dbProduct.sizes || []
+                }))}
+                onAddSuggestion={(product, reason) => {
+                  // Close suggestions after adding
+                  setShowAISuggestions(false);
+                  
+                  // Show notification that user should add via main menu
+                  const suggestionMessage = document.createElement('div');
+                  suggestionMessage.className = 'fixed top-4 right-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white px-4 py-3 rounded-lg shadow-lg z-50 max-w-sm';
+                  suggestionMessage.innerHTML = `
+                    <div class="flex items-start gap-3">
+                      <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                      </svg>
+                      <div>
+                        <p class="font-medium text-sm">💡 Sugestão da IA</p>
+                        <p class="text-xs opacity-90 mt-1">Volte ao cardápio para adicionar <strong>${product.name}</strong></p>
+                        <p class="text-xs opacity-75 mt-1">${reason.replace(/\*\*(.*?)\*\*/g, '$1')}</p>
+                      </div>
+                    </div>
+                  `;
+                  document.body.appendChild(suggestionMessage);
+                  
+                  setTimeout(() => {
+                    if (document.body.contains(suggestionMessage)) {
+                      document.body.removeChild(suggestionMessage);
+                    }
+                  }, 6000);
+                }}
+              />
+            </div>
+          )}
 
           {/* Pickup Scheduler (only for pickup) */}
           {deliveryType === 'pickup' && (

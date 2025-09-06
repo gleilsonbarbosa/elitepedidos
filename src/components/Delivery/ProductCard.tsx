@@ -24,7 +24,20 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal, isSpeci
   const { getPromotionForProduct } = usePromotions();
   
   const activePromotion = getPromotionForProduct(product.id);
+  
+  // activePromotions já vem filtrado pelo período correto do hook
   const hasActivePromotion = !!activePromotion;
+  
+ console.log(`🎯 [PRODUCT-${product.id.slice(-4)}] Promoção para "${product.name}":`, {
+    hasActivePromotion,
+    promotionTitle: activePromotion?.title,
+    promotionId: activePromotion?.id?.slice(-4),
+    productPrice: product.price,
+   promotionalPrice: activePromotion?.promotional_price,
+   promotionStartTime: activePromotion?.start_time,
+   promotionEndTime: activePromotion?.end_time,
+   currentTime: new Date().toLocaleString('pt-BR')
+  });
 
   const getDisplayPrice = () => {
     if (product.pricePerGram) {

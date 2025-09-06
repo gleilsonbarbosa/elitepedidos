@@ -83,33 +83,10 @@ const PromotionBanner: React.FC<PromotionBannerProps> = ({ onPromotionClick }) =
   };
 
   const isPromotionStarted = (promotion: ActivePromotion) => {
-    // Usar horário de Brasília
-    const now = currentTime;
-    const brasiliaOffset = -3; // UTC-3
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    const brasilia = new Date(utc + (brasiliaOffset * 3600000));
-    
-    // Obter horário de abertura da loja para hoje
-    const currentDay = brasilia.getDay();
-    const todayHours = storeHours.find(h => h.day_of_week === currentDay);
-    
-    let effectiveStartTime = new Date(promotion.start_time);
-    
-    // Se há horário de abertura configurado
-    if (todayHours && todayHours.is_open && todayHours.open_time) {
-      const [openHour, openMinute] = todayHours.open_time.split(':').map(Number);
-      
-      // Criar data de abertura para hoje
-      const storeOpeningToday = new Date(brasilia);
-      storeOpeningToday.setHours(openHour, openMinute, 0, 0);
-      
-      // Se a promoção está programada para começar antes da abertura da loja
-      if (effectiveStartTime < storeOpeningToday) {
-        effectiveStartTime = storeOpeningToday;
-      }
-    }
-    
-    return brasilia >= effectiveStartTime;
+    // activePromotions já vem filtrado pelo período correto
+    // Se chegou até aqui, a promoção já está ativa
+    console.log(`🎪 [BANNER] Promoção "${promotion.title}" está ativa e será exibida`);
+    return true;
   };
   if (activePromotions.length === 0) {
     return null;

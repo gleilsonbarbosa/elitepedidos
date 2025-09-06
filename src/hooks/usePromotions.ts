@@ -67,8 +67,46 @@ export const usePromotions = () => {
   const updateActivePromotions = useCallback((promotionsData: Promotion[]) => {
     const now = new Date();
     
+    console.log('🔍 [PROMOTIONS] Verificando promoções ativas:', {
+      totalPromotions: promotionsData.length,
+      currentTime: now.toLocaleString('pt-BR'),
+      currentTimestamp: now.getTime()
+    });
+    
     const active = promotionsData
-      .filter(promo => promo.is_active)
+      .filter(promo => {
+        console.log(`🔍 [PROMO-${promo.id.slice(-4)}] Verificando "${promo.title}":`, {
+          start_time: promo.start_time,
+         end_time: promo.end_time,
+         is_active_in_db: promo.is_active
+        });
+        
+        // Check if promotion is within its scheduled time period
+        const startTime = new Date(promo.start_time);
+        const endTime = new Date(promo.end_time);
+        const nowTime = now.getTime();
+        const startTimeMs = startTime.getTime();
+        const endTimeMs = endTime.getTime();
+        
+        const hasStarted = nowTime >= startTimeMs;
+        const hasNotEnded = nowTime <= endTimeMs;
+        const isWithinPeriod = hasStarted && hasNotEnded;
+        
+        console.log(`📅 [PROMO-${promo.id.slice(-4)}] "${promo.title}":`, {
+          startTime: startTime.toLocaleString('pt-BR'),
+          endTime: endTime.toLocaleString('pt-BR'),
+          currentTime: now.toLocaleString('pt-BR'),
+          hasStarted,
+          hasNotEnded,
+          isWithinPeriod,
+         isActiveInDb: promo.is_active,
+         finalDecision: isWithinPeriod,
+          willBeIncluded: isWithinPeriod
+        });
+        
+       // Only include if within time period, regardless of is_active flag
+        return isWithinPeriod;
+      })
       .map(promo => {
         const endTime = new Date(promo.end_time);
         const timeRemaining = endTime.getTime() - now.getTime();
@@ -82,6 +120,12 @@ export const usePromotions = () => {
       })
       .filter(promo => !promo.is_expired); // Only include non-expired promotions
 
+    console.log('✅ [PROMOTIONS] Resultado final:', {
+      totalPromotions: promotionsData.length,
+      activePromotions: active.length,
+      activePromotionIds: active.map(p => ({ id: p.id.slice(-4), title: p.title }))
+    });
+    
     setActivePromotions(active);
   }, []);
 

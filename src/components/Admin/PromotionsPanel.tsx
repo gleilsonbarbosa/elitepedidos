@@ -218,19 +218,53 @@ const PromotionsPanel: React.FC = () => {
     const now = new Date();
     const start = new Date(promotion.start_time);
     const end = new Date(promotion.end_time);
+    const nowTime = now.getTime();
+    const startTime = start.getTime();
+    const endTime = end.getTime();
     
-    return promotion.is_active && now >= start && now <= end;
+    const isWithinPeriod = nowTime >= startTime && nowTime <= endTime;
+    const result = promotion.is_active && isWithinPeriod;
+    
+    console.log(`🎯 [ADMIN-ACTIVE] Promoção "${promotion.title}" está ativa?`, {
+      is_active: promotion.is_active,
+      isWithinPeriod,
+      result,
+      startTime: start.toLocaleString('pt-BR'),
+      endTime: end.toLocaleString('pt-BR'),
+      currentTime: now.toLocaleString('pt-BR')
+    });
+    
+    return result;
   };
 
   const getPromotionStatus = (promotion: Promotion) => {
     const now = new Date();
     const start = new Date(promotion.start_time);
     const end = new Date(promotion.end_time);
+    const nowTime = now.getTime();
+    const startTime = start.getTime();
+    const endTime = end.getTime();
     
-    if (!promotion.is_active) return { label: 'Inativa', color: 'bg-gray-100 text-gray-800' };
-    if (now < start) return { label: 'Agendada', color: 'bg-blue-100 text-blue-800' };
-    if (now > end) return { label: 'Expirada', color: 'bg-red-100 text-red-800' };
-    return { label: 'Ativa', color: 'bg-green-100 text-green-800' };
+    console.log(`🔍 [ADMIN-STATUS] Promoção "${promotion.title}":`, {
+      now: now.toLocaleString('pt-BR'),
+      start: start.toLocaleString('pt-BR'),
+      end: end.toLocaleString('pt-BR'),
+     isActiveInDb: promotion.is_active,
+      nowBeforeStart: nowTime < startTime,
+      nowAfterEnd: nowTime > endTime,
+     nowWithinPeriod: nowTime >= startTime && nowTime <= endTime,
+     finalStatus: nowTime < startTime ? 'Agendada' : nowTime > endTime ? 'Expirada' : 'Ativa'
+    });
+    
+   // Status based on time period, not is_active flag
+    if (nowTime < startTime) return { label: 'Agendada', color: 'bg-blue-100 text-blue-800' };
+    if (nowTime > endTime) return { label: 'Expirada', color: 'bg-red-100 text-red-800' };
+   if (nowTime >= startTime && nowTime <= endTime) {
+     return promotion.is_active 
+       ? { label: 'Ativa', color: 'bg-green-100 text-green-800' }
+       : { label: 'Inativa', color: 'bg-gray-100 text-gray-800' };
+   }
+   return { label: 'Inativa', color: 'bg-gray-100 text-gray-800' };
   };
 
   if (loading) {

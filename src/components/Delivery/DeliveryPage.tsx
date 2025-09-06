@@ -11,6 +11,8 @@ import CheckoutModal from './CheckoutModal';
 import RepeatOrderButton from './RepeatOrderButton';
 import PromotionBanner from './PromotionBanner';
 import PromotionCountdown from './PromotionCountdown';
+import SmartUpsellBanner from './SmartUpsellBanner';
+import PushNotificationBanner from './PushNotificationBanner';
 import { categoryNames } from '../../data/products';
 import { Product } from '../../types/product';
 import { CartItem } from '../../types/cart';
@@ -299,6 +301,11 @@ const DeliveryPage: React.FC = () => {
       {/* Status da Loja */}
       <section className="py-4 bg-white">
         <div className="max-w-6xl mx-auto px-4">
+          {/* Push Notification Banner */}
+          <div className="mb-6">
+            <PushNotificationBanner />
+          </div>
+          
           {/* Promotion Banners */}
           {activePromotions.length > 0 && (
             <div className="mb-6">
@@ -391,6 +398,19 @@ const DeliveryPage: React.FC = () => {
       {/* Menu de Categorias */}
       <section className="py-8 bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4">
+          {/* Smart Upsell Banner - Show when cart has items */}
+          {getTotalItems() > 0 && (
+            <div className="mb-6">
+              <SmartUpsellBanner
+                cartItems={items}
+                availableProducts={activeProducts}
+                onProductSelect={(product) => {
+                  setSelectedProduct(product);
+                }}
+              />
+            </div>
+          )}
+          
           <div className="flex flex-wrap gap-4 justify-center">
             {availableCategories.map((category) => (
               <button
@@ -622,6 +642,11 @@ const DeliveryPage: React.FC = () => {
         totalPrice={getTotalPrice()}
         disabled={!storeStatus.isOpen}
         onEditItem={handleEditCartItem}
+        availableProducts={activeProducts}
+        onAddProduct={(product) => {
+          // Add product with default settings
+          addToCart(product, undefined, 1, '', []);
+        }}
         onCheckout={() => {
           setIsCartOpen(false);
           setShowCheckout(true);

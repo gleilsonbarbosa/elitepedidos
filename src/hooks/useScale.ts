@@ -73,8 +73,6 @@ export const useScale = () => {
       });
       console.log('✅ Conexão simulada estabelecida para ambiente de teste');
       return true;
-      
-      return false;
     }
 
     try {
@@ -83,20 +81,27 @@ export const useScale = () => {
       
       console.log('🔌 Iniciando conexão com a balança...');
       
+      // Close any existing connection first
+      if (portRef.current) {
+        try {
+          console.log('🔌 Fechando conexão anterior...');
+          if (readerRef.current) {
+            await readerRef.current.cancel();
+            readerRef.current = null;
+          }
+          await portRef.current.close();
+          portRef.current = null;
+          console.log('✅ Conexão anterior fechada');
+        } catch (closeError) {
+          console.warn('⚠️ Erro ao fechar conexão anterior (não crítico):', closeError);
+        }
+      }
+      
       // Always request a new port to ensure user interaction
       try {
         const port = await navigator.serial.requestPort();
-        
-        // Close existing port if any
-        if (portRef.current && portRef.current !== port) {
-          try {
-            await portRef.current.close();
-          } catch (closeError) {
-            console.warn('⚠️ Error closing previous port:', closeError);
-          }
-        }
-        
         portRef.current = port;
+        console.log('✅ Porta serial selecionada pelo usuário');
       } catch (requestError) {
         if (requestError instanceof Error && requestError.name === 'NotFoundError') {
           setLastError('Nenhuma porta foi selecionada. Selecione uma porta para conectar à balança.');
@@ -106,57 +111,171 @@ export const useScale = () => {
         return false;
       }
 
-      // Check if port is already open
-      if (portRef.current.readable && portRef.current.writable) {
-        console.log('✅ Port already open, reusing connection');
-      } else {
-        // Try to open the port with error handling
-        try {
-          await portRef.current.open({
-            baudRate: scaleConfig.baudRate,
-            dataBits: scaleConfig.dataBits,
-            stopBits: scaleConfig.stopBits,
-            parity: scaleConfig.parity,
-            flowControl: scaleConfig.flowControl
-          });
-        } catch (openError) {
-          if (openError instanceof Error) {
-            if (openError.message.includes('already open')) {
-              console.log('✅ Port was already open');
-            } else if (openError.message.includes('Failed to open')) {
-              setLastError('Falha ao abrir a porta serial. Verifique se:\n• A balança está conectada\n• Nenhum outro programa está usando a porta\n• Os drivers estão instalados corretamente');
-              return false;
-            } else {
-              throw openError;
-            }
+      // Try to open the port with improved error handling
+      try {
+        console.log('🔓 Tentando abrir porta serial com configurações:', {
+          baudRate: scaleConfig.baudRate,
+          dataBits: scaleConfig.dataBits,
+          stopBits: scaleConfig.stopBits,
+          parity: scaleConfig.parity,
+          flowControl: scaleConfig.flowControl
+        });
+        
+        await portRef.current.open({
+          baudRate: scaleConfig.baudRate,
+          dataBits: scaleConfig.dataBits,
+          stopBits: scaleConfig.stopBits,
+          parity: scaleConfig.parity,
+          flowControl: scaleConfig.flowControl
+        });
+        
+        console.log('✅ Porta serial aberta com sucesso');
+      } catch (openError) {
+        console.error('❌ Erro detalhado ao abrir porta:', openError);
+        
+        if (openError instanceof Error) {
+          if (openError.message.includes('already open')) {
+            console.log('✅ Porta já estava aberta, continuando...');
+          } else if (openError.message.includes('Failed to open')) {
+            setLastError(
+              'Falha ao abrir a porta serial. Possíveis soluções:\n\n' +
+              '1. Verifique se a balança está conectada via USB\n' +
+              '2. Feche outros programas que possam estar usando a porta\n' +
+              '3. Desconecte e reconecte o cabo USB\n' +
+              '4. Verifique se os drivers da balança estão instalados\n' +
+              '5. Tente uma porta diferente\n' +
+              '6. Reinicie o navegador\n\n' +
+              `Erro técnico: ${openError.message}`
+            );
+            return false;
+          } else if (openError.message.includes('Access denied')) {
+            setLastError(
+              'Acesso negado à porta serial. Soluções:\n\n' +
+              '1. Execute o navegador como administrador\n' +
+              '2. Verifique as permissões do dispositivo\n' +
+              '3. Desconecte outros programas da balança\n' +
+              '4. Reinicie o computador\n\n' +
+              `Erro técnico: ${openError.message}`
+            );
+            return false;
+          } else if (openError.message.includes('Device not found')) {
+            setLastError(
+              'Dispositivo não encontrado. Soluções:\n\n' +
+              '1. Verifique se a balança está ligada\n' +
+              '2. Verifique se o cabo USB está conectado\n' +
+              '3. Teste o cabo USB em outra porta\n' +
+              '4. Verifique se os drivers estão instalados\n' +
+              '5. Tente reiniciar a balança\n\n' +
+              `Erro técnico: ${openError.message}`
+            );
+            return false;
           } else {
-            throw openError;
+            setLastError(
+              'Erro desconhecido ao abrir porta serial:\n\n' +
+              `${openError.message}\n\n` +
+              'Soluções gerais:\n' +
+              '1. Reinicie o navegador\n' +
+              '2. Desconecte e reconecte a balança\n' +
+              '3. Verifique se não há conflitos de software\n' +
+              '4. Tente usar uma porta USB diferente'
+            );
+            return false;
           }
+        } else {
+          setLastError('Erro desconhecido ao abrir porta serial. Tente novamente.');
+          return false;
         }
+      }
+      
+      // Verify the connection is working
+      try {
+        if (!portRef.current.readable || !portRef.current.writable) {
+          throw new Error('Porta aberta mas não está legível/gravável');
+        }
+        console.log('✅ Porta serial verificada - legível e gravável');
+      } catch (verifyError) {
+        console.error('❌ Erro na verificação da porta:', verifyError);
+        setLastError(
+          'Porta aberta mas não funcional. Soluções:\n\n' +
+          '1. Desconecte e reconecte a balança\n' +
+          '2. Verifique se os drivers estão corretos\n' +
+          '3. Tente uma configuração diferente (baud rate)\n' +
+          '4. Reinicie a balança\n\n' +
+          `Erro técnico: ${verifyError instanceof Error ? verifyError.message : 'Erro desconhecido'}`
+        );
+        return false;
       }
 
       setConnection({
         isConnected: true,
         port: portName || 'Selected Port',
-        model: 'Toledo Prix 3 Fit'
+        model: 'Balança Serial Conectada'
       });
 
       selectedPortRef.current = portName || 'Selected Port';
-      console.log('✅ Scale connected successfully');
+      console.log('✅ Balança conectada com sucesso');
+      
+      // Start reading automatically after successful connection
+      if (startReadingRef.current) {
+        setTimeout(() => {
+          if (startReadingRef.current) {
+            startReadingRef.current();
+          }
+        }, 1000);
+      }
+      
       return true;
     } catch (error) {
       console.error('❌ Error connecting to scale:', error);
       
       if (error instanceof Error) {
         if (error.name === 'NotFoundError') {
-          setLastError('Dispositivo não encontrado. Verifique se a balança está conectada.');
+          setLastError(
+            'Dispositivo não encontrado. Soluções:\n\n' +
+            '1. Verifique se a balança está ligada\n' +
+            '2. Verifique se o cabo USB está conectado firmemente\n' +
+            '3. Teste o cabo em outra porta USB\n' +
+            '4. Verifique se os drivers da balança estão instalados\n' +
+            '5. Reinicie a balança e tente novamente'
+          );
         } else if (error.name === 'SecurityError') {
-          setLastError('Acesso negado. Permita o acesso à porta serial quando solicitado.');
+          setLastError(
+            'Acesso negado à porta serial. Soluções:\n\n' +
+            '1. Clique em "Permitir" quando o navegador solicitar acesso\n' +
+            '2. Execute o navegador como administrador\n' +
+            '3. Verifique as configurações de segurança do navegador\n' +
+            '4. Desative temporariamente o antivírus\n' +
+            '5. Tente usar outro navegador (Chrome, Edge, Opera)'
+          );
+        } else if (error.name === 'NetworkError') {
+          setLastError(
+            'Erro de rede/comunicação. Soluções:\n\n' +
+            '1. Verifique se a balança está respondendo\n' +
+            '2. Teste com configurações diferentes (baud rate)\n' +
+            '3. Verifique se o cabo não está danificado\n' +
+            '4. Reinicie a balança\n' +
+            '5. Tente uma porta USB diferente'
+          );
         } else {
-          setLastError(`Erro ao conectar: ${error.message}`);
+          setLastError(
+            `Erro ao conectar à balança:\n\n${error.message}\n\n` +
+            'Soluções gerais:\n' +
+            '1. Reinicie o navegador\n' +
+            '2. Desconecte e reconecte a balança\n' +
+            '3. Verifique se não há conflitos de software\n' +
+            '4. Tente configurações diferentes\n' +
+            '5. Consulte o manual da balança'
+          );
         }
       } else {
-        setLastError('Erro desconhecido ao conectar à balança.');
+        setLastError(
+          'Erro desconhecido ao conectar à balança.\n\n' +
+          'Tente as seguintes soluções:\n' +
+          '1. Reinicie o navegador\n' +
+          '2. Reinicie a balança\n' +
+          '3. Verifique todas as conexões\n' +
+          '4. Entre em contato com o suporte técnico'
+        );
       }
       return false;
     }
@@ -179,12 +298,20 @@ export const useScale = () => {
       }
 
       if (readerRef.current) {
-        await readerRef.current.cancel();
+        try {
+          await readerRef.current.cancel();
+        } catch (cancelError) {
+          console.warn('⚠️ Erro ao cancelar leitor (não crítico):', cancelError);
+        }
         readerRef.current = null;
       }
 
       if (portRef.current) {
-        await portRef.current.close();
+        try {
+          await portRef.current.close();
+        } catch (closeError) {
+          console.warn('⚠️ Erro ao fechar porta (não crítico):', closeError);
+        }
         portRef.current = null;
       }
 
@@ -192,10 +319,12 @@ export const useScale = () => {
       console.log('✅ Balança desconectada com sucesso');
       setCurrentWeight(null);
       setReconnecting(false);
-      return true;
     } catch (error) {
       console.error('❌ Error disconnecting:', error);
-      return false;
+      // Even if there's an error, reset the connection state
+      setConnection({ isConnected: false });
+      setCurrentWeight(null);
+      setReconnecting(false);
     }
   }, []);
 
@@ -209,6 +338,7 @@ export const useScale = () => {
     try {
       setIsReading(true);
       setLastError(null);
+      console.log('📖 Iniciando leitura de dados da balança...');
 
       const reader = portRef.current.readable?.getReader();
       if (!reader) {
@@ -216,14 +346,20 @@ export const useScale = () => {
       }
 
       readerRef.current = reader;
+      console.log('✅ Leitor da porta obtido com sucesso');
 
       while (isReading && connection.isConnected) {
         try {
           const { value, done } = await reader.read();
-          if (done) break;
+          if (done) {
+            console.log('📖 Leitura finalizada (done=true)');
+            break;
+          }
 
           const text = new TextDecoder().decode(value);
-          console.log('📊 Raw scale data:', text);
+          if (text.trim()) {
+            console.log('📊 Dados brutos da balança:', text.trim());
+          }
 
           const weightData = parseToledoWeight(text);
           if (weightData) {
@@ -236,19 +372,55 @@ export const useScale = () => {
 
             setCurrentWeight(reading);
             lastWeightRef.current = reading;
-            console.log('⚖️ Weight reading:', reading);
+            console.log('⚖️ Leitura de peso:', reading);
           }
         } catch (readError) {
           console.error('❌ Error reading from scale:', readError);
-          if (reconnectRef.current) {
-            await reconnectRef.current();
+          
+          // Handle specific read errors
+          if (readError instanceof Error) {
+            if (readError.message.includes('device lost')) {
+              setLastError('Dispositivo desconectado. Reconecte a balança e tente novamente.');
+              setConnection({ isConnected: false });
+              break;
+            } else if (readError.message.includes('network error')) {
+              setLastError('Erro de comunicação com a balança. Verifique a conexão.');
+              break;
+            }
+          }
+          
+          // Try to reconnect if we have the function
+          if (reconnectRef.current && connection.isConnected) {
+            console.log('🔄 Tentando reconectar após erro de leitura...');
+            try {
+              await reconnectRef.current();
+            } catch (reconnectError) {
+              console.error('❌ Erro na reconexão:', reconnectError);
+              setConnection({ isConnected: false });
+            }
           }
           break;
         }
       }
+      
+      console.log('📖 Loop de leitura finalizado');
     } catch (error) {
       console.error('❌ Error starting reading:', error);
-      setLastError(`Erro na leitura: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      
+      let errorMessage = 'Erro na leitura da balança';
+      if (error instanceof Error) {
+        errorMessage = `Erro na leitura: ${error.message}\n\n`;
+        
+        if (error.message.includes('device not found')) {
+          errorMessage += 'A balança foi desconectada. Reconecte e tente novamente.';
+        } else if (error.message.includes('permission')) {
+          errorMessage += 'Permissão negada. Execute o navegador como administrador.';
+        } else {
+          errorMessage += 'Verifique a conexão e tente novamente.';
+        }
+      }
+      
+      setLastError(errorMessage);
       setIsReading(false);
     }
   }, [connection.isConnected, isReading]);
@@ -286,10 +458,89 @@ export const useScale = () => {
   // Update scale configuration
   const updateConfig = useCallback((newConfig: Partial<typeof scaleConfig>): void => {
     setScaleConfig(prev => ({ ...prev, ...newConfig }));
+    console.log('⚙️ Configuração da balança atualizada:', newConfig);
   }, []);
 
-  // Rest of the code remains the same...
+  // Test connection without full setup
+  const testConnection = useCallback(async (): Promise<boolean> => {
+    if (!isWebSerialSupported) {
+      setLastError('Web Serial API não suportado neste navegador');
+      return false;
+    }
 
+    try {
+      console.log('🧪 Testando conexão com a balança...');
+      
+      // Request port
+      const port = await navigator.serial.requestPort();
+      
+      // Try to open with minimal configuration
+      await port.open({
+        baudRate: 9600, // Try standard baud rate first
+        dataBits: 8,
+        stopBits: 1,
+        parity: 'none',
+        flowControl: 'none'
+      });
+      
+      console.log('✅ Teste de conexão bem-sucedido');
+      
+      // Close the test connection
+      await port.close();
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Teste de conexão falhou:', error);
+      
+      if (error instanceof Error) {
+        setLastError(`Teste falhou: ${error.message}`);
+      }
+      
+      return false;
+    }
+  }, [isWebSerialSupported]);
+
+  // Get detailed port information
+  const getPortInfo = useCallback(async () => {
+    if (!isWebSerialSupported) {
+      return { supported: false, ports: [] };
+    }
+
+    try {
+      const ports = await navigator.serial.getPorts();
+      const portInfo = await Promise.all(
+        ports.map(async (port, index) => {
+          try {
+            const info = await port.getInfo();
+            return {
+              index,
+              vendorId: info.usbVendorId,
+              productId: info.usbProductId,
+              connected: port.readable !== null
+            };
+          } catch (err) {
+            return {
+              index,
+              error: err instanceof Error ? err.message : 'Erro desconhecido'
+            };
+          }
+        })
+      );
+      
+      return {
+        supported: true,
+        ports: portInfo,
+        totalPorts: ports.length
+      };
+    } catch (error) {
+      console.error('❌ Erro ao obter informações das portas:', error);
+      return { supported: true, ports: [], error: error instanceof Error ? error.message : 'Erro desconhecido' };
+    }
+  }, [isWebSerialSupported]);
+
+  // Set up refs for circular dependency resolution
+  startReadingRef.current = startReading;
+  reconnectRef.current = connect;
   return {
     connection,
     currentWeight,
@@ -305,7 +556,9 @@ export const useScale = () => {
     listAvailablePorts,
     requestStableWeight,
     simulateWeight,
-    updateConfig
+    updateConfig,
+    testConnection,
+    getPortInfo
   };
 };
 
