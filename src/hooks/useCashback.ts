@@ -386,8 +386,8 @@ export const useCashback = () => {
         // Fix malformed currency error messages from Supabase
         let errorMessage = error.message || 'Erro ao processar resgate de cashback';
         
-        // Check for malformed currency format like "R$ 1.10531325.2f"
-        const malformedCurrencyMatch = errorMessage.match(/R\$ ([\d.]+)(?:\.2f)?/);
+        // Check for malformed currency format like "R$ -18.9100500000000002.2f"
+        const malformedCurrencyMatch = errorMessage.match(/R\$ (-?[\d.]+)(?:\.2f)?/);
         if (malformedCurrencyMatch) {
           const numericValue = parseFloat(malformedCurrencyMatch[1]);
           if (!isNaN(numericValue)) {
