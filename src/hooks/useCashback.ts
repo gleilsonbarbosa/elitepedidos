@@ -372,18 +372,20 @@ export const useCashback = () => {
       const roundedAmountCents = Math.round(roundedAmount * 100);
       
       // CRÍTICO: Se saldo é zero ou negativo, bloquear imediatamente
+      if (availableBalance <= 0) {
+        console.log('💰 Verificação de saldo mensal:', {
           availableBalance,
           monthlyBalance,
-        monthlyBalanceRaw: monthlyBalance,
-        finalBalance: finalBalance,
+          monthlyBalanceRaw: monthlyBalance,
+          finalBalance: finalBalance,
           requestedAmount: roundedAmount
         });
         throw new Error('Você não possui cashback disponível no mês atual.');
       }
       
       console.log('💰 Verificação de saldo mensal:', {
-      // CRÍTICO: Se saldo é negativo, retornar 0 para evitar erro no banco
-      const finalBalance = Math.max(0, monthlyBalance);
+        // CRÍTICO: Se saldo é negativo, retornar 0 para evitar erro no banco
+        // const finalBalance = Math.max(0, monthlyBalance);
         requestedCents: roundedAmountCents,
         availableCents: availableBalanceCents,
         monthlyBalanceRaw: monthlyBalance,
