@@ -9,6 +9,7 @@ import IARecommender from './IARecommender';
 import StoreStatusBanner from './StoreStatusBanner';
 import CheckoutModal from './CheckoutModal';
 import MostOrderedSection from './MostOrderedSection';
+import RepeatOrderButton from './RepeatOrderButton';
 import { categoryNames } from '../../data/products';
 import { Product } from '../../types/product';
 import { CartItem } from '../../types/cart';
@@ -504,18 +505,36 @@ const DeliveryPage: React.FC = () => {
               : 'Monte seu carrinho e receba seu açaí fresquinho em casa!'
             }
           </p>
-          <button
-            onClick={() => setIsCartOpen(true)}
-            disabled={!storeStatus.isOpen}
-            className={`px-8 py-4 rounded-full font-semibold text-lg transition-all duration-300 transform hover:scale-105 inline-flex items-center gap-2 shadow-lg ${
-              storeStatus.isOpen
-                ? 'bg-white text-purple-600 hover:bg-gray-100'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            <ShoppingCart size={24} />
-            {storeStatus.isOpen ? `Ver Carrinho (${getTotalItems()})` : 'Loja Fechada'}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <RepeatOrderButton
+              availableProducts={activeProducts}
+              onAddItemsToCart={(items) => {
+                items.forEach(item => {
+                  addToCart(
+                    item.product,
+                    item.selectedSize,
+                    item.quantity,
+                    item.observations,
+                    item.selectedComplements
+                  );
+                });
+                setIsCartOpen(true);
+              }}
+            />
+            
+            <button
+              onClick={() => setIsCartOpen(true)}
+              disabled={!storeStatus.isOpen}
+              className={`px-8 py-4 rounded-full font-semibold text-lg transition-all duration-300 transform hover:scale-105 inline-flex items-center gap-2 shadow-lg ${
+                storeStatus.isOpen
+                  ? 'bg-white text-purple-600 hover:bg-gray-100'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              <ShoppingCart size={24} />
+              {storeStatus.isOpen ? `Ver Carrinho (${getTotalItems()})` : 'Loja Fechada'}
+            </button>
+          </div>
         </div>
       </section>
       
