@@ -121,6 +121,7 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
 
   // Efeito para tocar som quando novos pedidos chegarem
   useEffect(() => {
+    const handleNewOrders = async () => {
     // Contar pedidos pendentes
     const currentPendingCount = orders.filter(order => order.status === 'pending').length;
     setPendingOrdersCount(currentPendingCount);
@@ -191,6 +192,9 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
     
     // Atualizar contagem para próxima verificação
     setLastOrderCount(currentPendingCount);
+    };
+
+    handleNewOrders();
   }, [orders, lastOrderCount, soundEnabled, printerSettings.auto_print_enabled, thermalPrinter]);
 
   // Função para impressão tradicional (fallback)
