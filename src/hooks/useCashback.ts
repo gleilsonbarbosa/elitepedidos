@@ -326,6 +326,11 @@ export const useCashback = () => {
       }
 
       // Verificar se o cliente tem saldo suficiente
+      // Calcular saldo do mês atual
+      const now = new Date();
+      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      
       const { data: balanceData, error: customerError } = await supabase
         .from('transactions')
         .select('*')
@@ -333,18 +338,13 @@ export const useCashback = () => {
         .eq('status', 'approved')
         .gte('created_at', currentMonthStart.toISOString())
         .lt('created_at', nextMonthStart.toISOString());
+        .gte('created_at', currentMonthStart.toISOString())
+        .lt('created_at', nextMonthStart.toISOString());
 
       if (customerError) throw customerError;
 
-      // Usar centavos para cálculos precisos
-      let monthlyBalanceCents = 0;
-      (balanceData || []).forEach(transaction => {
-        // Converter para centavos
-        const cashbackAmountCents = Math.round(transaction.cashback_amount * 100);
-        
-        if (transaction.type === 'purchase' && transaction.cashback_amount > 0) {
-          monthlyBalanceCents += cashbackAmountCents;
-        } else if (transaction.type === 'redemption' && transaction.cashback_amount < 0) {
+      // Transações já filtradas pela query do banco
+      const currentMonthTransactions = balanceData || [];
           monthlyBalanceCents += cashbackAmountCents; // Já é negativo
         }
       });
