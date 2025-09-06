@@ -8,7 +8,6 @@ import Cart from './Cart';
 import IARecommender from './IARecommender';
 import StoreStatusBanner from './StoreStatusBanner';
 import CheckoutModal from './CheckoutModal';
-import MostOrderedSection from './MostOrderedSection';
 import RepeatOrderButton from './RepeatOrderButton';
 import { categoryNames } from '../../data/products';
 import { Product } from '../../types/product';
@@ -17,7 +16,7 @@ import { useCart } from '../../hooks/useCart';
 import { useStoreHours } from '../../hooks/useStoreHours';
 import { useProductScheduling } from '../../hooks/useProductScheduling';
 import { useRecommendations } from '../../hooks/useRecommendations';
-import { useDeliveryProducts, useMostOrderedProducts } from '../../hooks/useDeliveryProducts';
+import { useDeliveryProducts } from '../../hooks/useDeliveryProducts';
 import { 
   getPromotionsOfTheDay, 
   hasTodaySpecialPromotions, 
@@ -55,7 +54,6 @@ const DeliveryPage: React.FC = () => {
   const productScheduling = useProductScheduling();
   const { getRecommendations } = useRecommendations();
   const { products: deliveryProducts, loading: productsLoading, refetch: refetchProducts } = useDeliveryProducts();
-  const { mostOrdered } = useMostOrderedProducts();
   
   // Configurar hook para funções de availability
   React.useEffect(() => {
@@ -397,20 +395,6 @@ const DeliveryPage: React.FC = () => {
       </section>
       
       {/* Cardápio */}
-      {/* Most Ordered Products Section */}
-      <MostOrderedSection 
-        onProductClick={(productName) => {
-          // Find product by name and open modal
-          const product = activeProducts.find(p => p.name === productName);
-          if (product) {
-            setSelectedProduct(product);
-          } else {
-            // If not found in active products, scroll to menu
-            document.getElementById('cardapio')?.scrollIntoView({ behavior: 'smooth' });
-          }
-        }}
-      />
-      
       <section id="cardapio" className="py-12">
         <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-12">
