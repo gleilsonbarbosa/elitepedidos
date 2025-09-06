@@ -249,7 +249,11 @@ const DeliveryPage: React.FC = () => {
       id: key as keyof typeof categoryNames, 
       label,
       count: activeProducts.filter(p => p.category === key).length
-    }))
+    })).filter(category => {
+      // Remove categorias específicas
+      const categoriesToRemove = ['complementos', 'sobremesas', 'outros'];
+      return !categoriesToRemove.includes(category.id);
+    })
   ];
 
   // Verificar se a loja está aberta
