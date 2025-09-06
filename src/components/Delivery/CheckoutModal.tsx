@@ -74,13 +74,23 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
             
             // Get customer balance
             const balance = await getCustomerBalance(customer.id);
-            setCustomerBalance(balance);
+            
+            // Only set balance if it's positive
+            if (balance && balance.available_balance > 0) {
+              setCustomerBalance(balance);
+            } else {
+              setCustomerBalance(null);
+              setAppliedCashback(0); // Reset any applied cashback
+            }
           } else {
             setCustomerId(null);
             setCustomerBalance(null);
+            setAppliedCashback(0);
           }
         } catch (error) {
           console.error('Erro ao buscar cliente:', error);
+          setCustomerBalance(null);
+          setAppliedCashback(0);
         }
       }
     };
@@ -138,6 +148,13 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     const availableBalance = customerBalance?.available_balance || 0;
     const orderTotal = totalPrice + getDeliveryFee();
     
+    // Prevent applying cashback if balance is zero or negative
+    if (availableBalance <= 0) {
+      console.warn('⚠️ Tentativa de aplicar cashback com saldo zero/negativo:', availableBalance);
+      setAppliedCashback(0);
+      return;
+    }
+    
     // Round to 2 decimal places with consistent precision handling
     const roundedBalance = Math.round(availableBalance * 100) / 100;
     const roundedOrderTotal = Math.round(orderTotal * 100) / 100;
@@ -146,6 +163,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     // Use consistent rounding for all values
     const maxAmount = Math.min(roundedBalance, roundedOrderTotal);
     const appliedAmount = Math.min(roundedAmount, maxAmount);
+    
+    // Final safety check
+    if (appliedAmount <= 0) {
+      setAppliedCashback(0);
+      return;
+    }
     
     setAppliedCashback(appliedAmount);
   };
@@ -208,6 +231,17 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     try {
       // Process cashback transactions if applied
       if (appliedCashback > 0 && customerId) {
+        // Double-check balance before processing redemption
+        const currentBalance = await getCustomerBalance(customerId);
+        if (!currentBalance || currentBalance.available_balance <= 0) {
+          throw new Error('Cashback não disponível. Saldo atual: R$ 0,00');
+        }
+        
+        if (currentBalance.available_balance < appliedCashback) {
+          const formattedBalance = formatPrice(currentBalance.available_balance);
+          throw new Error(`Saldo insuficiente. Disponível: ${formattedBalance}`);
+        }
+        
         console.log('🎁 Processando resgate de cashback:', { customerId, appliedCashback });
         try {
           const redemptionResult = await createRedemptionTransaction(customerId, appliedCashback);

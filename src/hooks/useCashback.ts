@@ -376,7 +376,13 @@ export const useCashback = () => {
           style: 'currency',
           currency: 'BRL'
         }).format(availableBalance);
-        throw new Error(`Saldo insuficiente no mês atual. Disponível: ${formattedBalance}`);
+        
+        // Se o saldo é negativo, não permitir resgate
+        if (availableBalance <= 0) {
+          throw new Error(`Você não possui cashback disponível no mês atual.`);
+        } else {
+          throw new Error(`Saldo insuficiente no mês atual. Disponível: ${formattedBalance}`);
+        }
       }
 
       const { data, error } = await supabase
