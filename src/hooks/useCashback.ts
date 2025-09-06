@@ -353,6 +353,9 @@ export const useCashback = () => {
         }
       });
 
+      // Explicitly round monthlyBalance to prevent floating-point precision issues
+      monthlyBalance = Math.round(monthlyBalance * 100) / 100;
+
       // Round amounts to 2 decimal places to avoid floating-point precision issues
       const roundedAmount = Math.round(amount * 100) / 100;
       const availableBalance = Math.max(0, Math.round(monthlyBalance * 100) / 100);
