@@ -637,7 +637,7 @@ export const useCashback = () => {
     searchCustomersByName,
     loading,
     executeMonthlyReset,
-    fixNegativeBalances
+    fixNegativeBalances,
     resetExpiredCashbackBalances
   };
 };
