@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Plus, Minus, ShoppingCart, Check, Info, AlertCircle, AlertTriangle } from 'lucide-react';
+import { X, Plus, Minus, ShoppingCart, Check, Info, AlertCircle, AlertTriangle, Zap } from 'lucide-react';
 import { Product, ProductSize, ComplementGroup, SelectedComplement, Complement } from '../../types/product';
 import { isProductAvailable, getAvailabilityMessage } from '../../utils/availability';
 import { useImageUpload } from '../../hooks/useImageUpload';
+import { usePromotions } from '../../hooks/usePromotions';
+import PromotionCountdown from './PromotionCountdown';
 
 interface ProductModalProps {
   product: Product;
@@ -40,6 +42,10 @@ const ProductModal: React.FC<ProductModalProps> = ({
   const contentRef = useRef<HTMLDivElement>(null);
 
   const { getProductImage } = useImageUpload();
+  const { getPromotionForProduct } = usePromotions();
+  
+  const activePromotion = getPromotionForProduct(product.id);
+  const hasActivePromotion = !!activePromotion;
   
   // Fetch product image when component mounts or product changes
   useEffect(() => {
@@ -67,7 +73,8 @@ const ProductModal: React.FC<ProductModalProps> = ({
   };
 
   const getCurrentPrice = () => {
-    return selectedSize ? selectedSize.price : product.price;
+    const basePrice = selectedSize ? selectedSize.price : product.price;
+    return basePrice;
   };
 
   const getComplementsPrice = () => {
@@ -232,9 +239,9 @@ const ProductModal: React.FC<ProductModalProps> = ({
           </button>
           
           {/* Promotion badge */}
-          {product.originalPrice && (
+          {(product.originalPrice || hasActivePromotion) && (
             <div className="absolute top-4 left-4 bg-gradient-to-r from-red-500 to-orange-500 text-white px-3 py-1 rounded-full text-sm font-bold shadow-md">
-              PROMOÇÃO
+              {hasActivePromotion ? 'PROMOÇÃO ATIVA' : 'PROMOÇÃO'}
             </div>
           )}
         </div>
@@ -243,6 +250,26 @@ const ProductModal: React.FC<ProductModalProps> = ({
         <div className="flex-1 overflow-y-auto" ref={contentRef}>
           <div className="p-6">
             <p className="text-gray-600 mb-2">{product.description}</p>
+            
+            {/* Active Promotion Info */}
+            {hasActivePromotion && (
+              <div className="mb-4">
+                <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap size={20} className="text-red-600" />
+                    <h3 className="font-bold text-red-800">{activePromotion.title}</h3>
+                  </div>
+                  {activePromotion.description && (
+                    <p className="text-red-700 text-sm mb-3">{activePromotion.description}</p>
+                  )}
+                  <PromotionCountdown 
+                    promotion={activePromotion} 
+                    size="medium"
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            )}
             
             {/* Status de Disponibilidade */}
             <div className={`inline-flex items-center gap-2 text-sm mb-3 px-3 py-1.5 rounded-full ${
@@ -256,9 +283,14 @@ const ProductModal: React.FC<ProductModalProps> = ({
               <span className="text-2xl font-bold text-green-600">
                 {formatPrice(getCurrentPrice())}
               </span>
-              {product.originalPrice && (
+              {(product.originalPrice || hasActivePromotion) && (
                 <span className="text-lg text-gray-500 line-through ml-2">
-                  {formatPrice(product.originalPrice)}
+                  {formatPrice(product.originalPrice || (hasActivePromotion ? activePromotion.original_price : product.price))}
+                </span>
+              )}
+              {hasActivePromotion && (
+                <span className="bg-red-100 text-red-800 px-2 py-1 rounded-full text-xs font-bold">
+                  ECONOMIA: {formatPrice(activePromotion.original_price - activePromotion.promotional_price)}
                 </span>
               )}
             </div>

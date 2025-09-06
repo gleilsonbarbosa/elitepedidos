@@ -153,8 +153,8 @@ export const useCashback = () => {
         mesAtual: `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`
       });
       
-      // Calcular saldo das transações do mês atual
-      let availableBalance = 0;
+      // Calcular saldo das transações do mês atual usando centavos para precisão
+      let availableBalanceCents = 0;
       
       allTransactions.forEach(transaction => {
         console.log('💰 Processando transação do mês atual:', {
@@ -165,22 +165,28 @@ export const useCashback = () => {
           mesRegistro: new Date(transaction.created_at).toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' })
         });
         
+        // Converter para centavos para evitar problemas de precisão
+        const cashbackAmountCents = Math.round(transaction.cashback_amount * 100);
+        
         if (transaction.type === 'purchase' && transaction.cashback_amount > 0) {
-          availableBalance += transaction.cashback_amount;
+          availableBalanceCents += cashbackAmountCents;
         } else if (transaction.type === 'redemption' && transaction.cashback_amount < 0) {
-          availableBalance += transaction.cashback_amount; // Já é negativo
+          availableBalanceCents += cashbackAmountCents; // Já é negativo
         }
       });
+      
+      // Converter de volta para reais
+      const availableBalance = availableBalanceCents / 100;
       
       // Calcular data de expiração (fim do mês atual)
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
       const daysUntilEndOfMonth = Math.ceil((endOfMonth.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       
       // Garantir que o saldo nunca seja negativo
-      availableBalance = Math.max(0, Math.round(availableBalance * 100) / 100);
+      const finalBalance = Math.max(0, availableBalance);
       
       console.log('✅ SALDO MENSAL - Baseado apenas no mês atual:', {
-        availableBalance,
+        availableBalance: finalBalance,
         mesAtual: `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`,
         transacoesDoMes: allTransactions.length,
         expiraEm: `${daysUntilEndOfMonth} dias (fim do mês)`,
@@ -189,8 +195,8 @@ export const useCashback = () => {
       
       return {
         customer_id: customerId,
-        available_balance: Math.round(availableBalance * 100) / 100,
-        expiring_amount: daysUntilEndOfMonth <= 7 ? availableBalance : 0, // Todo saldo expira no fim do mês
+        available_balance: finalBalance,
+        expiring_amount: daysUntilEndOfMonth <= 7 ? finalBalance : 0, // Todo saldo expira no fim do mês
         expiration_date: endOfMonth.toISOString()
       };
     } catch (error) {
@@ -265,14 +271,15 @@ export const useCashback = () => {
         return null;
       }
 
-      // Calculate cashback (5%)
-      const cashbackAmount = amount * 0.05;
+      // Calculate cashback (5%) with proper rounding to avoid floating-point precision issues
+      const roundedAmount = Math.round(amount * 100) / 100;
+      const cashbackAmount = Math.round(roundedAmount * 0.05 * 100) / 100;
 
       const { data, error } = await supabase
         .from('transactions')
         .insert([{
           customer_id: customerId,
-          amount: amount,
+          amount: roundedAmount,
           cashback_amount: cashbackAmount,
           type: 'purchase',
           status: 'approved',
@@ -286,7 +293,12 @@ export const useCashback = () => {
         return null;
       }
 
-      console.log('✅ Transação de compra criada:', data);
+      console.log('✅ Transação de compra criada:', {
+        ...data,
+        roundedAmount,
+        cashbackAmount,
+        originalAmount: amount
+      });
       return data;
     } catch (error) {
       console.error('❌ Erro ao criar transação de compra:', error);
@@ -314,56 +326,74 @@ export const useCashback = () => {
       }
 
       // Verificar se o cliente tem saldo suficiente
-      const { data: balanceData, error: customerError } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('customer_id', customerId)
-        .eq('status', 'approved');
-
-      if (customerError) throw customerError;
-
       // Calcular saldo do mês atual
       const now = new Date();
       const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
       const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
       
-      const currentMonthTransactions = (balanceData || []).filter(transaction => {
-        const transactionDate = new Date(transaction.created_at);
-        return transactionDate >= currentMonthStart && transactionDate < nextMonthStart;
-      });
+      const { data: balanceData, error: customerError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('customer_id', customerId)
+        .eq('status', 'approved')
+        .gte('created_at', currentMonthStart.toISOString())
+        .lt('created_at', nextMonthStart.toISOString());
+
+      if (customerError) throw customerError;
+
+      // Transações já filtradas pela query do banco
+      const currentMonthTransactions = balanceData || [];
       
-      let monthlyBalance = 0;
+      // Calcular saldo do mês atual usando centavos para precisão
+      let monthlyBalanceCents = 0;
+      
       currentMonthTransactions.forEach(transaction => {
+        // Converter para centavos para evitar problemas de precisão
+        const cashbackAmountCents = Math.round(transaction.cashback_amount * 100);
+        
         if (transaction.type === 'purchase' && transaction.cashback_amount > 0) {
-          monthlyBalance += transaction.cashback_amount;
+          monthlyBalanceCents += cashbackAmountCents;
         } else if (transaction.type === 'redemption' && transaction.cashback_amount < 0) {
-          monthlyBalance += transaction.cashback_amount; // Já é negativo
+          monthlyBalanceCents += cashbackAmountCents; // Já é negativo
         }
       });
 
-      // Round amounts to 2 decimal places to avoid floating-point precision issues
+      // Converter de volta para reais
+      const monthlyBalance = Math.round(monthlyBalanceCents) / 100;
+
+      // CRÍTICO: Se saldo é negativo ou zero, retornar saldo zero
+      const finalBalance = Math.max(0, monthlyBalance);
+      const availableBalance = finalBalance;
       const roundedAmount = Math.round(amount * 100) / 100;
-      const availableBalance = Math.max(0, Math.round(monthlyBalance * 100) / 100);
       
       // Convert to integer cents to avoid floating-point precision issues
       const availableBalanceCents = Math.round(availableBalance * 100);
       const roundedAmountCents = Math.round(roundedAmount * 100);
       
       console.log('💰 Verificação de saldo mensal:', {
-        requestedAmount: roundedAmount,
-        availableBalance: availableBalance,
+        availableBalance,
+        monthlyBalance,
+        monthlyBalanceRaw: monthlyBalance,
+        finalBalance: finalBalance,
         requestedCents: roundedAmountCents,
         availableCents: availableBalanceCents,
+        requestedAmount: roundedAmount,
         sufficient: availableBalanceCents >= roundedAmountCents,
         mesAtual: `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`,
-        transacoesDoMes: currentMonthTransactions.length
+        transacoesDoMes: (balanceData || []).length
       });
+      
+      // CRÍTICO: Se saldo é zero ou negativo, bloquear imediatamente
+      if (availableBalance <= 0) {
+        throw new Error('Você não possui cashback disponível no mês atual.');
+      }
       
       if (availableBalanceCents < roundedAmountCents) {
         const formattedBalance = new Intl.NumberFormat('pt-BR', {
           style: 'currency',
           currency: 'BRL'
         }).format(availableBalance);
+        
         throw new Error(`Saldo insuficiente no mês atual. Disponível: ${formattedBalance}`);
       }
 
@@ -386,8 +416,8 @@ export const useCashback = () => {
         // Fix malformed currency error messages from Supabase
         let errorMessage = error.message || 'Erro ao processar resgate de cashback';
         
-        // Check for malformed currency format like "R$ 1.10531325.2f"
-        const malformedCurrencyMatch = errorMessage.match(/R\$ ([\d.]+)(?:\.2f)?/);
+        // Check for malformed currency format like "R$ -18.9100500000000002.2f"
+        const malformedCurrencyMatch = errorMessage.match(/R\$ (-?[\d.]+)(?:\.2f)?/);
         if (malformedCurrencyMatch) {
           const numericValue = parseFloat(malformedCurrencyMatch[1]);
           if (!isNaN(numericValue)) {
@@ -478,6 +508,126 @@ export const useCashback = () => {
     }
   };
 
+  // Função para resetar saldos expirados de cashback de todos os clientes
+  const resetExpiredCashbackBalances = async () => {
+    try {
+      console.log('🔄 Iniciando reset de saldos expirados de cashback...');
+      
+      // Check if Supabase is configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl.includes('placeholder') || 
+          supabaseKey.includes('placeholder')) {
+        throw new Error('Supabase não configurado');
+      }
+
+      // Buscar todos os clientes
+      const { data: customers, error: customersError } = await supabase
+        .from('customers')
+        .select('id, name, phone, balance')
+        .gt('balance', 0);
+
+      if (customersError) throw customersError;
+
+      if (!customers || customers.length === 0) {
+        console.log('ℹ️ Nenhum cliente com saldo encontrado');
+        return { success: true, processed_customers: 0, reset_customers: 0 };
+      }
+
+      console.log(`📊 Processando ${customers.length} clientes com saldo...`);
+
+      let processedCustomers = 0;
+      let resetCustomers = 0;
+      const now = new Date();
+      const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+      for (const customer of customers) {
+        try {
+          processedCustomers++;
+          
+          // Buscar transações do mês atual para este cliente
+          const { data: currentMonthTransactions, error: transactionsError } = await supabase
+            .from('transactions')
+            .select('*')
+            .eq('customer_id', customer.id)
+            .eq('status', 'approved')
+            .gte('created_at', currentMonthStart.toISOString())
+            .lt('created_at', nextMonthStart.toISOString());
+
+          if (transactionsError) {
+            console.error(`❌ Erro ao buscar transações do cliente ${customer.id}:`, transactionsError);
+            continue;
+          }
+
+          // Calcular saldo do mês atual usando centavos para precisão
+          let monthlyBalanceCents = 0;
+          
+          (currentMonthTransactions || []).forEach(transaction => {
+            const cashbackAmountCents = Math.round(transaction.cashback_amount * 100);
+            
+            if (transaction.type === 'purchase' && transaction.cashback_amount > 0) {
+              monthlyBalanceCents += cashbackAmountCents;
+            } else if (transaction.type === 'redemption' && transaction.cashback_amount < 0) {
+              monthlyBalanceCents += cashbackAmountCents; // Já é negativo
+            }
+          });
+
+          // Converter para reais e garantir não negativo
+          const monthlyBalance = Math.max(0, Math.round(monthlyBalanceCents) / 100);
+          
+          // Se o saldo do mês atual é diferente do saldo na tabela customers, atualizar
+          if (Math.abs(customer.balance - monthlyBalance) > 0.01) {
+            console.log(`🔄 Atualizando saldo do cliente ${customer.name || customer.phone}:`, {
+              saldoAntigo: customer.balance,
+              saldoNovo: monthlyBalance,
+              transacoesDoMes: (currentMonthTransactions || []).length
+            });
+
+            const { error: updateError } = await supabase
+              .from('customers')
+              .update({ 
+                balance: monthlyBalance,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', customer.id);
+
+            if (updateError) {
+              console.error(`❌ Erro ao atualizar saldo do cliente ${customer.id}:`, updateError);
+              continue;
+            }
+
+            resetCustomers++;
+            console.log(`✅ Saldo atualizado para ${customer.name || customer.phone}: ${monthlyBalance}`);
+          } else {
+            console.log(`✅ Saldo já correto para ${customer.name || customer.phone}: ${customer.balance}`);
+          }
+
+        } catch (customerError) {
+          console.error(`❌ Erro ao processar cliente ${customer.id}:`, customerError);
+          continue;
+        }
+      }
+
+      console.log('✅ Reset de saldos expirados concluído:', {
+        processedCustomers,
+        resetCustomers,
+        skippedCustomers: processedCustomers - resetCustomers
+      });
+
+      return { 
+        success: true, 
+        processed_customers: processedCustomers,
+        reset_customers: resetCustomers,
+        message: `${resetCustomers} de ${processedCustomers} clientes tiveram o saldo atualizado`
+      };
+    } catch (error) {
+      console.error('❌ Erro ao resetar saldos expirados:', error);
+      throw error;
+    }
+  };
   return {
     getCustomerByPhone,
     getCustomerBalance,
@@ -487,6 +637,7 @@ export const useCashback = () => {
     searchCustomersByName,
     loading,
     executeMonthlyReset,
-    fixNegativeBalances
+    fixNegativeBalances,
+    resetExpiredCashbackBalances
   };
 };

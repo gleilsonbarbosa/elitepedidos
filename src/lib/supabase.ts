@@ -13,4 +13,12 @@ const finalKey = supabaseAnonKey || defaultKey;
 if (!finalUrl || !finalKey) {
   console.warn('⚠️ Supabase environment variables not configured properly');
 }
+
+// Log connection details for debugging
+console.log('🔧 Supabase Configuration:', {
+  url: finalUrl,
+  hasKey: !!finalKey,
+  keyLength: finalKey?.length || 0
+});
+
 export const supabase = createClient(finalUrl, finalKey);

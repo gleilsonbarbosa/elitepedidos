@@ -8,6 +8,9 @@ import Cart from './Cart';
 import IARecommender from './IARecommender';
 import StoreStatusBanner from './StoreStatusBanner';
 import CheckoutModal from './CheckoutModal';
+import RepeatOrderButton from './RepeatOrderButton';
+import PromotionBanner from './PromotionBanner';
+import PromotionCountdown from './PromotionCountdown';
 import { categoryNames } from '../../data/products';
 import { Product } from '../../types/product';
 import { CartItem } from '../../types/cart';
@@ -16,6 +19,7 @@ import { useStoreHours } from '../../hooks/useStoreHours';
 import { useProductScheduling } from '../../hooks/useProductScheduling';
 import { useRecommendations } from '../../hooks/useRecommendations';
 import { useDeliveryProducts } from '../../hooks/useDeliveryProducts';
+import { usePromotions } from '../../hooks/usePromotions';
 import { 
   getPromotionsOfTheDay, 
   hasTodaySpecialPromotions, 
@@ -53,6 +57,7 @@ const DeliveryPage: React.FC = () => {
   const productScheduling = useProductScheduling();
   const { getRecommendations } = useRecommendations();
   const { products: deliveryProducts, loading: productsLoading, refetch: refetchProducts } = useDeliveryProducts();
+  const { activePromotions, getPromotionForProduct } = usePromotions();
   
   // Configurar hook para funções de availability
   React.useEffect(() => {
@@ -136,9 +141,18 @@ const DeliveryPage: React.FC = () => {
       availability: dbProduct.availability_type ? {
         type: dbProduct.availability_type as any,
         scheduledDays: dbProduct.scheduled_days
-      } : undefined
+      } : undefined,
+      // Apply promotion price if active
+      price: (() => {
+        const promotion = getPromotionForProduct(dbProduct.id);
+        return promotion ? promotion.promotional_price : dbProduct.price;
+      })(),
+      originalPrice: (() => {
+        const promotion = getPromotionForProduct(dbProduct.id);
+        return promotion ? dbProduct.price : dbProduct.original_price;
+      })()
     }));
-  }, [deliveryProducts]);
+  }, [deliveryProducts, getPromotionForProduct]);
 
   // Recarregar produtos quando necessário
   React.useEffect(() => {
@@ -249,7 +263,11 @@ const DeliveryPage: React.FC = () => {
       id: key as keyof typeof categoryNames, 
       label,
       count: activeProducts.filter(p => p.category === key).length
-    }))
+    })).filter(category => {
+      // Remove categorias específicas
+      const categoriesToRemove = ['complementos', 'sobremesas', 'outros'];
+      return !categoriesToRemove.includes(category.id);
+    })
   ];
 
   // Verificar se a loja está aberta
@@ -281,6 +299,21 @@ const DeliveryPage: React.FC = () => {
       {/* Status da Loja */}
       <section className="py-4 bg-white">
         <div className="max-w-6xl mx-auto px-4">
+          {/* Promotion Banners */}
+          {activePromotions.length > 0 && (
+            <div className="mb-6">
+              <PromotionBanner 
+                onPromotionClick={(promotion) => {
+                  // Find the product and open its modal
+                  const product = products.find(p => p.id === promotion.product_id);
+                  if (product) {
+                    setSelectedProduct(product);
+                  }
+                }}
+              />
+            </div>
+          )}
+          
           <StoreStatusBanner />
           
           {/* Connection Warning */}
@@ -484,18 +517,36 @@ const DeliveryPage: React.FC = () => {
               : 'Monte seu carrinho e receba seu açaí fresquinho em casa!'
             }
           </p>
-          <button
-            onClick={() => setIsCartOpen(true)}
-            disabled={!storeStatus.isOpen}
-            className={`px-8 py-4 rounded-full font-semibold text-lg transition-all duration-300 transform hover:scale-105 inline-flex items-center gap-2 shadow-lg ${
-              storeStatus.isOpen
-                ? 'bg-white text-purple-600 hover:bg-gray-100'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            <ShoppingCart size={24} />
-            {storeStatus.isOpen ? `Ver Carrinho (${getTotalItems()})` : 'Loja Fechada'}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <RepeatOrderButton
+              availableProducts={activeProducts}
+              onAddItemsToCart={(items) => {
+                items.forEach(item => {
+                  addToCart(
+                    item.product,
+                    item.selectedSize,
+                    item.quantity,
+                    item.observations,
+                    item.selectedComplements
+                  );
+                });
+                setIsCartOpen(true);
+              }}
+            />
+            
+            <button
+              onClick={() => setIsCartOpen(true)}
+              disabled={!storeStatus.isOpen}
+              className={`px-8 py-4 rounded-full font-semibold text-lg transition-all duration-300 transform hover:scale-105 inline-flex items-center gap-2 shadow-lg ${
+                storeStatus.isOpen
+                  ? 'bg-white text-purple-600 hover:bg-gray-100'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              <ShoppingCart size={24} />
+              {storeStatus.isOpen ? `Ver Carrinho (${getTotalItems()})` : 'Loja Fechada'}
+            </button>
+          </div>
         </div>
       </section>
       

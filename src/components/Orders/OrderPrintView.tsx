@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Order } from '../../types/order';
 
 interface OrderPrintViewProps {
-  order: Order;
+  order: Order | any;
   storeSettings?: any;
   onClose: () => void;
 }
@@ -29,7 +29,7 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
       <html>
       <head>
         <meta charset="UTF-8">
-        <title>Pedido #${order.id.slice(-8)}</title>
+        <title>Pedido #${(order.id || '').slice(-8)}</title>
         <style>
           @page {
             size: 80mm auto;
@@ -135,14 +135,14 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
           <div class="section-title mb-2">QR CODE PIX</div>
           <div class="small">Chave PIX: 85989041010</div>
           <div class="small">Nome: Amanda Suyelen da Costa Pereira</div>
-          <div class="price-value">Valor: ${formatPrice(order.total_price)}</div>
+          <div class="price-value">Valor: ${formatPrice(order.total_price || 0)}</div>
         </div>
         ` : ''}
         
         <!-- Dados do Pedido -->
         <div class="mb-3 separator">
           <div class="section-title center mb-2">=== PEDIDO DE DELIVERY ===</div>
-          <div class="medium">Pedido: #${order.id.slice(-8)}</div>
+          <div class="medium">Pedido: #${(order.id || '').slice(-8)}</div>
           <div class="item-details">Data: ${new Date(order.created_at).toLocaleDateString('pt-BR')}</div>
           <div class="item-details">Hora: ${new Date(order.created_at).toLocaleTimeString('pt-BR')}</div>
           <div class="item-details">Status: ${getStatusLabel(order.status)}</div>
@@ -192,7 +192,7 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
           <div class="section-title mb-1">RESUMO:</div>
           <div class="flex-between">
             <span class="item-details">Subtotal:</span>
-            <span class="price-value">${formatPrice(order.total_price - (order.delivery_fee || 0))}</span>
+            <span class="price-value">${formatPrice(Math.max(0, (order.total_price || 0) - (order.delivery_fee || 0)))}</span>
           </div>
           ${order.delivery_fee && order.delivery_fee > 0 ? `
           <div class="flex-between">
@@ -203,7 +203,7 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
           <div style="border-top: 2px solid black; padding-top: 5px; margin-top: 5px;">
             <div class="flex-between bold">
               <span class="section-title">TOTAL:</span>
-              <span class="total-value">${formatPrice(order.total_price)}</span>
+              <span class="total-value">${formatPrice(order.total_price || 0)}</span>
             </div>
           </div>
         </div>
@@ -258,7 +258,7 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
     }
 
     let message = `🆕 *NOVO PEDIDO RECEBIDO - ELITE AÇAÍ*\n\n`;
-    message += `📋 *Pedido #${order.id.slice(-8)}*\n`;
+    message += `📋 *Pedido #${(order.id || '').slice(-8)}*\n`;
     message += `🕐 Recebido: ${new Date(order.created_at).toLocaleString('pt-BR')}\n`;
     message += `📊 Status: ${getStatusLabel(order.status || 'pending')}\n\n`;
     
@@ -309,7 +309,7 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
     if (order.delivery_fee && order.delivery_fee > 0) {
       message += `Taxa de entrega: ${formatPrice(order.delivery_fee)}\n`;
     }
-    message += `*TOTAL: ${formatPrice(order.total_price)}*\n\n`;
+    message += `*TOTAL: ${formatPrice(order.total_price || 0)}*\n\n`;
     
     message += `💳 *PAGAMENTO:*\n`;
     message += `Forma: ${getPaymentMethodLabel(order.payment_method)}\n`;
@@ -320,7 +320,7 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
       message += `\n📱 *DADOS PIX:*\n`;
       message += `Chave: 85989041010\n`;
       message += `Nome: Grupo Elite\n`;
-      message += `Valor: ${formatPrice(order.total_price)}\n`;
+      message += `Valor: ${formatPrice(order.total_price || 0)}\n`;
     }
     message += `\n`;
     
@@ -333,7 +333,7 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
     message += `\n`;
     
     message += `🔗 *LINK DE ACOMPANHAMENTO:*\n`;
-    message += `${window.location.origin}/pedido/${order.id}\n`;
+    message += `${window.location.origin}/pedido/${order.id || ''}\n`;
     message += `Cliente pode acompanhar status em tempo real\n\n`;
     
     message += `📱 Sistema de Atendimento - Elite Açaí`;
@@ -401,14 +401,14 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
                   <div className="space-y-1">
                     <div className="font-bold">Chave PIX: 85989041010</div>
                     <div className="font-bold">Nome: Amanda Suyelen da Costa Pereira</div>
-                    <div className="font-black text-lg">Valor: {formatPrice(order.total_price)}</div>
+                    <div className="font-black text-lg">Valor: {formatPrice(order.total_price || 0)}</div>
                   </div>
                   <p className="font-bold">══════════════════════════</p>
                 </div>
               )}
               
               <div className="mb-3">
-                <p className="font-bold">Pedido: #{order.id.slice(-8)}</p>
+                <p className="font-bold">Pedido: #{(order.id || '').slice(-8)}</p>
                 <p className="font-semibold">Data: {new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
                 <p className="font-semibold">Hora: {new Date(order.created_at).toLocaleTimeString('pt-BR')}</p>
                 <p className="font-semibold">Status: {getStatusLabel(order.status)}</p>
@@ -463,7 +463,7 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
               <div className="mb-3">
                 <div className="flex justify-between font-semibold">
                   <span>Subtotal:</span>
-                  <span>{formatPrice(order.total_price - (order.delivery_fee || 0))}</span>
+                  <span>{formatPrice(Math.max(0, (order.total_price || 0) - (order.delivery_fee || 0)))}</span>
                 </div>
                 {order.delivery_fee && order.delivery_fee > 0 && (
                   <div className="flex justify-between font-semibold">
@@ -474,7 +474,7 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
                 <div className="border-t-2 border-black mt-2 pt-2">
                   <div className="flex justify-between">
                     <span className="font-black text-lg">TOTAL:</span>
-                    <span className="font-black text-xl">{formatPrice(order.total_price)}</span>
+                    <span className="font-black text-xl">{formatPrice(order.total_price || 0)}</span>
                   </div>
                 </div>
                 <p className="font-bold">══════════════════════════</p>
@@ -524,14 +524,14 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
               <p style={{ fontWeight: 'bold', marginBottom: '10px' }}>QR CODE PIX</p>
               <p style={{ fontSize: '10px', margin: '5px 0' }}>Chave PIX: 85989041010</p>
               <p style={{ fontSize: '10px', margin: '5px 0' }}>Nome: Grupo Elite</p>
-              <p style={{ fontSize: '12px', fontWeight: 'bold', margin: '5px 0' }}>Valor: {formatPrice(order.total_price)}</p>
+              <p style={{ fontSize: '12px', fontWeight: 'bold', margin: '5px 0' }}>Valor: {formatPrice(order.total_price || 0)}</p>
             </div>
           )}
 
           {/* Order Info */}
           <div style={{ marginBottom: '15px', color: 'black', background: 'white' }}>
             <p style={{ fontSize: '12px', fontWeight: 'bold', textAlign: 'center', marginBottom: '10px' }}>=== PEDIDO DE DELIVERY ===</p>
-            <p style={{ fontSize: '10px', margin: '2px 0' }}>Pedido: #{order.id.slice(-8)}</p>
+            <p style={{ fontSize: '10px', margin: '2px 0' }}>Pedido: #{(order.id || '').slice(-8)}</p>
             <p style={{ fontSize: '10px', margin: '2px 0' }}>Data: {new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
             <p style={{ fontSize: '10px', margin: '2px 0' }}>Hora: {new Date(order.created_at).toLocaleTimeString('pt-BR')}</p>
             <p style={{ fontSize: '10px', margin: '2px 0' }}>Status: {getStatusLabel(order.status)}</p>
@@ -589,7 +589,7 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
             <p style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '5px' }}>RESUMO:</p>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '12px' }}>Subtotal:</span>
-              <span style={{ fontSize: '12px' }}>{formatPrice(order.total_price - (order.delivery_fee || 0))}</span>
+              <span style={{ fontSize: '12px' }}>{formatPrice(Math.max(0, (order.total_price || 0) - (order.delivery_fee || 0)))}</span>
             </div>
             {order.delivery_fee && order.delivery_fee > 0 && (
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -599,7 +599,7 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', borderTop: '1px solid black', paddingTop: '5px', marginTop: '5px' }}>
               <span style={{ fontSize: '14px' }}>TOTAL:</span>
-              <span style={{ fontSize: '14px' }}>{formatPrice(order.total_price)}</span>
+              <span style={{ fontSize: '14px' }}>{formatPrice(order.total_price || 0)}</span>
             </div>
           </div>
 

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useOrders } from '../../hooks/useOrders';
 import { usePDVCashRegister } from '../../hooks/usePDVCashRegister';
 import { useNeighborhoods } from '../../hooks/useNeighborhoods';
+import DeliveryTypeSelector from '../Delivery/DeliveryTypeSelector';
+import PickupScheduler from '../Delivery/PickupScheduler';
 import { products } from '../../data/products';
 import { 
   Plus, 
@@ -36,6 +38,9 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({ onClose, onOrderCreat
   const [customerComplement, setCustomerComplement] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'money' | 'pix' | 'card'>('money');
   const [changeFor, setChangeFor] = useState<number | undefined>(undefined);
+  const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
+  const [scheduledPickupDate, setScheduledPickupDate] = useState('');
+  const [scheduledPickupTime, setScheduledPickupTime] = useState('');
   const [items, setItems] = useState<Array<{
     id: string;
     product_name: string;
@@ -68,6 +73,7 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({ onClose, onOrderCreat
   
   // Get delivery fee based on neighborhood
   const getDeliveryFee = () => {
+    if (deliveryType === 'pickup') return 0;
     const neighborhood = neighborhoods.find(n => n.name === customerNeighborhood);
     return neighborhood ? neighborhood.delivery_fee : 0;
   };
@@ -141,8 +147,18 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({ onClose, onOrderCreat
       return;
     }
     
-    if (!customerName || !customerPhone || !customerAddress || !customerNeighborhood) {
-      alert('Preencha todos os dados do cliente');
+    if (!customerName || !customerPhone) {
+      alert('Preencha o nome e telefone do cliente');
+      return;
+    }
+    
+    if (deliveryType === 'delivery' && (!customerAddress || !customerNeighborhood)) {
+      alert('Para entrega, preencha o endereço e bairro');
+      return;
+    }
+    
+    if (deliveryType === 'pickup' && (!scheduledPickupDate || !scheduledPickupTime)) {
+      alert('Para retirada, selecione data e horário');
       return;
     }
     
@@ -160,6 +176,9 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({ onClose, onOrderCreat
         payment_method: paymentMethod,
         change_for: changeFor,
         neighborhood_id: neighborhood?.id,
+        delivery_type: deliveryType,
+        scheduled_pickup_date: deliveryType === 'pickup' ? scheduledPickupDate : null,
+        scheduled_pickup_time: deliveryType === 'pickup' ? scheduledPickupTime : null,
         delivery_fee: getDeliveryFee(),
         estimated_delivery_minutes: getEstimatedDeliveryTime(),
         items,
@@ -220,6 +239,16 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({ onClose, onOrderCreat
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo de Entrega *
+                </label>
+                <DeliveryTypeSelector
+                  selectedType={deliveryType}
+                  onTypeChange={setDeliveryType}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Nome *
                 </label>
                 <div className="relative">
@@ -252,66 +281,86 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({ onClose, onOrderCreat
                 </div>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Bairro *
-                </label>
-                <div className="relative">
-                  <MapPin size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <select
-                    value={customerNeighborhood}
-                    onChange={(e) => setCustomerNeighborhood(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    required
-                  >
-                    <option value="">Selecione o bairro</option>
-                    {neighborhoods.map(neighborhood => (
-                      <option key={neighborhood.id} value={neighborhood.name}>
-                        {neighborhood.name} - {formatPrice(neighborhood.delivery_fee)} ({neighborhood.delivery_time}min)
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                {customerNeighborhood && (
-                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
-                    <div className="flex justify-between">
-                      <span>Taxa de entrega:</span>
-                      <span className="font-medium">{formatPrice(getDeliveryFee())}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Tempo estimado:</span>
-                      <span className="font-medium">{getEstimatedDeliveryTime()} minutos</span>
-                    </div>
+              {deliveryType === 'delivery' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Bairro *
+                  </label>
+                  <div className="relative">
+                    <MapPin size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <select
+                      value={customerNeighborhood}
+                      onChange={(e) => setCustomerNeighborhood(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      required={deliveryType === 'delivery'}
+                    >
+                      <option value="">Selecione o bairro</option>
+                      {neighborhoods.map(neighborhood => (
+                        <option key={neighborhood.id} value={neighborhood.name}>
+                          {neighborhood.name} - {formatPrice(neighborhood.delivery_fee)} ({neighborhood.delivery_time}min)
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                )}
-              </div>
+                  {customerNeighborhood && (
+                    <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                      <div className="flex justify-between">
+                        <span>Taxa de entrega:</span>
+                        <span className="font-medium">{formatPrice(getDeliveryFee())}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Tempo estimado:</span>
+                        <span className="font-medium">{getEstimatedDeliveryTime()} minutos</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Endereço *
-                </label>
-                <input
-                  type="text"
-                  value={customerAddress}
-                  onChange={(e) => setCustomerAddress(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="Rua, número"
-                  required
-                />
-              </div>
+              {deliveryType === 'delivery' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Endereço *
+                    </label>
+                    <input
+                      type="text"
+                      value={customerAddress}
+                      onChange={(e) => setCustomerAddress(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Rua, número"
+                      required={deliveryType === 'delivery'}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Complemento
+                    </label>
+                    <input
+                      type="text"
+                      value={customerComplement}
+                      onChange={(e) => setCustomerComplement(e.target.value)}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      placeholder="Apartamento, bloco, etc."
+                    />
+                  </div>
+                </>
+              )}
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Complemento
-                </label>
-                <input
-                  type="text"
-                  value={customerComplement}
-                  onChange={(e) => setCustomerComplement(e.target.value)}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="Apartamento, bloco, etc."
-                />
-              </div>
+              {deliveryType === 'pickup' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Agendamento da Retirada *
+                  </label>
+                  <PickupScheduler
+                    selectedDate={scheduledPickupDate}
+                    selectedTime={scheduledPickupTime}
+                    onDateChange={setScheduledPickupDate}
+                    onTimeChange={setScheduledPickupTime}
+                  />
+                </div>
+              )}
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

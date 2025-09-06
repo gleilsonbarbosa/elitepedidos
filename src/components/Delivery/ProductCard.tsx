@@ -4,6 +4,8 @@ import { Product } from '../../types/product';
 import { formatPrice } from '../../utils/formatters';
 import { isProductAvailable } from '../../utils/availability';
 import { useImageUpload } from '../../hooks/useImageUpload';
+import { usePromotions } from '../../hooks/usePromotions';
+import PromotionCountdown from './PromotionCountdown';
 
 const IMAGE_PLACEHOLDER = 'https://images.pexels.com/photos/1092730/pexels-photo-1092730.jpeg?auto=compress&cs=tinysrgb&w=400';
 
@@ -19,6 +21,10 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal, isSpeci
   const [imageLoading, setImageLoading] = useState(true);
   const isAvailable = isProductAvailable(product) && product.isActive !== false;
   const { getProductImage } = useImageUpload();
+  const { getPromotionForProduct } = usePromotions();
+  
+  const activePromotion = getPromotionForProduct(product.id);
+  const hasActivePromotion = !!activePromotion;
 
   const getDisplayPrice = () => {
     if (product.pricePerGram) {
@@ -84,8 +90,16 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal, isSpeci
   return (
     <div className={`bg-white rounded-2xl shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl hover:scale-105 ${
       !isAvailable ? 'opacity-60' : ''
-    } ${isSpecialOfTheDay ? 'ring-2 ring-orange-400 ring-opacity-50' : ''}`}>
-      {isSpecialOfTheDay && (
+    } ${isSpecialOfTheDay ? 'ring-2 ring-orange-400 ring-opacity-50' : ''} ${hasActivePromotion ? 'ring-2 ring-red-400 ring-opacity-75' : ''}`}>
+      {hasActivePromotion && (
+        <div className="bg-gradient-to-r from-red-500 to-orange-500 text-white text-center py-2 px-4">
+          <div className="flex items-center justify-center gap-2">
+            <Zap size={16} />
+            <span className="font-bold text-sm">PROMOÇÃO ATIVA</span>
+          </div>
+        </div>
+      )}
+      {isSpecialOfTheDay && !hasActivePromotion && (
         <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white text-center py-2 px-4">
           <div className="flex items-center justify-center gap-2">
             <Zap size={16} />
@@ -127,20 +141,36 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal, isSpeci
         <h3 className="font-bold text-lg mb-2 text-gray-800">{product.name}</h3>
         <p className="text-gray-600 text-sm mb-4 line-clamp-2">{product.description}</p>
         
+        {/* Promotion Countdown */}
+        {hasActivePromotion && (
+          <div className="mb-4">
+            <PromotionCountdown 
+              promotion={activePromotion} 
+              size="small"
+              className="w-full"
+            />
+          </div>
+        )}
+        
         <div className="flex items-center justify-between">
           <div className="flex flex-col">
-            {product.originalPrice && product.originalPrice > product.price ? (
+            {(product.originalPrice && product.originalPrice > product.price) || hasActivePromotion ? (
               <div className="flex items-center gap-2">
-                <span className={isSpecialOfTheDay ? 'text-orange-600 font-bold text-lg' : 'text-purple-600 font-bold text-lg'}>
+                <span className={hasActivePromotion ? 'text-red-600 font-bold text-lg' : isSpecialOfTheDay ? 'text-orange-600 font-bold text-lg' : 'text-purple-600 font-bold text-lg'}>
                   {formatPrice(product.price)}
                 </span>
                 <span className="text-gray-500 line-through text-sm">
-                  {formatPrice(product.originalPrice)}
+                  {formatPrice(product.originalPrice || product.price)}
                 </span>
+                {hasActivePromotion && (
+                  <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full font-bold">
+                    PROMO
+                  </span>
+                )}
               </div>
             ) : (
               !product.pricePerGram && (
-                <span className={isSpecialOfTheDay ? 'text-orange-600' : 'text-purple-600'}>
+                <span className={hasActivePromotion ? 'text-red-600 font-bold text-lg' : isSpecialOfTheDay ? 'text-orange-600' : 'text-purple-600'}>
                   {getDisplayPrice()}
                 </span>
               )
@@ -153,15 +183,17 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal, isSpeci
             className={`px-6 py-2 rounded-full font-medium transition-all duration-300 flex items-center gap-2 shadow-md hover:shadow-lg ${
               !isAvailable
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                : isSpecialOfTheDay
+                : hasActivePromotion
+                  ? 'bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white'
+                  : isSpecialOfTheDay
                   ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white'
                   : 'bg-green-500 hover:bg-green-600 text-white'
             }`}
           >
-            {isSpecialOfTheDay ? <Zap size={16} /> : <Plus size={16} />}
+            {hasActivePromotion ? <Zap size={16} /> : isSpecialOfTheDay ? <Zap size={16} /> : <Plus size={16} />}
             {product.complementGroups && product.complementGroups.length > 0 
               ? 'Personalizar' 
-              : isSpecialOfTheDay ? 'Aproveitar' : 'Adicionar'
+              : hasActivePromotion ? 'Aproveitar Promo' : isSpecialOfTheDay ? 'Aproveitar' : 'Adicionar'
             }
           </button>
         </div>

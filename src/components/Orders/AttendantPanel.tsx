@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useOrders } from '../../hooks/useOrders';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useThermalPrinter } from '../../hooks/useThermalPrinter';
 import PermissionGuard from '../PermissionGuard';
 import OrderPrintView from './OrderPrintView';
 import OrderCard from './OrderCard';
 import ManualOrderForm from './ManualOrderForm';
+import ThermalPrinterSetup from '../PDV/ThermalPrinterSetup';
 import { OrderStatus } from '../../types/order';
 import { 
   Filter, 
@@ -17,7 +19,8 @@ import {
   XCircle,
   ArrowLeft,
   Settings,
-  Plus
+  Plus,
+  Printer
 } from 'lucide-react';
 
 interface AttendantPanelProps {
@@ -28,14 +31,24 @@ interface AttendantPanelProps {
 const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSettings }) => {
   const { hasPermission } = usePermissions();
   const { orders, loading, updateOrderStatus } = useOrders();
+  const thermalPrinter = useThermalPrinter();
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('pending');
   const [showManualOrderForm, setShowManualOrderForm] = useState(false);
+  const [showPrinterSetup, setShowPrinterSetup] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [lastOrderCount, setLastOrderCount] = useState(0);
   const [newOrder, setNewOrder] = useState<any | null>(null);
   const [pendingOrdersCount, setPendingOrdersCount] = useState<number>(0);
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
+  const [soundSettings, setSoundSettings] = useState({
+    enabled: true,
+    autoRepeat: false,
+    repeatInterval: 30,
+    volume: 0.7,
+    soundUrl: "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+  });
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [printOrderData, setPrintOrderData] = useState<any>(null);
 
   // Carregar configuração de som
   useEffect(() => {
@@ -44,6 +57,7 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
       if (soundSettings) {
         const settings = JSON.parse(soundSettings);
         setSoundEnabled(settings.enabled);
+        setSoundSettings(settings);
       }
     } catch (error) {
       console.error('Erro ao carregar configurações de som:', error);
@@ -109,6 +123,9 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
       const settings = soundSettings ? JSON.parse(soundSettings) : { volume: 0.7, soundUrl: "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" };
       settings.enabled = newState;
       localStorage.setItem('orderSoundSettings', JSON.stringify(settings));
+      
+      // Atualizar estado local
+      setSoundSettings(prev => ({ ...prev, enabled: newState }));
     } catch (error) {
       console.error('Erro ao salvar configurações de som:', error);
     }
@@ -116,69 +133,303 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
 
   // Efeito para tocar som quando novos pedidos chegarem
   useEffect(() => {
-    // Contar pedidos pendentes
-    const currentPendingCount = orders.filter(order => order.status === 'pending').length;
-    setPendingOrdersCount(currentPendingCount);
-    
-    // Verificar se há novos pedidos pendentes
-    if (currentPendingCount > lastOrderCount && lastOrderCount >= 0) {
-      console.log('🔔 Novos pedidos detectados!');
+    const handleNewOrders = async () => {
+      // Contar pedidos pendentes
+      const currentPendingCount = orders.filter(order => order.status === 'pending').length;
+      setPendingOrdersCount(currentPendingCount);
       
-      // Encontrar o novo pedido
-      const pendingOrders = orders.filter(order => order.status === 'pending');
-      const newOrders = pendingOrders.slice(0, currentPendingCount - lastOrderCount);
-      
-      if (newOrders.length > 0) {
-        // Pegar o pedido mais recente
-        const latestOrder = newOrders.filter(order => order && order.id).sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        )[0];
+      // Verificar se há novos pedidos pendentes
+      if (currentPendingCount > lastOrderCount && lastOrderCount >= 0) {
+        console.log('🔔 Novos pedidos detectados!');
         
-        if (latestOrder) {
-          setNewOrder(latestOrder);
+        // Encontrar o novo pedido
+        const pendingOrders = orders.filter(order => order.status === 'pending');
+        const newOrders = pendingOrders.slice(0, currentPendingCount - lastOrderCount);
         
-          console.log('🖨️ Verificando configuração de impressão automática:', {
-            auto_print_enabled: printerSettings.auto_print_enabled,
-            auto_print_delivery: printerSettings.auto_print_delivery,
-            newOrderId: latestOrder.id
-          });
-        
-          // Imprimir automaticamente se configurado
-          if (printerSettings.auto_print_enabled && latestOrder.status === 'pending') {
-            console.log('🖨️ Imprimindo pedido automaticamente:', latestOrder.id);
-            setShowPrintPreview(true);
+        if (newOrders.length > 0) {
+          // Pegar o pedido mais recente
+          const latestOrder = newOrders.filter(order => order && order.id).sort((a, b) => 
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          )[0];
           
-            // Mostrar notificação de impressão automática
-            const printNotification = document.createElement('div');
-            printNotification.className = 'fixed top-4 left-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
-            printNotification.innerHTML = `
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
-              </svg>
-              Imprimindo pedido #${latestOrder.id.slice(-8)} automaticamente
-            `;
-            document.body.appendChild(printNotification);
+          if (latestOrder) {
+            setNewOrder(latestOrder);
           
-            setTimeout(() => {
-              if (document.body.contains(printNotification)) {
-                document.body.removeChild(printNotification);
-              }
-            }, 4000);
-          }
-        
-          // Verificar se o som está habilitado
-          if (soundEnabled) {
+            console.log('🖨️ Verificando configuração de impressão automática:', {
+              auto_print_enabled: printerSettings.auto_print_enabled,
+              auto_print_delivery: printerSettings.auto_print_delivery,
+              newOrderId: latestOrder.id,
+              thermalPrinterConnected: thermalPrinter.connection.isConnected
+            });
+          
+            // Tocar som de notificação
             playNewOrderSound(latestOrder);
-          } else {
-            console.log('🔕 Som de notificação desabilitado nas configurações');
+            
+            // Mostrar tela de impressão automaticamente
+            if (printerSettings.auto_print_enabled && printerSettings.auto_print_delivery) {
+              console.log('🖨️ Mostrando tela de impressão automaticamente para:', latestOrder.id);
+              
+              // Preparar dados para impressão
+              const printData = {
+                id: latestOrder.id,
+                customer_name: latestOrder.customer_name,
+                customer_phone: latestOrder.customer_phone,
+                customer_address: latestOrder.customer_address,
+                customer_neighborhood: latestOrder.customer_neighborhood,
+                customer_complement: latestOrder.customer_complement,
+                total_price: latestOrder.total_price,
+                payment_method: latestOrder.payment_method,
+                change_for: latestOrder.change_for,
+                created_at: latestOrder.created_at,
+                delivery_type: latestOrder.delivery_type,
+                scheduled_pickup_date: latestOrder.scheduled_pickup_date,
+                scheduled_pickup_time: latestOrder.scheduled_pickup_time,
+                delivery_fee: latestOrder.delivery_fee,
+                status: latestOrder.status,
+                items: latestOrder.items || []
+              };
+              
+              // Mostrar tela de impressão
+              setPrintOrderData(printData);
+              setShowPrintPreview(true);
+              
+              // Tentar impressão térmica automática em background
+              if (thermalPrinter.connection.isConnected) {
+                try {
+                  await thermalPrinter.printOrder(printData);
+                  console.log('✅ Pedido impresso automaticamente na impressora térmica');
+                } catch (printError) {
+                  console.error('❌ Erro na impressão térmica:', printError);
+                }
+              }
+            }
           }
         }
       }
-    }
+      
+      // Atualizar contagem para próxima verificação
+      setLastOrderCount(currentPendingCount);
+    };
+
+    handleNewOrders();
+  }, [orders, lastOrderCount, soundEnabled, printerSettings.auto_print_enabled, thermalPrinter]);
+
+  // Efeito para repetir som para pedidos pendentes
+  useEffect(() => {
+    if (!soundSettings.autoRepeat || !soundSettings.enabled) return;
     
-    // Atualizar contagem para próxima verificação
-    setLastOrderCount(currentPendingCount);
-  }, [orders, lastOrderCount, soundEnabled, printerSettings.auto_print_enabled]);
+    const pendingOrders = orders.filter(order => order.status === 'pending');
+    if (pendingOrders.length === 0) return;
+    
+    console.log(`🔔 Configurando repetição de som para ${pendingOrders.length} pedidos pendentes a cada ${soundSettings.repeatInterval}s`);
+    
+    const repeatInterval = setInterval(() => {
+      const currentPendingOrders = orders.filter(order => order.status === 'pending');
+      
+      if (currentPendingOrders.length > 0) {
+        console.log(`🔊 Repetindo som - ${currentPendingOrders.length} pedidos ainda pendentes`);
+        playNewOrderSound(currentPendingOrders[0]); // Tocar som para o primeiro pedido pendente
+      }
+    }, (soundSettings.repeatInterval || 30) * 1000);
+    
+    return () => {
+      console.log('🔇 Parando repetição de som');
+      clearInterval(repeatInterval);
+    };
+  }, [orders, soundSettings.autoRepeat, soundSettings.enabled, soundSettings.repeatInterval]);
+
+  // Função para impressão tradicional (fallback)
+  const printOrderTraditional = (latestOrder: any) => {
+    try {
+      console.log('🖨️ Imprimindo pedido automaticamente (método tradicional):', latestOrder.id);
+      
+      // Criar dados para impressão
+      const printData = {
+        sale: {
+          sale_number: latestOrder.id.slice(-8),
+          operator_name: 'Sistema',
+          customer_name: latestOrder.customer_name,
+          customer_phone: latestOrder.customer_phone,
+          subtotal: latestOrder.total_price - (latestOrder.delivery_fee || 0),
+          discount_amount: 0,
+          total_amount: latestOrder.total_price,
+          payment_type: latestOrder.payment_method,
+          change_amount: latestOrder.change_for ? Math.max(0, latestOrder.change_for - latestOrder.total_price) : 0,
+          created_at: latestOrder.created_at,
+          delivery_type: latestOrder.delivery_type,
+          scheduled_pickup_date: latestOrder.scheduled_pickup_date,
+          scheduled_pickup_time: latestOrder.scheduled_pickup_time,
+          customer_address: latestOrder.customer_address,
+          customer_neighborhood: latestOrder.customer_neighborhood,
+          customer_complement: latestOrder.customer_complement,
+          delivery_fee: latestOrder.delivery_fee
+        },
+        items: latestOrder.items || []
+      };
+      
+      // Imprimir diretamente sem modal
+      printOrderDirectly(printData);
+    } catch (error) {
+      console.error('❌ Erro na impressão tradicional:', error);
+    }
+  };
+
+  // Função para impressão direta (método tradicional)
+  const printOrderDirectly = (orderData: any) => {
+    try {
+      console.log('🖨️ Iniciando impressão automática direta:', orderData.sale.sale_number);
+      
+      // Criar janela de impressão
+      const printWindow = window.open('', '_blank', 'width=300,height=600');
+      if (!printWindow) {
+        console.error('❌ Não foi possível abrir janela de impressão - pop-ups bloqueados');
+        
+        // Mostrar notificação amigável ao usuário
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('⚠️ Pop-ups Bloqueados', {
+            body: 'Para impressão automática, permita pop-ups neste site nas configurações do navegador.',
+            icon: '/vite.svg'
+          });
+        }
+        
+        // Fallback: mostrar alerta se notificações não estiverem disponíveis
+        setTimeout(() => {
+          alert('⚠️ Pop-ups Bloqueados\n\nPara impressão automática funcionar:\n\n1. Clique no ícone de bloqueio na barra de endereços\n2. Permita pop-ups para este site\n3. Recarregue a página\n\nOu desative o bloqueador de pop-ups temporariamente.');
+        }, 1000);
+        
+        return;
+      }
+
+      const formatPrice = (price: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
+      const getPaymentMethodLabel = (method: string) => method === 'money' ? 'Dinheiro' : method === 'pix' ? 'PIX' : method === 'card' ? 'Cartão' : method;
+
+      const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Pedido #${orderData.sale.sale_number}</title>
+          <style>
+            @page { size: 80mm auto; margin: 0; }
+            * { margin: 0; padding: 0; box-sizing: border-box; color: black !important; background: white !important; }
+            body { font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.3; padding: 2mm; width: 76mm; }
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+            .small { font-size: 10px; }
+            .separator { border-bottom: 1px dashed black; margin: 5px 0; padding-bottom: 5px; }
+            .flex-between { display: flex; justify-content: space-between; align-items: center; }
+            .mb-1 { margin-bottom: 2px; }
+            .mb-2 { margin-bottom: 5px; }
+            .mb-3 { margin-bottom: 8px; }
+            .ml-2 { margin-left: 8px; }
+          </style>
+        </head>
+        <body>
+          <div class="center mb-3 separator">
+            <div class="bold" style="font-size: 16px;">ELITE AÇAÍ</div>
+            <div class="small">Pedido ${orderData.sale.delivery_type === 'pickup' ? 'para Retirada' : 'para Entrega'}</div>
+            <div class="small">Tel: (85) 98904-1010</div>
+          </div>
+          
+          <div class="mb-3 separator">
+            <div class="bold center mb-2">=== PEDIDO #${orderData.sale.sale_number} ===</div>
+            <div class="small">Data: ${new Date(orderData.sale.created_at).toLocaleDateString('pt-BR')}</div>
+            <div class="small">Hora: ${new Date(orderData.sale.created_at).toLocaleTimeString('pt-BR')}</div>
+          </div>
+          
+          <div class="mb-3 separator">
+            <div class="bold mb-1">CLIENTE:</div>
+            <div class="small">Nome: ${orderData.sale.customer_name}</div>
+            <div class="small">Telefone: ${orderData.sale.customer_phone}</div>
+            ${orderData.sale.delivery_type === 'pickup' ? `
+            <div class="bold" style="font-size: 14px;">*** RETIRADA NA LOJA ***</div>
+            <div class="small">Data: ${orderData.sale.scheduled_pickup_date ? new Date(orderData.sale.scheduled_pickup_date).toLocaleDateString('pt-BR') : 'Não definida'}</div>
+            <div class="small">Horário: ${orderData.sale.scheduled_pickup_time || 'Não definido'}</div>
+            <div class="small">Local: Rua Um, 1614-C – Residencial 1 – Cágado</div>
+            ` : `
+            <div class="small">Endereço: ${orderData.sale.customer_address}</div>
+            <div class="small">Bairro: ${orderData.sale.customer_neighborhood}</div>
+            ${orderData.sale.customer_complement ? `<div class="small">Complemento: ${orderData.sale.customer_complement}</div>` : ''}
+            `}
+          </div>
+          
+          <div class="mb-3 separator">
+            <div class="bold mb-1">ITENS:</div>
+            ${orderData.items.map((item, index) => `
+              <div class="mb-2">
+                <div class="bold">${item.product_name}</div>
+                ${item.selected_size ? `<div class="small">Tamanho: ${item.selected_size}</div>` : ''}
+                <div class="flex-between">
+                  <span class="small">${item.quantity}x ${formatPrice(item.unit_price)}</span>
+                  <span class="small">${formatPrice(item.total_price)}</span>
+                </div>
+                ${item.complements && item.complements.length > 0 ? `
+                  <div class="ml-2">
+                    <div class="small">Complementos:</div>
+                    ${item.complements.map(comp => `
+                      <div class="small ml-2">• ${comp.name}${comp.price > 0 ? ` (+${formatPrice(comp.price)})` : ''}</div>
+                    `).join('')}
+                  </div>
+                ` : ''}
+                ${item.observations ? `<div class="small ml-2">Obs: ${item.observations}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+          
+          <div class="mb-3 separator">
+            <div class="bold mb-1">TOTAL:</div>
+            ${orderData.sale.delivery_fee && orderData.sale.delivery_fee > 0 ? `
+            <div class="flex-between">
+              <span class="small">Subtotal:</span>
+              <span class="small">${formatPrice(orderData.sale.subtotal)}</span>
+            </div>
+            <div class="flex-between">
+              <span class="small">Taxa Entrega:</span>
+              <span class="small">${formatPrice(orderData.sale.delivery_fee)}</span>
+            </div>
+            ` : ''}
+            <div class="flex-between bold">
+              <span>VALOR:</span>
+              <span>${formatPrice(orderData.sale.total_amount)}</span>
+            </div>
+          </div>
+          
+          <div class="mb-3 separator">
+            <div class="bold mb-1">PAGAMENTO:</div>
+            <div class="small">Forma: ${getPaymentMethodLabel(orderData.sale.payment_type)}</div>
+            ${orderData.sale.change_amount > 0 ? `<div class="small">Troco: ${formatPrice(orderData.sale.change_amount)}</div>` : ''}
+          </div>
+          
+          <div class="center small">
+            <div class="bold mb-2">Elite Açaí</div>
+            <div>Pedido ${orderData.sale.delivery_type === 'pickup' ? 'agendado para retirada' : 'confirmado para entrega'}</div>
+            <div>Impresso: ${new Date().toLocaleString('pt-BR')}</div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      
+      // Aguardar carregar e imprimir automaticamente
+      printWindow.onload = () => {
+        setTimeout(() => {
+          console.log('🖨️ Executando impressão automática...');
+          printWindow.print();
+          
+          // Fechar janela após impressão
+          setTimeout(() => {
+            printWindow.close();
+            console.log('✅ Impressão automática concluída');
+          }, 1000);
+        }, 500);
+      };
+      
+    } catch (error) {
+      console.error('❌ Erro na impressão automática:', error);
+    }
+  };
 
   // Função para tocar som de novo pedido
   const playNewOrderSound = (order: any) => {
@@ -308,12 +559,8 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
 
   const filteredOrders = orders.filter(order => {
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    const matchesSearch = searchTerm === '' || 
-      order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.customer_phone.includes(searchTerm);
     
-    return matchesStatus && matchesSearch;
+    return matchesStatus;
   });
 
   const getStatusCount = (status: OrderStatus) => {
@@ -393,6 +640,19 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
                     </svg>
                   )}
                 </button>
+                
+                <button
+                  onClick={() => setShowPrinterSetup(true)}
+                  className={`p-2 rounded-full transition-colors ${
+                    thermalPrinter.connection.isConnected 
+                      ? 'text-green-600 hover:bg-green-100' 
+                      : 'text-gray-400 hover:bg-gray-100'
+                  }`}
+                  title="Configurar impressora térmica"
+                >
+                  <Printer size={20} />
+                </button>
+                
                 <button
                   onClick={() => setShowManualOrderForm(true)}
                   disabled={!hasPermission('can_create_manual_orders')}
@@ -418,142 +678,98 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
                     Admin
                   </button>
                 )}
-                {printerSettings.auto_print_enabled && (
-                  <div className="flex items-center gap-1 bg-green-50 text-green-700 px-3 py-1.5 rounded-full text-xs border border-green-200 shadow-sm">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                    </svg>
-                    <span className="font-medium">Auto Print</span>
-                  </div>
-                )}
               </div>
             </div>
           </div>
         </header>
 
         <div className="max-w-7xl mx-auto px-4 py-6">
-          {/* Filters */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-6 mb-6 print:hidden">
-            <div className="flex flex-col lg:flex-row gap-4">
-              {/* Search */}
-              <div className="flex-1">
-                <div className="relative">
-                  <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Buscar por nome, telefone ou ID do pedido..."
-                    className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white/70 backdrop-blur-sm transition-all duration-300"
-                  />
+          {/* Filters and Search */}
+          <div className="bg-white rounded-xl shadow-lg p-6 mb-6 print:hidden">
+            <div>
+              {/* Status Filter */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Filter size={16} className="inline mr-1" />
+                  Filtrar por Status
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-2">
+                  {statusOptions.map((option) => {
+                    const Icon = option.icon;
+                    return (
+                      <button
+                        key={option.value}
+                        onClick={() => setStatusFilter(option.value)}
+                        className={`flex flex-col items-center p-3 rounded-lg border-2 transition-all duration-200 ${
+                          statusFilter === option.value
+                            ? 'border-purple-500 bg-purple-50 text-purple-700'
+                            : 'border-gray-200 hover:border-gray-300 text-gray-600'
+                        }`}
+                      >
+                        <Icon size={20} className="mb-1" />
+                        <span className="text-xs font-medium">{option.label}</span>
+                        <span className={`text-xs px-2 py-1 rounded-full mt-1 ${
+                          statusFilter === option.value
+                            ? 'bg-purple-200 text-purple-800'
+                            : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {option.count}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-
-              {/* Status Filter */}
-              <div className="lg:w-64">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as OrderStatus | 'all')}
-                  className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white/70 backdrop-blur-sm transition-all duration-300"
-                >
-                  {statusOptions.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label} ({option.count})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Status Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mt-6 print:hidden">
-              {statusOptions.map(option => {
-                const Icon = option.icon;
-                const isActive = statusFilter === option.value;
-                
-                return (
-                  <button
-                    key={option.value}
-                    onClick={() => setStatusFilter(option.value)}
-                    className={`p-4 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 ${
-                      isActive
-                        ? 'bg-gradient-to-br from-purple-500 to-blue-500 border-purple-400 text-white shadow-lg'
-                        : 'bg-white/70 backdrop-blur-sm border-gray-200 text-gray-600 hover:bg-white hover:shadow-md'
-                    }`}
-                  >
-                    <Icon size={24} className="mx-auto mb-2" />
-                    <div className="text-xs font-medium mb-1">{option.label}</div>
-                    <div className={`text-xl font-bold ${
-                      isActive ? 'text-white' : 'text-gray-800'
-                    }`}>
-                      {option.count}
-                    </div>
-                  </button>
-                );
-              })}
             </div>
           </div>
 
-          {/* Orders List */}
-          <div className="space-y-6 print:hidden">
+          {/* Orders Grid */}
+          <div className="grid gap-6">
             {filteredOrders.length === 0 ? (
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-12 text-center">
-                <div className="bg-gray-100 rounded-full p-6 w-24 h-24 mx-auto mb-6 flex items-center justify-center">
-                  <Package size={48} className="text-gray-400" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-600 mb-2">
+              <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+                <Package size={48} className="mx-auto text-gray-400 mb-4" />
+                <h3 className="text-xl font-semibold text-gray-600 mb-2">
                   Nenhum pedido encontrado
                 </h3>
                 <p className="text-gray-500">
-                  {searchTerm || statusFilter !== 'all' 
-                    ? 'Tente ajustar os filtros de busca'
-                    : 'Aguardando novos pedidos...'
-                  }
+                  Não há pedidos para o status selecionado
                 </p>
-                {statusFilter === 'pending' && (
-                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                    <p className="text-blue-700 text-sm">
-                      💡 <strong>Dica:</strong> Novos pedidos aparecerão automaticamente aqui quando chegarem
-                    </p>
-                  </div>
-                )}
               </div>
             ) : (
-              filteredOrders.map(order => (
+              filteredOrders.map((order) => (
                 <OrderCard
                   key={order.id}
                   order={order}
                   onStatusChange={updateOrderStatus}
                   isAttendant={true}
-                  className="transform transition-all duration-300 hover:scale-[1.02] hover:shadow-xl"
+                  storeSettings={storeSettings}
                 />
               ))
             )}
           </div>
         </div>
-        
-        {/* Manual Order Form */}
+
+        {/* Modals */}
         {showManualOrderForm && (
-          <ManualOrderForm 
+          <ManualOrderForm
             onClose={() => setShowManualOrderForm(false)}
-            onOrderCreated={() => {
-              // Refresh orders after creating a new one
-              setTimeout(() => {
-                window.location.reload();
-              }, 1000);
-            }}
+            storeSettings={storeSettings}
           />
         )}
-        
-        {/* Print Preview Modal */}
-        {showPrintPreview && newOrder && (
-          <OrderPrintView 
-            order={newOrder} 
-            storeSettings={null}
+
+        {showPrinterSetup && (
+          <ThermalPrinterSetup
+            onClose={() => setShowPrinterSetup(false)}
+          />
+        )}
+
+        {showPrintPreview && printOrderData && (
+          <OrderPrintView
+            order={printOrderData}
             onClose={() => {
               setShowPrintPreview(false);
-              setNewOrder(null);
-            }} 
+              setPrintOrderData(null);
+            }}
           />
         )}
       </div>

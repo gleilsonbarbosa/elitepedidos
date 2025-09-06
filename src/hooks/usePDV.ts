@@ -156,18 +156,68 @@ export const usePDVProducts = () => {
       
       // Test connection first
       try {
-        const { count, error: testError } = await supabase
+        // Test with a simple query first
+        const { data: testData, error: testError } = await supabase
           .from('pdv_products')
-          .select('*', { count: 'exact', head: true });
+          .select('id')
+          .limit(1);
         
         if (testError) {
           console.error('❌ [PDV] Erro de conexão com Supabase:', testError);
-          throw testError;
+          throw new Error(`Conexão falhou: ${testError.message}`);
         }
         
-        console.log('✅ [PDV] Conexão com Supabase OK. Total de produtos na tabela:', count);
+        console.log('✅ [PDV] Conexão com Supabase OK');
       } catch (connectionError) {
         console.error('❌ [PDV] Falha na conexão:', connectionError);
+        
+        // Check if it's a network error
+        if (connectionError instanceof TypeError && connectionError.message.includes('Failed to fetch')) {
+          console.warn('🌐 [PDV] Erro de rede detectado - usando produtos de demonstração');
+          
+          const demoProducts: PDVProduct[] = [
+            {
+              id: 'demo-acai-300',
+              code: 'ACAI300ML',
+              name: 'Açaí Premium 300ml (Demo - Sem Conexão)',
+              category: 'acai',
+              is_weighable: false,
+              unit_price: 15.90,
+              image_url: 'https://images.pexels.com/photos/1092730/pexels-photo-1092730.jpeg?auto=compress&cs=tinysrgb&w=400',
+              stock_quantity: 100,
+              min_stock: 10,
+              is_active: true,
+              barcode: '7891234567890',
+              description: 'Açaí tradicional 300ml',
+              display_order: 1,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            },
+            {
+              id: 'demo-acai-500',
+              code: 'ACAI500ML',
+              name: 'Açaí Premium 500ml (Demo - Sem Conexão)',
+              category: 'acai',
+              is_weighable: false,
+              unit_price: 22.90,
+              image_url: 'https://images.pexels.com/photos/1092730/pexels-photo-1092730.jpeg?auto=compress&cs=tinysrgb&w=400',
+              stock_quantity: 100,
+              min_stock: 10,
+              is_active: true,
+              barcode: '7891234567891',
+              description: 'Açaí tradicional 500ml',
+              display_order: 2,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+          ];
+          
+          setProducts(demoProducts);
+          setError('Sem conexão com o servidor - usando dados de demonstração');
+          setLoading(false);
+          return;
+        }
+        
         throw connectionError;
       }
       

@@ -259,7 +259,6 @@ const OrderCard: React.FC<OrderCardProps> = ({
             <select
               value={order.status}
               onChange={(e) => onStatusChange(order.id, e.target.value as OrderStatus)}
-              disabled={!hasPermission('can_update_status') && !hasPermission('can_edit_orders')}
               className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white/70 backdrop-blur-sm transition-all duration-300 font-medium"
             >
               {statusOptions.map(option => (

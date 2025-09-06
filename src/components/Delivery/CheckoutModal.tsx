@@ -74,13 +74,23 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
             
             // Get customer balance
             const balance = await getCustomerBalance(customer.id);
-            setCustomerBalance(balance);
+            
+            // Only set balance if it's positive
+            if (balance && balance.available_balance > 0) {
+              setCustomerBalance(balance);
+            } else {
+              setCustomerBalance(null);
+              setAppliedCashback(0); // Reset any applied cashback
+            }
           } else {
             setCustomerId(null);
             setCustomerBalance(null);
+            setAppliedCashback(0);
           }
         } catch (error) {
           console.error('Erro ao buscar cliente:', error);
+          setCustomerBalance(null);
+          setAppliedCashback(0);
         }
       }
     };
@@ -138,6 +148,13 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     const availableBalance = customerBalance?.available_balance || 0;
     const orderTotal = totalPrice + getDeliveryFee();
     
+    // Prevent applying cashback if balance is zero or negative
+    if (availableBalance <= 0) {
+      console.warn('⚠️ Tentativa de aplicar cashback com saldo zero/negativo:', availableBalance);
+      setAppliedCashback(0);
+      return;
+    }
+    
     // Round to 2 decimal places with consistent precision handling
     const roundedBalance = Math.round(availableBalance * 100) / 100;
     const roundedOrderTotal = Math.round(orderTotal * 100) / 100;
@@ -146,6 +163,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     // Use consistent rounding for all values
     const maxAmount = Math.min(roundedBalance, roundedOrderTotal);
     const appliedAmount = Math.min(roundedAmount, maxAmount);
+    
+    // Final safety check
+    if (appliedAmount <= 0) {
+      setAppliedCashback(0);
+      return;
+    }
     
     setAppliedCashback(appliedAmount);
   };
@@ -206,16 +229,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      // Process cashback transactions if applied
+      // Process cashback redemption if applied (validation already done when applying)
       if (appliedCashback > 0 && customerId) {
-        console.log('🎁 Processando resgate de cashback:', { customerId, appliedCashback });
-        try {
-          const redemptionResult = await createRedemptionTransaction(customerId, appliedCashback);
-          console.log('✅ Cashback resgatado com sucesso:', redemptionResult);
-        } catch (redemptionError) {
-          console.error('❌ Falha no resgate de cashback:', redemptionError);
-          throw redemptionError; // Re-throw to stop order creation
-        }
+        console.log('🎁 Processando resgate de cashback (já validado):', { customerId, appliedCashback });
+        const redemptionResult = await createRedemptionTransaction(customerId, appliedCashback);
+        console.log('✅ Cashback resgatado com sucesso:', redemptionResult);
       }
 
       const neighborhood = neighborhoods.find(n => n.name === customerNeighborhood);
@@ -296,16 +314,45 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       console.error('Erro ao criar pedido:', error);
       let errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       
-      // Fix malformed currency in error messages
-      const currencyMatch = errorMessage.match(/R\$ ([\d.]+)(?:\.2f)?/);
+      // Fix malformed currency in error messages - improved regex
+      const currencyMatch = errorMessage.match(/R\$\s*(-?[\d.,]+)(?:\.2f|f)?/);
       if (currencyMatch) {
-        const numericValue = parseFloat(currencyMatch[1]);
+        // Clean the numeric value and parse it
+        const cleanValue = currencyMatch[1].replace(/[^\d.,-]/g, '').replace(',', '.');
+        const numericValue = parseFloat(cleanValue);
         if (!isNaN(numericValue)) {
           const formattedCurrency = new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL'
           }).format(numericValue);
-          errorMessage = errorMessage.replace(/R\$ [\d.]+(?:\.2f)?/, formattedCurrency);
+          errorMessage = errorMessage.replace(/R\$\s*-?[\d.,]+(?:\.2f|f)?/, formattedCurrency);
+        }
+      }
+      
+      // Also fix patterns like "-R$ 18,91f"
+      const negativeMatch = errorMessage.match(/-R\$\s*([\d.,]+)f?/);
+      if (negativeMatch) {
+        const cleanValue = negativeMatch[1].replace(',', '.');
+        const numericValue = parseFloat(cleanValue);
+        if (!isNaN(numericValue)) {
+          const formattedCurrency = new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+          }).format(-numericValue);
+          errorMessage = errorMessage.replace(/-R\$\s*[\d.,]+f?/, formattedCurrency);
+        }
+      }
+      
+      // Fix patterns like "R$ -18.1105500000000002.2f"
+      const precisionMatch = errorMessage.match(/R\$\s*(-?[\d.]+\d{10,})(?:\.2f)?/);
+      if (precisionMatch) {
+        const numericValue = parseFloat(precisionMatch[1]);
+        if (!isNaN(numericValue)) {
+          const formattedCurrency = new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+          }).format(numericValue);
+          errorMessage = errorMessage.replace(/R\$\s*-?[\d.]+\d{10,}(?:\.2f)?/, formattedCurrency);
         }
       }
       
@@ -437,13 +484,15 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   value={customerComplement}
                   onChange={(e) => setCustomerComplement(e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  placeholder="Apartamento, bloco, ponto de referência..."
+                  placeholder="Apartamento, bloco, referência..."
                 />
               </div>
             </div>
           )}
 
-          {/* Pickup Scheduling (only for pickup) */}
+          {/* Cashback Section */}
+
+          {/* Pickup Scheduler (only for pickup) */}
           {deliveryType === 'pickup' && (
             <PickupScheduler
               selectedDate={scheduledPickupDate}
@@ -452,7 +501,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
               onTimeChange={setScheduledPickupTime}
             />
           )}
-
 
           {/* Payment Method */}
           <div className="space-y-4">
