@@ -189,7 +189,7 @@ export const useCashback = () => {
       
       return {
         customer_id: customerId,
-        available_balance: Math.round(availableBalance * 100) / 100,
+        available_balance: Math.max(0, Math.round(availableBalance * 100) / 100),
         expiring_amount: daysUntilEndOfMonth <= 7 ? availableBalance : 0, // Todo saldo expira no fim do mês
         expiration_date: endOfMonth.toISOString()
       };

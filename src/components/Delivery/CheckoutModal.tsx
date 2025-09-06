@@ -74,6 +74,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
             
             // Get customer balance
             const balance = await getCustomerBalance(customer.id);
+            // Ensure balance is never negative in the UI
+            if (balance) {
+              balance.available_balance = Math.max(0, balance.available_balance);
+              balance.expiring_amount = Math.max(0, balance.expiring_amount || 0);
+            }
             setCustomerBalance(balance);
           } else {
             setCustomerId(null);
