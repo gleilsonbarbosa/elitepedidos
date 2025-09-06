@@ -144,9 +144,35 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
           });
         
           // Imprimir automaticamente se configurado
-          if (printerSettings.auto_print_enabled && latestOrder.status === 'pending') {
+          if (printerSettings.auto_print_enabled && printerSettings.auto_print_delivery && latestOrder.status === 'pending') {
             console.log('🖨️ Imprimindo pedido automaticamente:', latestOrder.id);
-            setShowPrintPreview(true);
+            
+            // Criar dados para impressão
+            const printData = {
+              sale: {
+                sale_number: latestOrder.id.slice(-8),
+                operator_name: 'Sistema',
+                customer_name: latestOrder.customer_name,
+                customer_phone: latestOrder.customer_phone,
+                subtotal: latestOrder.total_price - (latestOrder.delivery_fee || 0),
+                discount_amount: 0,
+                total_amount: latestOrder.total_price,
+                payment_type: latestOrder.payment_method,
+                change_amount: latestOrder.change_for ? Math.max(0, latestOrder.change_for - latestOrder.total_price) : 0,
+                created_at: latestOrder.created_at,
+                delivery_type: latestOrder.delivery_type,
+                scheduled_pickup_date: latestOrder.scheduled_pickup_date,
+                scheduled_pickup_time: latestOrder.scheduled_pickup_time,
+                customer_address: latestOrder.customer_address,
+                customer_neighborhood: latestOrder.customer_neighborhood,
+                customer_complement: latestOrder.customer_complement,
+                delivery_fee: latestOrder.delivery_fee
+              },
+              items: latestOrder.items || []
+            };
+            
+            // Imprimir diretamente sem modal
+            printOrderDirectly(printData);
           
             // Mostrar notificação de impressão automática
             const printNotification = document.createElement('div');
@@ -179,6 +205,154 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSet
     // Atualizar contagem para próxima verificação
     setLastOrderCount(currentPendingCount);
   }, [orders, lastOrderCount, soundEnabled, printerSettings.auto_print_enabled]);
+
+  // Função para imprimir pedido diretamente
+  const printOrderDirectly = (orderData: any) => {
+    try {
+      console.log('🖨️ Iniciando impressão automática direta:', orderData.sale.sale_number);
+      
+      // Criar janela de impressão
+      const printWindow = window.open('', '_blank', 'width=300,height=600');
+      if (!printWindow) {
+        console.error('❌ Não foi possível abrir janela de impressão - pop-ups bloqueados');
+        return;
+      }
+
+      const formatPrice = (price: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
+      const getPaymentMethodLabel = (method: string) => method === 'money' ? 'Dinheiro' : method === 'pix' ? 'PIX' : method === 'card' ? 'Cartão' : method;
+      const getStatusLabel = (status: string) => ({
+        pending: 'Pendente', confirmed: 'Confirmado', preparing: 'Em Preparo',
+        out_for_delivery: 'Saiu para Entrega', ready_for_pickup: 'Pronto para Retirada',
+        delivered: 'Entregue', cancelled: 'Cancelado'
+      })[status] || status;
+
+      const printContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>Pedido #${orderData.sale.sale_number}</title>
+          <style>
+            @page { size: 80mm auto; margin: 0; }
+            * { margin: 0; padding: 0; box-sizing: border-box; color: black !important; background: white !important; }
+            body { font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.3; padding: 2mm; width: 76mm; }
+            .center { text-align: center; }
+            .bold { font-weight: bold; }
+            .small { font-size: 10px; }
+            .separator { border-bottom: 1px dashed black; margin: 5px 0; padding-bottom: 5px; }
+            .flex-between { display: flex; justify-content: space-between; align-items: center; }
+            .mb-1 { margin-bottom: 2px; }
+            .mb-2 { margin-bottom: 5px; }
+            .mb-3 { margin-bottom: 8px; }
+            .ml-2 { margin-left: 8px; }
+          </style>
+        </head>
+        <body>
+          <div class="center mb-3 separator">
+            <div class="bold" style="font-size: 16px;">ELITE AÇAÍ</div>
+            <div class="small">Pedido ${orderData.sale.delivery_type === 'pickup' ? 'para Retirada' : 'para Entrega'}</div>
+            <div class="small">Tel: (85) 98904-1010</div>
+          </div>
+          
+          <div class="mb-3 separator">
+            <div class="bold center mb-2">=== PEDIDO #${orderData.sale.sale_number} ===</div>
+            <div class="small">Data: ${new Date(orderData.sale.created_at).toLocaleDateString('pt-BR')}</div>
+            <div class="small">Hora: ${new Date(orderData.sale.created_at).toLocaleTimeString('pt-BR')}</div>
+          </div>
+          
+          <div class="mb-3 separator">
+            <div class="bold mb-1">CLIENTE:</div>
+            <div class="small">Nome: ${orderData.sale.customer_name}</div>
+            <div class="small">Telefone: ${orderData.sale.customer_phone}</div>
+            ${orderData.sale.delivery_type === 'pickup' ? `
+            <div class="bold" style="font-size: 14px;">*** RETIRADA NA LOJA ***</div>
+            <div class="small">Data: ${orderData.sale.scheduled_pickup_date ? new Date(orderData.sale.scheduled_pickup_date).toLocaleDateString('pt-BR') : 'Não definida'}</div>
+            <div class="small">Horário: ${orderData.sale.scheduled_pickup_time || 'Não definido'}</div>
+            <div class="small">Local: Rua Um, 1614-C – Residencial 1 – Cágado</div>
+            ` : `
+            <div class="small">Endereço: ${orderData.sale.customer_address}</div>
+            <div class="small">Bairro: ${orderData.sale.customer_neighborhood}</div>
+            ${orderData.sale.customer_complement ? `<div class="small">Complemento: ${orderData.sale.customer_complement}</div>` : ''}
+            `}
+          </div>
+          
+          <div class="mb-3 separator">
+            <div class="bold mb-1">ITENS:</div>
+            ${orderData.items.map((item, index) => `
+              <div class="mb-2">
+                <div class="bold">${item.product_name}</div>
+                ${item.selected_size ? `<div class="small">Tamanho: ${item.selected_size}</div>` : ''}
+                <div class="flex-between">
+                  <span class="small">${item.quantity}x ${formatPrice(item.unit_price)}</span>
+                  <span class="small">${formatPrice(item.total_price)}</span>
+                </div>
+                ${item.complements && item.complements.length > 0 ? `
+                  <div class="ml-2">
+                    <div class="small">Complementos:</div>
+                    ${item.complements.map(comp => `
+                      <div class="small ml-2">• ${comp.name}${comp.price > 0 ? ` (+${formatPrice(comp.price)})` : ''}</div>
+                    `).join('')}
+                  </div>
+                ` : ''}
+                ${item.observations ? `<div class="small ml-2">Obs: ${item.observations}</div>` : ''}
+              </div>
+            `).join('')}
+          </div>
+          
+          <div class="mb-3 separator">
+            <div class="bold mb-1">TOTAL:</div>
+            ${orderData.sale.delivery_fee && orderData.sale.delivery_fee > 0 ? `
+            <div class="flex-between">
+              <span class="small">Subtotal:</span>
+              <span class="small">${formatPrice(orderData.sale.subtotal)}</span>
+            </div>
+            <div class="flex-between">
+              <span class="small">Taxa Entrega:</span>
+              <span class="small">${formatPrice(orderData.sale.delivery_fee)}</span>
+            </div>
+            ` : ''}
+            <div class="flex-between bold">
+              <span>VALOR:</span>
+              <span>${formatPrice(orderData.sale.total_amount)}</span>
+            </div>
+          </div>
+          
+          <div class="mb-3 separator">
+            <div class="bold mb-1">PAGAMENTO:</div>
+            <div class="small">Forma: ${getPaymentMethodLabel(orderData.sale.payment_type)}</div>
+            ${orderData.sale.change_amount > 0 ? `<div class="small">Troco: ${formatPrice(orderData.sale.change_amount)}</div>` : ''}
+          </div>
+          
+          <div class="center small">
+            <div class="bold mb-2">Elite Açaí</div>
+            <div>Pedido ${orderData.sale.delivery_type === 'pickup' ? 'agendado para retirada' : 'confirmado para entrega'}</div>
+            <div>Impresso: ${new Date().toLocaleString('pt-BR')}</div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      
+      // Aguardar carregar e imprimir automaticamente
+      printWindow.onload = () => {
+        setTimeout(() => {
+          console.log('🖨️ Executando impressão automática...');
+          printWindow.print();
+          
+          // Fechar janela após impressão
+          setTimeout(() => {
+            printWindow.close();
+            console.log('✅ Impressão automática concluída');
+          }, 1000);
+        }, 500);
+      };
+      
+    } catch (error) {
+      console.error('❌ Erro na impressão automática:', error);
+    }
+  };
 
   // Função para tocar som de novo pedido
   const playNewOrderSound = (order: any) => {
