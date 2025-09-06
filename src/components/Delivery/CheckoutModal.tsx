@@ -475,6 +475,24 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <input
                   type="text"
                   value={customerComplement}
+                  onChange={(e) => setCustomerComplement(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Apartamento, bloco, referência..."
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Pickup Scheduler (only for pickup) */}
+          {deliveryType === 'pickup' && (
+            <PickupScheduler
+              selectedDate={scheduledPickupDate}
+              selectedTime={scheduledPickupTime}
+              onDateChange={setScheduledPickupDate}
+              onTimeChange={setScheduledPickupTime}
+            />
+          )}
+
           {/* Payment Method */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Forma de Pagamento</h3>
