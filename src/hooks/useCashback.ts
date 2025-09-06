@@ -360,10 +360,8 @@ export const useCashback = () => {
       // Converter de volta para reais
       const monthlyBalance = Math.round(monthlyBalanceCents) / 100;
 
-      // CRÍTICO: Se saldo é negativo, retornar 0 para evitar erro no banco
+      // CRÍTICO: Se saldo é negativo ou zero, retornar saldo zero
       const finalBalance = Math.max(0, monthlyBalance);
-
-      // Garantir valores não negativos
       const availableBalance = finalBalance;
       const roundedAmount = Math.round(amount * 100) / 100;
       
@@ -371,28 +369,23 @@ export const useCashback = () => {
       const availableBalanceCents = Math.round(availableBalance * 100);
       const roundedAmountCents = Math.round(roundedAmount * 100);
       
-      // CRÍTICO: Se saldo é zero ou negativo, bloquear imediatamente
-      if (availableBalance <= 0) {
-        console.log('💰 Verificação de saldo mensal:', {
-          availableBalance,
-          monthlyBalance,
-          monthlyBalanceRaw: monthlyBalance,
-          finalBalance: finalBalance,
-          requestedAmount: roundedAmount
-        });
-        throw new Error('Você não possui cashback disponível no mês atual.');
-      }
-      
       console.log('💰 Verificação de saldo mensal:', {
-        // CRÍTICO: Se saldo é negativo, retornar 0 para evitar erro no banco
-        // const finalBalance = Math.max(0, monthlyBalance);
+        availableBalance,
+        monthlyBalance,
+        monthlyBalanceRaw: monthlyBalance,
+        finalBalance: finalBalance,
         requestedCents: roundedAmountCents,
         availableCents: availableBalanceCents,
-        monthlyBalanceRaw: monthlyBalance,
+        requestedAmount: roundedAmount,
         sufficient: availableBalanceCents >= roundedAmountCents,
         mesAtual: `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`,
         transacoesDoMes: currentMonthTransactions.length
       });
+      
+      // CRÍTICO: Se saldo é zero ou negativo, bloquear imediatamente
+      if (availableBalance <= 0) {
+        throw new Error('Você não possui cashback disponível no mês atual.');
+      }
       
       if (availableBalanceCents < roundedAmountCents) {
         const formattedBalance = new Intl.NumberFormat('pt-BR', {

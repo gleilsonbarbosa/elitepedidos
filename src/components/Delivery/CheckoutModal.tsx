@@ -343,6 +343,19 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         }
       }
       
+      // Fix patterns like "R$ -18.1105500000000002.2f"
+      const precisionMatch = errorMessage.match(/R\$\s*(-?[\d.]+\d{10,})(?:\.2f)?/);
+      if (precisionMatch) {
+        const numericValue = parseFloat(precisionMatch[1]);
+        if (!isNaN(numericValue)) {
+          const formattedCurrency = new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+          }).format(numericValue);
+          errorMessage = errorMessage.replace(/R\$\s*-?[\d.]+\d{10,}(?:\.2f)?/, formattedCurrency);
+        }
+      }
+      
       alert(`Erro ao finalizar pedido: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
