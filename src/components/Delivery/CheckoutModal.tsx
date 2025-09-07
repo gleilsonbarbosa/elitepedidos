@@ -50,6 +50,29 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [appliedCashback, setAppliedCashback] = useState(0);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [showAISuggestions, setShowAISuggestions] = useState(true);
+  const [aiSuggestionsEnabled, setAiSuggestionsEnabled] = useState(true);
+
+  // Verificar se as sugestões IA estão habilitadas
+  useEffect(() => {
+    try {
+      const aiEnabled = localStorage.getItem('ai_sales_assistant_enabled');
+      if (aiEnabled !== null) {
+        const enabled = JSON.parse(aiEnabled);
+        setAiSuggestionsEnabled(enabled);
+        setShowAISuggestions(enabled);
+      } else {
+        const savedSettings = localStorage.getItem('delivery_suggestions_settings');
+        if (savedSettings) {
+          const settings = JSON.parse(savedSettings);
+          const enabled = settings.enabled !== false && settings.showInCheckout !== false;
+          setAiSuggestionsEnabled(enabled);
+          setShowAISuggestions(enabled);
+        }
+      }
+    } catch (error) {
+      console.warn('Erro ao verificar configuração de sugestões no checkout:', error);
+    }
+  }, []);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -66,9 +89,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setCustomerBalance(null);
       setAppliedCashback(0);
       setCustomerId(null);
-      setShowAISuggestions(true);
+      setShowAISuggestions(aiSuggestionsEnabled);
     }
-  }, [isOpen]);
+  }, [isOpen, aiSuggestionsEnabled]);
 
   // Search for customer when phone changes
   useEffect(() => {
@@ -545,7 +568,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
           )}
 
           {/* AI Sales Assistant */}
-          {showAISuggestions && items.length > 0 && (
+          {showAISuggestions && aiSuggestionsEnabled && items.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-800">🤖 Sugestões Personalizadas</h3>

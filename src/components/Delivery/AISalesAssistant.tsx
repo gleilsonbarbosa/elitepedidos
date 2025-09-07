@@ -25,6 +25,48 @@ const AISalesAssistant: React.FC<AISalesAssistantProps> = ({
 }) => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [isVisible, setIsVisible] = useState(false);
+  const [isEnabled, setIsEnabled] = useState(true);
+
+  // Verificar se as sugestões estão habilitadas
+  useEffect(() => {
+    const checkIfEnabled = () => {
+      try {
+        // Verificar configuração específica primeiro
+        const aiEnabled = localStorage.getItem('ai_sales_assistant_enabled');
+        if (aiEnabled !== null) {
+          const enabled = JSON.parse(aiEnabled);
+          setIsEnabled(enabled);
+          return;
+        }
+        
+        // Fallback para configuração geral
+        const savedSettings = localStorage.getItem('delivery_suggestions_settings');
+        if (savedSettings) {
+          const settings = JSON.parse(savedSettings);
+          setIsEnabled(settings.enabled !== false);
+        } else {
+          setIsEnabled(true); // Padrão habilitado
+        }
+      } catch (error) {
+        console.warn('Erro ao verificar configuração de sugestões:', error);
+        setIsEnabled(true); // Padrão habilitado em caso de erro
+      }
+    };
+
+    checkIfEnabled();
+
+    // Escutar mudanças nas configurações
+    const handleConfigChange = (event: CustomEvent) => {
+      console.log('🔄 Configuração de sugestões alterada:', event.detail);
+      setIsEnabled(event.detail.enabled);
+    };
+
+    window.addEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
+    };
+  }, []);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -35,6 +77,12 @@ const AISalesAssistant: React.FC<AISalesAssistantProps> = ({
 
   // Generate intelligent suggestions based on cart contents
   const generateSuggestions = () => {
+    // Se as sugestões estão desabilitadas, não gerar nenhuma
+    if (!isEnabled) {
+      console.log('🚫 Sugestões IA desabilitadas nas configurações');
+      return [];
+    }
+    
     if (cartItems.length === 0) return [];
 
     const suggestions: Suggestion[] = [];
@@ -75,24 +123,121 @@ const AISalesAssistant: React.FC<AISalesAssistantProps> = ({
         }
       }
 
+      // PRIORITY: Açaí 500g suggestion
+      if (!addedProducts.has('acai-500g')) {
+        const acai500g = availableProducts.find(p => 
+          p.name.includes('500g') && p.category === 'acai'
+        );
+        
+        if (acai500g) {
+          productSuggestions.push({
+            product: acai500g,
+            reason: '✨ Açaí 500g - tamanho favorito de 73% dos nossos clientes!',
+            trigger: 'social_proof'
+          });
+        }
+      }
+
+      // PRIORITY: Açaí 700g suggestion
+      if (!addedProducts.has('acai-700g')) {
+        const acai700g = availableProducts.find(p => 
+          p.name.includes('700g') && p.category === 'acai'
+        );
+        
+        if (acai700g) {
+          productSuggestions.push({
+            product: acai700g,
+            reason: '✨ Açaí 700g - perfeito para quem ama açaí! Mais sabor, melhor valor.',
+            trigger: 'affinity'
+          });
+        }
+      }
+
+      // PRIORITY: Combo Casal suggestion
+      if (!addedProducts.has('combo-casal-1kg')) {
+        const comboAcai = availableProducts.find(p => 
+          p.name.toLowerCase().includes('combo') && p.category === 'combo'
+        );
+        
+        if (comboAcai) {
+          productSuggestions.push({
+            product: comboAcai,
+            reason: '✨ Combo Casal 1kg - ideal para compartilhar! Economia garantida.',
+            trigger: 'affinity'
+          });
+        }
+      }
+
+      // PRIORITY: Açaí Premium suggestions
+      const premiumAcaiSuggestions = [
+        {
+          searchTerm: 'premium',
+          reason: '✨ Açaí Premium - qualidade superior que você merece!',
+          trigger: 'affinity' as const
+        },
+        {
+          searchTerm: 'tradicional',
+          reason: '✨ Açaí Tradicional - o sabor autêntico que conquistou gerações!',
+          trigger: 'social_proof' as const
+        },
+        {
+          searchTerm: 'especial',
+          reason: '✨ Açaí Especial - receita exclusiva da Elite Açaí!',
+          trigger: 'urgency' as const
+        }
+      ];
+
+      premiumAcaiSuggestions.forEach(suggestion => {
+        const premiumAcai = availableProducts.find(p => 
+          p.name.toLowerCase().includes(suggestion.searchTerm) && 
+          p.category === 'acai' && 
+          !addedProducts.has(p.id)
+        );
+        
+        if (premiumAcai) {
+          productSuggestions.push({
+            product: premiumAcai,
+            reason: suggestion.reason,
+            trigger: suggestion.trigger
+          });
+        }
+      });
       // Product upgrade suggestions
       const upgradeSuggestions = [
         {
           condition: () => cartItems.some(item => item.product.name.includes('300g')),
-          product: availableProducts.find(p => p.name.includes('500g')),
-          reason: '87% dos clientes preferem o **tamanho 500g** - mais açaí, melhor custo-benefício!',
+          product: availableProducts.find(p => p.name.includes('500g') && p.category === 'acai'),
+          reason: '✨ Que tal fazer upgrade para o **tamanho 500g**? Mais açaí, melhor custo-benefício!',
           trigger: 'social_proof' as const
+        },
+        {
+          condition: () => cartItems.some(item => item.product.name.includes('500g')),
+          product: availableProducts.find(p => p.name.includes('700g') && p.category === 'acai'),
+          reason: '✨ Upgrade para **700g** - ainda mais açaí para você aproveitar!',
+          trigger: 'affinity' as const
         },
         {
           condition: () => cartItems.length === 1 && !hasCombo,
           product: availableProducts.find(p => p.category === 'combo'),
-          reason: 'Que tal o **Combo Casal**? Perfeito para compartilhar e economizar!',
+          reason: '✨ Que tal o **Combo Casal**? Perfeito para compartilhar e economizar!',
           trigger: 'affinity' as const
         },
         {
           condition: () => hasAcai && !hasMilkshake,
           product: availableProducts.find(p => p.category === 'milkshake'),
-          reason: 'Complete sua experiência com um **milkshake cremoso** - combinação perfeita!',
+          reason: '✨ Já pediu o seu açaí? Aproveite e adicione um **milkshake cremoso**!',
+          trigger: 'affinity' as const
+        },
+        {
+          condition: () => hasAcai && cartTotal < 40,
+          product: availableProducts.find(p => p.category === 'acai' && p.price > 30),
+          reason: '✨ Complete sua experiência com um **açaí premium** ainda maior!',
+          trigger: 'affinity' as const
+        },
+        {
+          condition: () => cartItems.length >= 2 && !hasCombo,
+          product: availableProducts.find(p => p.category === 'combo'),
+          reason: '✨ Com vários itens, o **Combo** pode ser mais vantajoso!',
           trigger: 'affinity' as const
         }
       ];
@@ -118,7 +263,7 @@ const AISalesAssistant: React.FC<AISalesAssistantProps> = ({
           const randomBebida = bebidas[Math.floor(Math.random() * bebidas.length)];
           productSuggestions.push({
             product: randomBebida,
-            reason: `Hidrate-se! **${randomBebida.name}** é a escolha de 73% dos nossos clientes.`,
+            reason: `✨ Que tal uma **${randomBebida.name}** para acompanhar? Combinação perfeita!`,
             trigger: 'social_proof'
           });
         }
@@ -160,42 +305,42 @@ const AISalesAssistant: React.FC<AISalesAssistantProps> = ({
         const topSuggestions = [
           {
             complement: availableComplements.find(c => c.name.includes('PAÇOCA')),
-            reason: 'Esse copo fica ainda mais gostoso com **paçoca crocante**.',
+            reason: '✨ Esse copo fica ainda mais gostoso com **paçoca crocante**.',
             trigger: 'affinity' as const
           },
           {
             complement: availableComplements.find(c => c.name.includes('LEITE CONDENSADO')),
-            reason: 'A maioria completa com **leite condensado extra (+{price})**.',
+            reason: '✨ A maioria completa com **leite condensado extra (+{price})**.',
             trigger: 'social_proof' as const
           },
           {
             complement: availableComplements.find(c => c.name.includes('MORANGO')),
-            reason: 'Top escolha junto com esse copo: **morango fresco 🍓**.',
+            reason: '✨ Top escolha junto com esse copo: **morango fresco 🍓**.',
             trigger: 'social_proof' as const
           },
           {
             complement: availableComplements.find(c => c.name.includes('GRANOLA')),
-            reason: 'Adicione **granola crocante** agora por apenas +{price}.',
+            reason: '✨ Adicione **granola crocante** por apenas +{price}.',
             trigger: 'urgency' as const
           },
           {
             complement: availableComplements.find(c => c.name.includes('NUTELA')),
-            reason: 'Clientes que pediram esse copo também escolheram **creme de nutella**.',
+            reason: '✨ Clientes que pediram esse copo também escolheram **creme de nutella**.',
             trigger: 'social_proof' as const
           },
           {
             complement: availableComplements.find(c => c.name.includes('CASTANHA')),
-            reason: 'Esse sabor combina perfeitamente com **castanha em banda**.',
+            reason: '✨ Esse sabor combina perfeitamente com **castanha em banda**.',
             trigger: 'affinity' as const
           },
           {
             complement: availableComplements.find(c => c.name.includes('CHOCOBALL POWER')),
-            reason: 'Adicione **chocoball power** por apenas +{price} - oferta limitada!',
+            reason: '✨ Adicione **chocoball power** por apenas +{price}.',
             trigger: 'urgency' as const
           },
           {
             complement: availableComplements.find(c => c.name.includes('KIWI')),
-            reason: 'Refresque ainda mais com **kiwi fatiado 🥝**.',
+            reason: '✨ Refresque ainda mais com **kiwi fatiado 🥝**.',
             trigger: 'affinity' as const
           }
         ];
@@ -244,7 +389,7 @@ const AISalesAssistant: React.FC<AISalesAssistantProps> = ({
           
           complementSuggestions.push({
             product: virtualProduct,
-            reason: `Complete seu milkshake com **${comp.name.toLowerCase()}** por apenas +${formatPrice(comp.price)}.`,
+            reason: `✨ Complete seu milkshake com **${comp.name.toLowerCase()}** por apenas +${formatPrice(comp.price)}.`,
             trigger: 'affinity'
           });
         });
@@ -269,8 +414,8 @@ const AISalesAssistant: React.FC<AISalesAssistantProps> = ({
   useEffect(() => {
     const newSuggestions = generateSuggestions();
     setSuggestions(newSuggestions);
-    setIsVisible(newSuggestions.length > 0 && cartItems.length > 0);
-  }, [cartItems, availableProducts]);
+    setIsVisible(newSuggestions.length > 0 && cartItems.length > 0 && isEnabled);
+  }, [cartItems, availableProducts, isEnabled]);
 
   const getTriggerIcon = (trigger: string) => {
     switch (trigger) {
@@ -298,7 +443,7 @@ const AISalesAssistant: React.FC<AISalesAssistantProps> = ({
     }
   };
 
-  if (!isVisible || suggestions.length === 0) {
+  if (!isVisible || suggestions.length === 0 || !isEnabled) {
     return null;
   }
 

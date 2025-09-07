@@ -27,6 +27,40 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
   const [currentSuggestion, setCurrentSuggestion] = useState<UpsellSuggestion | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
+  const [aiEnabled, setAiEnabled] = useState(true);
+
+  // Verificar se as sugestões IA estão habilitadas
+  useEffect(() => {
+    const checkAISettings = () => {
+      try {
+        const aiEnabled = localStorage.getItem('ai_sales_assistant_enabled');
+        if (aiEnabled !== null) {
+          setAiEnabled(JSON.parse(aiEnabled));
+        } else {
+          const savedSettings = localStorage.getItem('delivery_suggestions_settings');
+          if (savedSettings) {
+            const settings = JSON.parse(savedSettings);
+            setAiEnabled(settings.enabled !== false);
+          }
+        }
+      } catch (error) {
+        console.warn('Erro ao verificar configuração de sugestões no banner:', error);
+      }
+    };
+
+    checkAISettings();
+
+    // Escutar mudanças nas configurações
+    const handleConfigChange = (event: CustomEvent) => {
+      setAiEnabled(event.detail.enabled);
+    };
+
+    window.addEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
+    };
+  }, []);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -247,7 +281,7 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
   useEffect(() => {
     const suggestions = generateUpsellSuggestions();
     
-    if (suggestions.length > 0) {
+    if (suggestions.length > 0 && aiEnabled) {
       setCurrentSuggestion(suggestions[0]);
       setIsVisible(true);
       setSuggestionIndex(0);
@@ -255,11 +289,11 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
       setIsVisible(false);
       setCurrentSuggestion(null);
     }
-  }, [cartItems, availableProducts]);
+  }, [cartItems, availableProducts, aiEnabled]);
 
   // Rotate suggestions every 8 seconds
   useEffect(() => {
-    if (!isVisible) return;
+    if (!isVisible || !aiEnabled) return;
 
     const suggestions = generateUpsellSuggestions();
     if (suggestions.length <= 1) return;
@@ -273,7 +307,7 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
     }, 8000);
 
     return () => clearInterval(interval);
-  }, [isVisible, cartItems]);
+  }, [isVisible, cartItems, aiEnabled]);
 
   const getTriggerIcon = (trigger: string) => {
     switch (trigger) {
@@ -305,7 +339,7 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
     }
   };
 
-  if (!isVisible || !currentSuggestion) {
+  if (!isVisible || !currentSuggestion || !aiEnabled) {
     return null;
   }
 

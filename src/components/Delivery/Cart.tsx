@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus, Trash2, X, Edit3 } from 'lucide-react';
 import { CartItem } from '../../types/cart';
 import AISalesAssistant from './AISalesAssistant';
@@ -33,6 +33,41 @@ const Cart: React.FC<CartProps> = ({
   availableProducts = [],
   onAddProduct
 }) => {
+  const [aiSuggestionsEnabled, setAiSuggestionsEnabled] = useState(true);
+
+  // Verificar se as sugestões IA estão habilitadas
+  useEffect(() => {
+    const checkAISettings = () => {
+      try {
+        const aiEnabled = localStorage.getItem('ai_sales_assistant_enabled');
+        if (aiEnabled !== null) {
+          setAiSuggestionsEnabled(JSON.parse(aiEnabled));
+        } else {
+          const savedSettings = localStorage.getItem('delivery_suggestions_settings');
+          if (savedSettings) {
+            const settings = JSON.parse(savedSettings);
+            setAiSuggestionsEnabled(settings.enabled !== false && settings.showInCart !== false);
+          }
+        }
+      } catch (error) {
+        console.warn('Erro ao verificar configuração de sugestões no carrinho:', error);
+      }
+    };
+
+    checkAISettings();
+
+    // Escutar mudanças nas configurações
+    const handleConfigChange = (event: CustomEvent) => {
+      setAiSuggestionsEnabled(event.detail.enabled);
+    };
+
+    window.addEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
+    };
+  }, []);
+
   if (!isOpen) return null;
 
   const formatPrice = (price: number) => {
@@ -218,7 +253,7 @@ const Cart: React.FC<CartProps> = ({
         </div>
 
         {/* AI Sales Assistant */}
-        {items.length > 0 && availableProducts.length > 0 && onAddProduct && (
+        {items.length > 0 && availableProducts.length > 0 && onAddProduct && aiSuggestionsEnabled && (
           <div className="p-4 md:p-6 border-t border-gray-200">
             <AISalesAssistant
               cartItems={items}
