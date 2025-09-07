@@ -6,6 +6,29 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+function validateConfig() {
+  // Use built-in Supabase environment variables that are automatically available
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  
+  console.log('🔍 Verificando variáveis de ambiente:', {
+    hasUrl: !!supabaseUrl,
+    hasServiceKey: !!supabaseServiceKey,
+    urlValue: supabaseUrl ? `${supabaseUrl.substring(0, 20)}...` : 'undefined',
+    keyValue: supabaseServiceKey ? `${supabaseServiceKey.substring(0, 10)}...` : 'undefined'
+  });
+  
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error('❌ Variáveis de ambiente não encontradas');
+    throw new Error(`Variáveis de ambiente não configuradas. URL: ${!!supabaseUrl}, Key: ${!!supabaseServiceKey}`);
+  }
+  
+  return {
+    supabaseUrl,
+    supabaseServiceKey
+  };
+}
+
 interface PushNotificationRequest {
   target_phone?: string;
   target_all?: boolean;
@@ -35,10 +58,20 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Validate configuration
+    const { supabaseUrl, supabaseServiceKey } = validateConfig();
+    
+    console.log('✅ Configuração validada:', {
+      hasUrl: !!supabaseUrl,
+      hasServiceKey: !!supabaseServiceKey,
+      urlLength: supabaseUrl.length,
+      keyLength: supabaseServiceKey.length
+    });
+
     // Initialize Supabase client
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') || '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+      supabaseUrl,
+      supabaseServiceKey
     );
 
     const { target_phone, target_all, notification }: PushNotificationRequest = await req.json();
@@ -54,20 +87,29 @@ Deno.serve(async (req) => {
       body: notification.body
     });
 
-    // Buscar subscriptions ativas
-    let query = supabase
-      .from('push_subscriptions')
-      .select('*')
-      .eq('is_active', true);
+    // Buscar subscriptions ativas com tratamento de erro específico
+    let subscriptions;
+    try {
+      let query = supabase
+        .from('push_subscriptions')
+        .select('*')
+        .eq('is_active', true);
 
-    if (target_phone && !target_all) {
-      query = query.eq('customer_phone', target_phone);
-    }
+      if (target_phone && !target_all) {
+        query = query.eq('customer_phone', target_phone);
+      }
 
-    const { data: subscriptions, error: fetchError } = await query;
-
-    if (fetchError) {
-      throw new Error(`Erro ao buscar subscriptions: ${fetchError.message}`);
+      const { data, error: fetchError } = await query;
+      
+      if (fetchError) {
+        console.error('❌ Erro ao buscar subscriptions:', fetchError);
+        throw new Error(`Erro ao buscar subscriptions: ${fetchError.message} (Code: ${fetchError.code})`);
+      }
+      
+      subscriptions = data;
+    } catch (networkError) {
+      console.error('❌ Erro de rede ao conectar com Supabase:', networkError);
+      throw new Error(`Falha na conexão com o banco de dados. Verifique SUPABASE_URL e conectividade de rede: ${networkError.message}`);
     }
 
     if (!subscriptions || subscriptions.length === 0) {
@@ -94,8 +136,8 @@ Deno.serve(async (req) => {
     const pushPayload = {
       title: notification.title,
       body: notification.body,
-      icon: notification.icon || '/logo elite.jpeg',
-      badge: notification.badge || '/logo elite.jpeg',
+      icon: notification.icon || '/WhatsApp Image 2025-07-22 at 14.53.40.jpeg',
+      badge: notification.badge || '/WhatsApp Image 2025-07-22 at 14.53.40.jpeg',
       tag: notification.tag || 'elite-acai-notification',
       data: notification.data || {},
       requireInteraction: notification.requireInteraction || true,
@@ -172,17 +214,21 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('❌ Erro na Edge Function:', error);
     
+    // Se for erro de configuração, retornar status 503 (Service Unavailable)
+    const isConfigError = error instanceof Error && error.message.includes('Missing required environment variables');
+    
     return new Response(
       JSON.stringify({
         success: false,
         error: error instanceof Error ? error.message : 'Erro desconhecido',
+        type: isConfigError ? 'configuration_error' : 'runtime_error'
       }),
       {
         headers: {
           ...corsHeaders,
           'Content-Type': 'application/json',
         },
-        status: 400,
+        status: isConfigError ? 503 : 400,
       }
     );
   }

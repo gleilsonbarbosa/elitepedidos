@@ -41,7 +41,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerNeighborhood, setCustomerNeighborhood] = useState('');
   const [customerComplement, setCustomerComplement] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'money' | 'pix_entregador' | 'pix_online' | 'card'>('money');
+  const [paymentMethod, setPaymentMethod] = useState<'money' | 'pix_entregador' | 'pix_online' | 'cartao_credito' | 'cartao_debito'>('money');
   const [changeFor, setChangeFor] = useState<number | undefined>(undefined);
   const [scheduledPickupDate, setScheduledPickupDate] = useState('');
   const [scheduledPickupTime, setScheduledPickupTime] = useState('');
@@ -249,6 +249,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       // Map payment methods to database-accepted values
       const dbPaymentMethod = paymentMethod === 'pix_entregador' || paymentMethod === 'pix_online' 
         ? 'pix' 
+        : paymentMethod === 'cartao_credito' || paymentMethod === 'cartao_debito'
+        ? 'card'
         : paymentMethod;
       
       const orderData = {
@@ -309,7 +311,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
           });
           console.log('✅ Notificação Push enviada para o cliente');
         } catch (pushError) {
-          console.warn('⚠️ Erro ao enviar notificação Push (não crítico):', pushError);
+          // Error is already handled in useWebPush hook, no need to log again
         }
       }
 
@@ -675,14 +677,29 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <input
                   type="radio"
                   name="payment"
-                  value="card"
-                  checked={paymentMethod === 'card'}
+                  value="cartao_credito"
+                  checked={paymentMethod === 'cartao_credito'}
                   onChange={(e) => setPaymentMethod(e.target.value as any)}
                   className="text-purple-600"
                 />
                 <div className="flex items-center gap-2">
                   <CreditCard size={20} className="text-purple-600" />
-                  <span className="font-medium">Cartão</span>
+                  <span className="font-medium">Cartão de Crédito</span>
+                </div>
+              </label>
+              
+              <label className="flex items-center gap-3 p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                <input
+                  type="radio"
+                  name="payment"
+                  value="cartao_debito"
+                  checked={paymentMethod === 'cartao_debito'}
+                  onChange={(e) => setPaymentMethod(e.target.value as any)}
+                  className="text-indigo-600"
+                />
+                <div className="flex items-center gap-2">
+                  <CreditCard size={20} className="text-indigo-600" />
+                  <span className="font-medium">Cartão de Débito</span>
                 </div>
               </label>
             </div>

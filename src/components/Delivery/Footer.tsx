@@ -21,7 +21,18 @@ const Footer: React.FC<FooterProps> = ({ storeSettings }) => {
               <div className="bg-gray-700 rounded-lg p-3">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="font-medium text-white">🏡 Loja 1</span>
+                  <div className="flex items-center gap-2">
+                    <img 
+                      src="/logo.jpg" 
+                      alt="Elite Açaí" 
+                      className="w-6 h-6 object-contain rounded-full bg-white p-1"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = '/logo-fallback.svg';
+                      }}
+                    />
+                    <span className="font-medium text-white">🏡 Loja 1</span>
+                  </div>
                 </div>
                 <p className="text-sm">Rua Um, 1614‑C – Residencial 1 – Cágado</p>
                 <p className="text-sm font-medium text-green-400">🕐 17h às 23h</p>
@@ -30,7 +41,18 @@ const Footer: React.FC<FooterProps> = ({ storeSettings }) => {
               <div className="bg-gray-700 rounded-lg p-3">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                  <span className="font-medium text-white">🏡 Loja 2</span>
+                  <div className="flex items-center gap-2">
+                    <img 
+                      src="/logo.jpg" 
+                      alt="Elite Açaí" 
+                      className="w-6 h-6 object-contain rounded-full bg-white p-1"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = '/logo-fallback.svg';
+                      }}
+                    />
+                    <span className="font-medium text-white">🏡 Loja 2</span>
+                  </div>
                 </div>
                 <p className="text-sm">Rua Dois, 2130‑A – Residencial 1 – Cágado</p>
                 <p className="text-sm font-medium text-green-400">🕐 Aberta das 16h às 23h</p>

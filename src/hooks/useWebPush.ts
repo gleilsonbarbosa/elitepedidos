@@ -453,6 +453,17 @@ export const useWebPush = () => {
     targetPhone: string,
     payload: NotificationPayload
   ): Promise<void> => {
+    // Check if Supabase is properly configured
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseKey || 
+        supabaseUrl.includes('placeholder') || 
+        supabaseKey.includes('placeholder')) {
+      console.warn('⚠️ Supabase não configurado - pulando notificação Push');
+      return;
+    }
+
     try {
       console.log('📤 Enviando notificação via servidor para:', targetPhone);
       
@@ -465,13 +476,15 @@ export const useWebPush = () => {
 
       if (error) {
         console.error('❌ Erro na Edge Function:', error);
-        throw new Error(`Erro no servidor: ${error.message}`);
+        console.warn('⚠️ Falha ao enviar notificação Push (não crítico):', error.message);
+        return; // Don't throw error, just log and continue
       }
 
       console.log('✅ Notificação enviada via servidor:', data);
     } catch (err) {
       console.error('❌ Erro ao enviar notificação via servidor:', err);
-      throw err;
+      console.warn('⚠️ Notificação Push falhou (não crítico) - continuando sem notificação');
+      // Don't throw error to prevent breaking the checkout process
     }
   }, []);
 

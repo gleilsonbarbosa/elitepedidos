@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Calculator, 
   Package, 
@@ -10,19 +10,22 @@ import {
   AlertCircle,
   User,
   LogOut,
-  Users
+  Users,
+  Bell,
+  X
 } from 'lucide-react';
 import AttendantPanel from './Orders/AttendantPanel'; 
 import PDVSalesScreen from './PDV/PDVSalesScreen';
 import CashRegisterMenu from './PDV/CashRegisterMenu';
 import SalesHistoryPanel from './Orders/SalesHistoryPanel';
 import TableSalesPanel from './TableSales/TableSalesPanel';
+import OrderPrintView from './Orders/OrderPrintView';
 import { usePermissions } from '../hooks/usePermissions';
 import { useScale } from '../hooks/useScale';
-import { useOrders } from '../hooks/useOrders';
 import { usePDVCashRegister } from '../hooks/usePDVCashRegister';
 import { useStoreHours } from '../hooks/useStoreHours';
 import { PDVOperator } from '../types/pdv';
+import { supabase } from '../lib/supabase';
 
 interface UnifiedAttendancePanelProps {
   operator?: PDVOperator;
@@ -37,9 +40,446 @@ function UnifiedAttendancePage({ operator, storeSettings, scaleHook, onLogout }:
   const { storeSettings: localStoreSettings } = useStoreHours();
   const { isOpen: isCashRegisterOpen, currentRegister } = usePDVCashRegister();
   const scale = useScale();
-  const { orders } = useOrders();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
   const [supabaseConfigured, setSupabaseConfigured] = useState(true);
+  const [newOrderAlert, setNewOrderAlert] = useState<any>(null);
+  const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [printOrderData, setPrintOrderData] = useState<any>(null);
+  const [printerSettings, setPrinterSettings] = useState({
+    auto_print_enabled: false,
+    auto_print_delivery: false
+  });
+  const [soundSettings, setSoundSettings] = useState({
+    enabled: true,
+    volume: 0.7,
+    soundUrl: "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+  });
+  const [lastOrdersCheck, setLastOrdersCheck] = useState<string[]>([]);
+
+  // Carregar configurações de impressão
+  useEffect(() => {
+    const loadPrinterSettings = async () => {
+      try {
+        const savedSettings = localStorage.getItem('pdv_settings');
+        if (savedSettings) {
+          const settings = JSON.parse(savedSettings);
+          if (settings.printer_layout) {
+            setPrinterSettings({
+              auto_print_enabled: settings.printer_layout.auto_print_enabled || false,
+              auto_print_delivery: settings.printer_layout.auto_print_delivery || false
+            });
+          }
+        }
+
+        // Também tentar carregar do banco
+        const { data, error } = await supabase
+          .from('pdv_settings')
+          .select('auto_print')
+          .eq('id', 'loja1')
+          .maybeSingle();
+
+        if (data && !error) {
+          setPrinterSettings(prev => ({
+            ...prev,
+            auto_print_enabled: data.auto_print || false,
+            auto_print_delivery: data.auto_print || false
+          }));
+        }
+      } catch (err) {
+        console.warn('⚠️ Erro ao carregar configurações de impressão:', err);
+      }
+    };
+
+    loadPrinterSettings();
+  }, []);
+
+  // Carregar configurações de som
+  useEffect(() => {
+    try {
+      const savedSoundSettings = localStorage.getItem('orderSoundSettings');
+      if (savedSoundSettings) {
+        const settings = JSON.parse(savedSoundSettings);
+        setSoundSettings({
+          enabled: settings.enabled !== false,
+          volume: settings.volume || 0.7,
+          soundUrl: settings.soundUrl || "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao carregar configurações de som:', error);
+    }
+  }, []);
+  // Carregar pedidos independentemente
+  const fetchOrders = async () => {
+    if (!currentRegister) return;
+
+    try {
+      setOrdersLoading(true);
+      
+      let query = supabase
+        .from('orders')
+        .select('*');
+      
+      query = query.or(`cash_register_id.eq.${currentRegister.id},cash_register_id.is.null`);
+      
+      const { data, error } = await query.order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      setOrders(data || []);
+      
+    } catch (err) {
+      console.error('❌ Erro ao carregar pedidos:', err);
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  // Carregar pedidos quando o caixa mudar
+  useEffect(() => {
+    if (currentRegister) {
+      fetchOrders();
+      // Reset do controle de novos pedidos quando o caixa muda
+      setLastOrdersCheck([]);
+    }
+  }, [currentRegister]);
   
+  // Função para atualizar status de pedido
+  const handleOrderStatusChange = useCallback(async (orderId: string, newStatus: OrderStatus) => {
+    try {
+      console.log('🔄 [UNIFIED] Atualizando status do pedido:', { orderId: orderId.slice(-8), newStatus });
+      
+      const { error } = await supabase
+        .from('orders')
+        .update({ 
+          status: newStatus, 
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', orderId);
+
+      if (error) {
+        console.error('❌ [UNIFIED] Erro ao atualizar status no banco:', error);
+        throw error;
+      }
+      
+      console.log('✅ [UNIFIED] Status atualizado no banco com sucesso');
+      
+      // Atualizar estado local imediatamente
+      setOrders(prev => prev.map(order => 
+        order.id === orderId 
+          ? { ...order, status: newStatus, updated_at: new Date().toISOString() }
+          : order
+      ));
+      
+      console.log('✅ [UNIFIED] Estado local atualizado');
+      
+      // Recarregar pedidos para garantir sincronização
+      setTimeout(() => {
+        console.log('🔄 [UNIFIED] Recarregando pedidos após atualização de status');
+        fetchOrders();
+      }, 1000);
+
+    } catch (err) {
+      console.error('❌ [UNIFIED] Erro ao atualizar status:', err);
+      throw err;
+    }
+  }, [fetchOrders]);
+
+  // SISTEMA GLOBAL DE ALERTAS - MONITORAMENTO POR POLLING E REALTIME
+  useEffect(() => {
+    console.log('🔄 [GLOBAL-ALERTS] Configurando sistema global de alertas');
+    console.log('📊 [GLOBAL-ALERTS] Caixa:', currentRegister?.id || 'NENHUM', 'Aba atual:', activeTab);
+    
+    // POLLING PARA GARANTIR DETECÇÃO DE NOVOS PEDIDOS
+    const pollingInterval = setInterval(async () => {
+      try {
+        console.log('🔍 [GLOBAL-ALERTS] Verificando novos pedidos via polling...');
+        
+        // Buscar TODOS os pedidos se não há caixa, ou pedidos do caixa + órfãos se há caixa
+        let query = supabase.from('orders').select('*');
+        
+        if (currentRegister) {
+          // Se há caixa aberto, buscar pedidos do caixa + órfãos
+          query = query.or(`cash_register_id.eq.${currentRegister.id},cash_register_id.is.null`);
+        } else {
+          // Se não há caixa, buscar apenas pedidos órfãos (sem caixa)
+          query = query.is('cash_register_id', null);
+        }
+        
+        const { data: latestOrders, error } = await query
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (error) {
+          console.error('❌ [GLOBAL-ALERTS] Erro no polling:', error);
+          return;
+        }
+
+        if (latestOrders && latestOrders.length > 0) {
+          // Verificar se há pedidos novos que não estavam na última verificação
+          const currentOrderIds = latestOrders.map(order => order.id);
+          const newOrderIds = currentOrderIds.filter(id => !lastOrdersCheck.includes(id));
+          
+          if (newOrderIds.length > 0) {
+            console.log('🚨 [GLOBAL-ALERTS] NOVOS PEDIDOS DETECTADOS VIA POLLING!', newOrderIds.length);
+            
+            // Processar cada novo pedido
+            newOrderIds.forEach(newOrderId => {
+              const newOrder = latestOrders.find(order => order.id === newOrderId);
+              if (newOrder) {
+                console.log('📦 [GLOBAL-ALERTS] Processando novo pedido:', newOrder.id);
+                
+                // Atualizar lista de pedidos
+                setOrders(prev => {
+                  const exists = prev.some(p => p.id === newOrder.id);
+                  if (!exists) {
+                    return [newOrder, ...prev];
+                  }
+                  return prev;
+                });
+                
+                // Mostrar alerta
+                setNewOrderAlert(newOrder);
+                
+                // Tocar som
+                playGlobalNotificationSound(newOrder);
+                
+                // Impressão automática (apenas se há caixa aberto)
+                if (currentRegister && printerSettings.auto_print_enabled && printerSettings.auto_print_delivery) {
+                  console.log('🖨️ [GLOBAL-ALERTS] Ativando impressão automática via polling');
+                  
+                  const printData = {
+                    id: newOrder.id,
+                    customer_name: newOrder.customer_name,
+                    customer_phone: newOrder.customer_phone,
+                    customer_address: newOrder.customer_address,
+                    customer_neighborhood: newOrder.customer_neighborhood,
+                    customer_complement: newOrder.customer_complement,
+                    total_price: newOrder.total_price,
+                    payment_method: newOrder.payment_method,
+                    change_for: newOrder.change_for,
+                    created_at: newOrder.created_at,
+                    delivery_type: newOrder.delivery_type,
+                    scheduled_pickup_date: newOrder.scheduled_pickup_date,
+                    scheduled_pickup_time: newOrder.scheduled_pickup_time,
+                    delivery_fee: newOrder.delivery_fee,
+                    status: newOrder.status,
+                    items: newOrder.items || []
+                  };
+                  
+                  setPrintOrderData(printData);
+                  setShowPrintPreview(true);
+                } else if (!currentRegister) {
+                  console.log('⚠️ [GLOBAL-ALERTS] Impressão automática desabilitada - nenhum caixa aberto');
+                }
+                
+                // Auto-ocultar alerta após 15 segundos
+                setTimeout(() => {
+                  console.log('⏰ [GLOBAL-ALERTS] Ocultando alerta automaticamente');
+                  setNewOrderAlert(null);
+                }, 15000);
+              }
+            });
+            
+            // Atualizar controle de pedidos verificados
+            setLastOrdersCheck(currentOrderIds);
+          }
+        }
+      } catch (err) {
+        console.error('❌ [GLOBAL-ALERTS] Erro no polling:', err);
+      }
+    }, 5000); // Verificar a cada 5 segundos
+    
+    // REALTIME SUBSCRIPTION - MONITORA NOVOS PEDIDOS
+    // REALTIME SUBSCRIPTION GLOBAL - MONITORA TODOS OS PEDIDOS
+    const globalAlertsChannel = supabase
+      .channel('global_alerts_all_orders')
+      .on('postgres_changes',
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'orders'
+        },
+        (payload) => {
+          console.log('🚨 [GLOBAL-ALERTS] NOVO PEDIDO VIA REALTIME!');
+          console.log('📋 [GLOBAL-ALERTS] Aba atual:', activeTab);
+          console.log('💰 [GLOBAL-ALERTS] Caixa atual:', currentRegister?.id || 'NENHUM');
+          
+          const newOrder = payload.new;
+          if (newOrder && newOrder.id) {
+            console.log('🔔 [GLOBAL-ALERTS] Processando pedido via realtime:', newOrder.id);
+            
+            // Se há caixa aberto e o pedido não tem caixa, vincular automaticamente
+            if (currentRegister && !newOrder.cash_register_id) {
+              console.log('🔗 [GLOBAL-ALERTS] Vinculando pedido órfão ao caixa atual');
+              
+              supabase
+                .from('orders')
+                .update({ cash_register_id: currentRegister.id })
+                .eq('id', newOrder.id)
+                .then(({ error }) => {
+                  if (error) {
+                    console.error('❌ Erro ao vincular pedido ao caixa:', error);
+                  } else {
+                    console.log('✅ Pedido vinculado ao caixa atual');
+                    newOrder.cash_register_id = currentRegister.id;
+                  }
+                });
+            }
+            
+            // SEMPRE processar o alerta, independente do caixa
+            setOrders(prev => {
+              const exists = prev.some(p => p.id === newOrder.id);
+              if (!exists) {
+                return [newOrder, ...prev];
+              }
+              return prev;
+            });
+            
+            setLastOrdersCheck(prev => [newOrder.id, ...prev]);
+            setNewOrderAlert(newOrder);
+            playGlobalNotificationSound(newOrder);
+            
+            // Impressão automática apenas se há caixa aberto
+            if (currentRegister && printerSettings.auto_print_enabled && printerSettings.auto_print_delivery) {
+              console.log('🖨️ [GLOBAL-ALERTS] Ativando impressão automática via realtime');
+              
+              const printData = {
+                id: newOrder.id,
+                customer_name: newOrder.customer_name,
+                customer_phone: newOrder.customer_phone,
+                customer_address: newOrder.customer_address,
+                customer_neighborhood: newOrder.customer_neighborhood,
+                customer_complement: newOrder.customer_complement,
+                total_price: newOrder.total_price,
+                payment_method: newOrder.payment_method,
+                change_for: newOrder.change_for,
+                created_at: newOrder.created_at,
+                delivery_type: newOrder.delivery_type,
+                scheduled_pickup_date: newOrder.scheduled_pickup_date,
+                scheduled_pickup_time: newOrder.scheduled_pickup_time,
+                delivery_fee: newOrder.delivery_fee,
+                status: newOrder.status,
+                items: newOrder.items || []
+              };
+              
+              setPrintOrderData(printData);
+              setShowPrintPreview(true);
+            } else if (!currentRegister) {
+              console.log('⚠️ [GLOBAL-ALERTS] Impressão automática desabilitada - nenhum caixa aberto');
+            }
+            
+            // Auto-ocultar alerta
+            setTimeout(() => {
+              console.log('⏰ [GLOBAL-ALERTS] Ocultando alerta automaticamente');
+              setNewOrderAlert(null);
+            }, 15000);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('🔌 [GLOBAL-ALERTS] Status da subscription:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ [GLOBAL-ALERTS] Sistema de alertas ativo globalmente');
+        }
+      });
+
+    return () => {
+      console.log('🔌 [GLOBAL-ALERTS] Limpando sistema de alertas');
+      clearInterval(pollingInterval);
+      supabase.removeChannel(globalAlertsChannel);
+    };
+  }, [currentRegister, printerSettings.auto_print_enabled, printerSettings.auto_print_delivery, lastOrdersCheck, activeTab]);
+
+  // FUNÇÃO GLOBAL PARA TOCAR SOM - FUNCIONA EM QUALQUER ABA
+  const playGlobalNotificationSound = (order?: any) => {
+    try {
+      console.log('🔊 [GLOBAL-ALERTS] Reproduzindo som para novo pedido');
+      
+      if (!soundSettings.enabled) {
+        console.log('🔕 [GLOBAL-ALERTS] Som desabilitado nas configurações');
+        return;
+      }
+      
+      // MÉTODO 1: Tentar reproduzir áudio normal
+      const audio = new Audio(soundSettings.soundUrl);
+      audio.volume = soundSettings.volume;
+      
+      const playPromise = audio.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          console.log('🔊 [GLOBAL-ALERTS] Som reproduzido com sucesso');
+        }).catch(e => {
+          console.warn('⚠️ [GLOBAL-ALERTS] Erro no áudio principal, usando fallback:', e);
+          playFallbackSound();
+        });
+      }
+      
+      // MÉTODO 2: Notificação do navegador (funciona mesmo em aba inativa)
+      if ('Notification' in window && Notification.permission === 'granted') {
+        console.log('🔔 [GLOBAL-ALERTS] Criando notificação do navegador');
+        
+        const orderDescription = order ? 
+          `Pedido #${order.id.slice(-8)} de ${order.customer_name} - ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total_price || 0)}` :
+          'Um novo pedido foi recebido';
+          
+        new Notification('🔔 Novo Pedido - Elite Açaí!', {
+          body: orderDescription,
+          icon: '/logo.jpg',
+          tag: 'new-order',
+          requireInteraction: true,
+          vibrate: [200, 100, 200],
+          silent: false
+        });
+      } else if ('Notification' in window && Notification.permission === 'default') {
+        console.log('📋 [GLOBAL-ALERTS] Solicitando permissão para notificações');
+        Notification.requestPermission();
+      }
+      
+    } catch (error) {
+      console.error('❌ [GLOBAL-ALERTS] Erro ao tocar som:', error);
+      playFallbackSound();
+    }
+  };
+
+  // SOM DE FALLBACK USANDO WEB AUDIO API
+  const playFallbackSound = () => {
+    try {
+      console.log('🔊 [GLOBAL-ALERTS] Usando som de fallback');
+      
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // Sequência de 3 bips para chamar atenção
+      const playTone = (freq: number, time: number, duration: number) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = freq;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.5, audioContext.currentTime + time);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + time + duration);
+        
+        oscillator.start(audioContext.currentTime + time);
+        oscillator.stop(audioContext.currentTime + time + duration);
+      };
+      
+      // Tocar sequência de alertas
+      playTone(1200, 0, 0.2);    // Primeiro bip
+      playTone(900, 0.3, 0.2);   // Segundo bip
+      playTone(1200, 0.6, 0.3);  // Terceiro bip (mais longo)
+      
+      console.log('✅ [GLOBAL-ALERTS] Som de fallback executado');
+    } catch (error) {
+      console.error('❌ [GLOBAL-ALERTS] Erro no som de fallback:', error);
+    }
+  };
+
   // Check if user is admin for sale deletion permissions
   const isAdmin = !operator || 
                   operator.code?.toUpperCase() === 'ADMIN' ||
@@ -47,6 +487,7 @@ function UnifiedAttendancePage({ operator, storeSettings, scaleHook, onLogout }:
 
   // Calculate pending orders count from the orders data
   const pendingOrdersCount = orders.filter(order => order.status === 'pending').length;
+
 
   // Recarregar permissões quando a aba muda
   useEffect(() => {
@@ -93,23 +534,6 @@ function UnifiedAttendancePage({ operator, storeSettings, scaleHook, onLogout }:
                 if (currentSession.user) {
                   currentSession.user = updatedUser;
                   localStorage.setItem('attendance_session', JSON.stringify(currentSession));
-                  
-                  // Show notification about permission update
-                  const permissionMessage = document.createElement('div');
-                  permissionMessage.className = 'fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
-                  permissionMessage.innerHTML = `
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
-                    </svg>
-                    Permissões atualizadas! Recarregue a página para aplicar.
-                  `;
-                  document.body.appendChild(permissionMessage);
-                  
-                  setTimeout(() => {
-                    if (document.body.contains(permissionMessage)) {
-                      document.body.removeChild(permissionMessage);
-                    }
-                  }, 5000);
                 }
               } else {
                 console.log('✅ Permissões estão sincronizadas');
@@ -156,15 +580,17 @@ function UnifiedAttendancePage({ operator, storeSettings, scaleHook, onLogout }:
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <img 
-                src="/logo elite.jpeg" 
-                alt="Elite Açaí Logo" 
-                className="w-12 h-12 object-contain bg-white rounded-full p-1 border-2 border-green-200"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = 'none';
-                }}
-              />
+              <div className="w-12 h-12 bg-white rounded-full p-1 border-2 border-green-200 flex items-center justify-center">
+                <img 
+                  src="/logo.jpg" 
+                  alt="Elite Açaí Logo" 
+                  className="w-10 h-10 object-contain rounded-full"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = '/logo-fallback.svg';
+                  }}
+                />
+              </div>
               <div className="bg-green-100 rounded-full p-2">
                 <ShoppingBag size={24} className="text-green-600" />
               </div>
@@ -318,9 +744,96 @@ function UnifiedAttendancePage({ operator, storeSettings, scaleHook, onLogout }:
           </div>
         </div>
 
+        {/* 🚨 ALERTA GLOBAL DE NOVO PEDIDO - APARECE EM TODAS AS ABAS */}
+        {newOrderAlert && (
+          <div className="fixed top-4 right-4 max-w-sm print:hidden animate-bounce" style={{ zIndex: 999999 }}>
+            <div className="bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-xl shadow-2xl p-4 border-2 border-yellow-400 border border-white/20 transform scale-110">
+              <div className="flex items-start gap-3">
+                <div className="bg-white/30 rounded-full p-2 animate-pulse">
+                  <Bell size={24} />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-bold text-xl mb-1 animate-pulse">🚨 NOVO PEDIDO!</h3>
+                  <p className="text-sm mb-2">
+                    Pedido #{newOrderAlert.id?.slice(-8)} de {newOrderAlert.customer_name}
+                  </p>
+                  <p className="text-xs text-orange-100 mb-3">
+                    💰 Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(newOrderAlert.total_price || 0)}
+                  </p>
+                  <p className="text-xs text-yellow-200 mb-3">
+                    📱 {newOrderAlert.customer_phone} • 📍 {newOrderAlert.customer_neighborhood}
+                  </p>
+                  <p className="text-xs text-blue-200 mb-3">
+                    🕐 Recebido: {new Date(newOrderAlert.created_at).toLocaleTimeString('pt-BR')}
+                  </p>
+                  <div className="bg-white/20 rounded-lg p-2 mb-3">
+                    <p className="text-xs text-white font-bold">
+                      📋 Sistema: ALERTA GLOBAL ATIVO
+                    </p>
+                    <p className="text-xs text-yellow-200">
+                      🔔 Funciona em todas as abas
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setActiveTab('orders');
+                        setNewOrderAlert(null);
+                        console.log('🔄 [GLOBAL-ALERTS] Indo para aba de pedidos');
+                      }}
+                      className="bg-white/30 hover:bg-white/40 text-white px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-1"
+                    >
+                      <Truck size={14} />
+                      Ver Pedido
+                    </button>
+                    <button
+                      onClick={() => {
+                        console.log('❌ [GLOBAL-ALERTS] Alerta dispensado');
+                        setNewOrderAlert(null);
+                      }}
+                      className="bg-white/20 hover:bg-white/30 text-white px-2 py-2 rounded-lg text-sm transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    console.log('❌ [GLOBAL-ALERTS] Alerta fechado');
+                    setNewOrderAlert(null);
+                  }}
+                  className="text-white/90 hover:text-white p-1 rounded-full hover:bg-white/30 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 🖨️ MODAL DE IMPRESSÃO GLOBAL - APARECE EM QUALQUER ABA */}
+        {showPrintPreview && printOrderData && (
+          <OrderPrintView
+            order={printOrderData}
+            storeSettings={settings}
+            onClose={() => {
+              console.log('🖨️ [GLOBAL-ALERTS] Fechando modal de impressão');
+              setShowPrintPreview(false);
+              setPrintOrderData(null);
+            }}
+          />
+        )}
         {/* Content */}
         <div className="transition-all duration-300 print:hidden">
-          {activeTab === 'orders' && (isAdmin || hasPermission('can_view_orders')) && <AttendantPanel storeSettings={settings} />}
+          {activeTab === 'orders' && (isAdmin || hasPermission('can_view_orders')) && (
+            <AttendantPanel 
+              storeSettings={settings} 
+              orders={orders}
+              ordersLoading={ordersLoading}
+              onOrdersRefresh={fetchOrders}
+              onOrderStatusChange={handleOrderStatusChange}
+            />
+          )}
           {activeTab === 'sales' && (isAdmin || hasPermission('can_view_sales')) && <PDVSalesScreen operator={operator} scaleHook={scaleHook || scale} storeSettings={settings} />}
           {activeTab === 'cash' && <CashRegisterMenu isAdmin={isAdmin} operator={operator} />}
           {activeTab === 'tables' && (isAdmin || hasPermission('can_view_sales')) && <TableSalesPanel storeId={1} operatorName={operator?.name} isCashRegisterOpen={isCashRegisterOpen} />}

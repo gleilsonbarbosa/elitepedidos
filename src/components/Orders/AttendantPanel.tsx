@@ -26,12 +26,31 @@ import {
 interface AttendantPanelProps {
   onBackToAdmin?: () => void;
   storeSettings?: any;
+  orders?: any[];
+  ordersLoading?: boolean;
+  onOrdersRefresh?: () => void;
+  onOrderStatusChange?: (orderId: string, newStatus: OrderStatus) => Promise<void>;
 }
 
-const AttendantPanel: React.FC<AttendantPanelProps> = ({ onBackToAdmin, storeSettings }) => {
+const AttendantPanel: React.FC<AttendantPanelProps> = ({ 
+  onBackToAdmin, 
+  storeSettings,
+  orders: externalOrders,
+  ordersLoading: externalOrdersLoading,
+  onOrdersRefresh,
+  onOrderStatusChange
+}) => {
   const { hasPermission } = usePermissions();
-  const { orders, loading, updateOrderStatus } = useOrders();
+  const { orders: hookOrders, loading: hookLoading, updateOrderStatus } = useOrders();
   const thermalPrinter = useThermalPrinter();
+  
+  // Usar pedidos externos se fornecidos, senão usar do hook
+  const orders = externalOrders || hookOrders;
+  const loading = externalOrdersLoading !== undefined ? externalOrdersLoading : hookLoading;
+  
+  // Usar função externa de atualização se fornecida, senão usar do hook
+  const handleStatusChange = onOrderStatusChange || updateOrderStatus;
+  
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'all'>('pending');
   const [showManualOrderForm, setShowManualOrderForm] = useState(false);
   const [showPrinterSetup, setShowPrinterSetup] = useState(false);

@@ -258,7 +258,48 @@ const OrderCard: React.FC<OrderCardProps> = ({
             </label>
             <select
               value={order.status}
-              onChange={(e) => onStatusChange(order.id, e.target.value as OrderStatus)}
+              onChange={async (e) => {
+                const newStatus = e.target.value as OrderStatus;
+                console.log('🔄 Alterando status do pedido:', { 
+                  orderId: order.id.slice(-8), 
+                  currentStatus: order.status, 
+                  newStatus 
+                });
+                
+                try {
+                  await onStatusChange(order.id, newStatus);
+                  console.log('✅ Status alterado com sucesso');
+                  
+                  // Forçar re-render do componente atualizando o objeto order
+                  order.status = newStatus;
+                  order.updated_at = new Date().toISOString();
+                  
+                  // Mostrar feedback visual de sucesso
+                  const successMessage = document.createElement('div');
+                  successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
+                  successMessage.innerHTML = `
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    Status atualizado para: ${statusOptions.find(opt => opt.value === newStatus)?.label}
+                  `;
+                  document.body.appendChild(successMessage);
+                  
+                  setTimeout(() => {
+                    if (document.body.contains(successMessage)) {
+                      document.body.removeChild(successMessage);
+                    }
+                  }, 3000);
+                  
+                } catch (error) {
+                  console.error('❌ Erro ao alterar status:', error);
+                  alert(`Erro ao alterar status: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+                  
+                  // Reverter o select para o status original
+                  const selectElement = e.target as HTMLSelectElement;
+                  selectElement.value = order.status;
+                }
+              }}
               className="w-full p-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white/70 backdrop-blur-sm transition-all duration-300 font-medium"
             >
               {statusOptions.map(option => (

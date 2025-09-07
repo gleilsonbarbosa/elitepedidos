@@ -120,6 +120,8 @@ export const useOrders = () => {
 
   const updateOrderStatus = useCallback(async (orderId: string, status: OrderStatus) => {
     try {
+      console.log('🔄 Atualizando status do pedido:', { orderId: orderId.slice(-8), status });
+      
       const { error } = await supabase
         .from('orders')
         .update({ 
@@ -128,7 +130,12 @@ export const useOrders = () => {
         })
         .eq('id', orderId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao atualizar status no banco:', error);
+        throw error;
+      }
+      
+      console.log('✅ Status atualizado no banco com sucesso');
       
       // Atualizar estado local
       setOrders(prev => prev.map(order => 
@@ -136,6 +143,8 @@ export const useOrders = () => {
           ? { ...order, status, updated_at: new Date().toISOString() }
           : order
       ));
+      
+      console.log('✅ Estado local atualizado');
 
       // Criar notificação de atualização de status
       const statusMessages = {
@@ -148,7 +157,7 @@ export const useOrders = () => {
         cancelled: 'Pedido cancelado'
       };
 
-      await supabase
+      const { error: notificationError } = await supabase
         .from('notifications')
         .insert([{
           order_id: orderId,
@@ -158,8 +167,15 @@ export const useOrders = () => {
           read: false,
           created_at: new Date().toISOString()
         }]);
+      
+      if (notificationError) {
+        console.warn('⚠️ Erro ao criar notificação (não crítico):', notificationError);
+      } else {
+        console.log('✅ Notificação criada com sucesso');
+      }
 
     } catch (err) {
+      console.error('❌ Erro completo ao atualizar status:', err);
       throw new Error(err instanceof Error ? err.message : 'Erro ao atualizar status');
     }
   }, []);
@@ -243,43 +259,63 @@ export const useOrders = () => {
   useEffect(() => {
     fetchOrders();
 
-    // Only set up realtime if there's an open cash register
+    // Set up realtime for all orders, not just cash register orders
     let ordersChannel: any = null;
     
-    if (currentRegister) {
-      // Configurar realtime para pedidos do caixa atual
-      ordersChannel = supabase
-        .channel('orders')
-        .on('postgres_changes',
-          { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'orders',
-            filter: `cash_register_id=eq.${currentRegister.id}`
-          },
-          (payload) => {
-            console.log('🔔 Novo pedido recebido via realtime:', payload);
-            setOrders(prev => [payload.new as Order, ...prev]);
-            // Tocar som de notificação
+    // Configurar realtime para TODOS os pedidos
+    ordersChannel = supabase
+      .channel('orders_global')
+      .on('postgres_changes',
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'orders'
+        },
+        (payload) => {
+          console.log('🔔 Novo pedido recebido via realtime (useOrders):', payload);
+          
+          const newOrder = payload.new as Order;
+          
+          // Se há caixa aberto e o pedido não tem caixa, vincular automaticamente
+          if (currentRegister && !newOrder.cash_register_id) {
+            console.log('🔗 Vinculando pedido órfão ao caixa atual via useOrders');
+            
+            supabase
+              .from('orders')
+              .update({ cash_register_id: currentRegister.id })
+              .eq('id', newOrder.id)
+              .then(({ error }) => {
+                if (!error) {
+                  newOrder.cash_register_id = currentRegister.id;
+                }
+              });
+          }
+          
+          // Adicionar à lista se for relevante para o contexto atual
+          const shouldInclude = !currentRegister || // Se não há caixa, mostrar todos
+                               !newOrder.cash_register_id || // Pedidos órfãos
+                               newOrder.cash_register_id === currentRegister.id; // Pedidos do caixa atual
+          
+          if (shouldInclude) {
+            setOrders(prev => [newOrder, ...prev]);
             playNotificationSound();
           }
-        )
-        .on('postgres_changes', 
-          { 
-            event: 'UPDATE', 
-            schema: 'public', 
-            table: 'orders',
-            filter: `cash_register_id=eq.${currentRegister.id}`
-          },
-          (payload) => {
-            console.log('🔄 Pedido atualizado via realtime:', payload);
-            setOrders(prev => prev.map(order => 
-              order.id === payload.new.id ? payload.new as Order : order
-            ));
-          }
-        )
-        .subscribe((status) => console.log('🔌 Status da inscrição de pedidos:', status));
-    }
+        }
+      )
+      .on('postgres_changes', 
+        { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'orders'
+        },
+        (payload) => {
+          console.log('🔄 Pedido atualizado via realtime (useOrders):', payload);
+          setOrders(prev => prev.map(order => 
+            order.id === payload.new.id ? payload.new as Order : order
+          ));
+        }
+      )
+      .subscribe((status) => console.log('🔌 Status da inscrição de pedidos (useOrders):', status));
 
     return () => {
       if (ordersChannel) {
