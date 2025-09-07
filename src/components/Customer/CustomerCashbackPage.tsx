@@ -141,6 +141,17 @@ const CustomerCashbackPage: React.FC = () => {
               <ArrowLeft size={20} className="text-gray-600" />
             </button>
             <div className="flex items-center gap-3">
+              <div className="bg-white rounded-full p-1 border-2 border-purple-200 shadow-md">
+                <img 
+                  src="/Logo_açai.jpeg" 
+                  alt="Elite Açaí Logo" 
+                  className="w-8 h-8 object-contain rounded-full"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = '/logo.jpg';
+                  }}
+                />
+              </div>
               <div className="bg-purple-100 rounded-full p-2">
                 <Gift size={24} className="text-purple-600" />
               </div>

@@ -33,8 +33,16 @@ const AdminLogin: React.FC<AdminLoginProps> = ({ onLogin }) => {
     <div className="min-h-screen bg-gradient-to-br from-purple-600 to-green-500 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="bg-purple-100 rounded-full p-4 w-24 h-24 mx-auto mb-4 flex items-center justify-center">
-            <ShoppingBag size={36} className="text-purple-600" />
+          <div className="bg-white rounded-full p-2 w-24 h-24 mx-auto mb-4 flex items-center justify-center shadow-lg border-2 border-purple-200">
+            <img 
+              src="/Logo_açai.jpeg" 
+              alt="Elite Açaí Logo" 
+              className="w-20 h-20 object-contain rounded-full"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = '/logo.jpg';
+              }}
+            />
           </div>
           <h1 className="text-2xl font-bold text-gray-800 mb-2">Painel Administrativo</h1>
           <p className="text-gray-600">Elite Açaí - Painel de Gerenciamento</p>

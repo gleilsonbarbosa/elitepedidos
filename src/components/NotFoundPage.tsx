@@ -8,8 +8,19 @@ const NotFoundPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-green-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md text-center">
-        <div className="bg-red-100 rounded-full p-4 w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-          <span className="text-4xl">404</span>
+        <div className="bg-white rounded-full p-2 w-20 h-20 mx-auto mb-6 flex items-center justify-center shadow-lg border-2 border-red-200">
+          <img 
+            src="/Logo_açai.jpeg" 
+            alt="Elite Açaí Logo" 
+            className="w-16 h-16 object-contain rounded-full"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.src = '/logo.jpg';
+            }}
+          />
+        </div>
+        <div className="bg-red-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+          <span className="text-2xl font-bold text-red-600">404</span>
         </div>
         
         <h1 className="text-2xl font-bold text-gray-800 mb-4">

@@ -8,14 +8,14 @@ const Header: React.FC = () => {
       <div className="relative z-10 max-w-6xl mx-auto px-4 py-8">
         <div className="text-center">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-20 h-20 bg-white rounded-full p-2 flex items-center justify-center">
+            <div className="w-20 h-20 bg-white rounded-full p-1 flex items-center justify-center shadow-lg">
               <img 
-                src="/logo.jpg" 
+                src="/Logo_açai.jpeg" 
                 alt="Elite Açaí Logo" 
-                className="w-16 h-16 object-contain rounded-full"
+                className="w-18 h-18 object-contain rounded-full"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  target.src = '/logo-fallback.svg';
+                  target.src = '/logo.jpg';
                 }}
               />
             </div>

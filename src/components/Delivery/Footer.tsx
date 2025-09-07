@@ -23,12 +23,12 @@ const Footer: React.FC<FooterProps> = ({ storeSettings }) => {
                   <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                   <div className="flex items-center gap-2">
                     <img 
-                      src="/logo.jpg" 
+                      src="/Logo_açai.jpeg" 
                       alt="Elite Açaí" 
                       className="w-6 h-6 object-contain rounded-full bg-white p-1"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        target.src = '/logo-fallback.svg';
+                        target.src = '/logo.jpg';
                       }}
                     />
                     <span className="font-medium text-white">🏡 Loja 1</span>
@@ -43,12 +43,12 @@ const Footer: React.FC<FooterProps> = ({ storeSettings }) => {
                   <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                   <div className="flex items-center gap-2">
                     <img 
-                      src="/logo.jpg" 
+                      src="/Logo_açai.jpeg" 
                       alt="Elite Açaí" 
                       className="w-6 h-6 object-contain rounded-full bg-white p-1"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        target.src = '/logo-fallback.svg';
+                        target.src = '/logo.jpg';
                       }}
                     />
                     <span className="font-medium text-white">🏡 Loja 2</span>

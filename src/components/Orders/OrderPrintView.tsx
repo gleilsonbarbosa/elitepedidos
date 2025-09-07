@@ -141,8 +141,8 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
         
         <!-- Dados do Pedido -->
         <div class="mb-3 separator">
-          <div class="section-title center mb-2">=== PEDIDO DE DELIVERY ===</div>
-          <div class="medium">Pedido: #${(order.id || '').slice(-8)}</div>
+          <div class="section-title center mb-2">=== PEDIDO #${(order.id || '').slice(-8)} ===</div>
+          <div class="medium">ID para Acompanhamento: ${(order.id || '').slice(-8)}</div>
           <div class="item-details">Data: ${new Date(order.created_at).toLocaleDateString('pt-BR')}</div>
           <div class="item-details">Hora: ${new Date(order.created_at).toLocaleTimeString('pt-BR')}</div>
           <div class="item-details">Status: ${getStatusLabel(order.status)}</div>
@@ -409,6 +409,7 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
               
               <div className="mb-3">
                 <p className="font-bold">Pedido: #{(order.id || '').slice(-8)}</p>
+                <p className="font-semibold text-blue-600">ID para Acompanhamento: {(order.id || '').slice(-8)}</p>
                 <p className="font-semibold">Data: {new Date(order.created_at).toLocaleDateString('pt-BR')}</p>
                 <p className="font-semibold">Hora: {new Date(order.created_at).toLocaleTimeString('pt-BR')}</p>
                 <p className="font-semibold">Status: {getStatusLabel(order.status)}</p>
@@ -500,6 +501,10 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
                 <p className="font-medium">@eliteacai</p>
                 <p className="font-medium">⭐⭐⭐⭐⭐ Avalie-nos no Google</p>
               </div>
+            </div>
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+              <p className="text-blue-700 font-medium">💡 Dica:</p>
+              <p className="text-blue-600">Use o "ID para Acompanhamento" que aparece no comprovante impresso</p>
             </div>
           </div>
         </div>

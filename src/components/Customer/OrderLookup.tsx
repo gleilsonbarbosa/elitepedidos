@@ -17,6 +17,17 @@ const OrderLookup: React.FC = () => {
 
   const findOrderByShortId = async (shortId: string) => {
     try {
+      // Check if Supabase is configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl.includes('placeholder') || 
+          supabaseKey.includes('placeholder')) {
+        console.warn('⚠️ Supabase não configurado - busca de pedido não disponível');
+        return null;
+      }
+
       const { data, error } = await supabase
         .from('orders')
         .select('id')
@@ -29,6 +40,15 @@ const OrderLookup: React.FC = () => {
       const matchingOrder = data?.find(order => 
         order.id.slice(-8).toLowerCase() === shortId.toLowerCase()
       );
+
+      console.log('🔍 Busca de pedido:', {
+        shortId,
+        foundOrders: data?.length || 0,
+        matchingOrder: matchingOrder ? {
+          id: matchingOrder.id,
+          shortId: matchingOrder.id.slice(-8)
+        } : null
+      });
 
       return matchingOrder ? matchingOrder.id : null;
     } catch (error) {
@@ -55,15 +75,24 @@ const OrderLookup: React.FC = () => {
     setSearchError('');
 
     try {
+      console.log('🔍 Iniciando busca do pedido:', cleanId);
+      
       // Buscar o pedido pelo ID curto
       const fullOrderId = await findOrderByShortId(cleanId);
       
       if (!fullOrderId) {
+        console.log('❌ Pedido não encontrado para ID:', cleanId);
         setSearchError('Pedido não encontrado. Verifique o ID e tente novamente.');
         setLoading(false);
         return;
       }
 
+      console.log('✅ Pedido encontrado:', {
+        shortId: cleanId,
+        fullId: fullOrderId,
+        redirecting: true
+      });
+      
       // Redirecionar para o pedido encontrado
       navigate(`/pedido/${fullOrderId}`);
     } catch (error) {
@@ -129,8 +158,16 @@ const OrderLookup: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-green-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="bg-purple-100 rounded-full p-4 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-            <Package size={32} className="text-purple-600" />
+          <div className="bg-white rounded-full p-2 w-20 h-20 mx-auto mb-4 flex items-center justify-center shadow-lg border-2 border-purple-200">
+            <img 
+              src="/Logo_açai.jpeg" 
+              alt="Elite Açaí Logo" 
+              className="w-16 h-16 object-contain rounded-full"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = '/logo.jpg';
+              }}
+            />
           </div>
           <h1 className="text-2xl font-bold text-gray-800 mb-2">
             Acompanhar Pedido

@@ -16,8 +16,19 @@ const AccessDeniedPage: React.FC<AccessDeniedPageProps> = ({
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
-        <div className="bg-red-100 rounded-full p-4 w-20 h-20 mx-auto mb-6 flex items-center justify-center">
-          <ShieldOff size={36} className="text-red-600" />
+        <div className="bg-white rounded-full p-2 w-20 h-20 mx-auto mb-4 flex items-center justify-center shadow-lg border-2 border-red-200">
+          <img 
+            src="/Logo_açai.jpeg" 
+            alt="Elite Açaí Logo" 
+            className="w-16 h-16 object-contain rounded-full"
+            onError={(e) => {
+              const target = e.target as HTMLImageElement;
+              target.src = '/logo.jpg';
+            }}
+          />
+        </div>
+        <div className="bg-red-100 rounded-full p-4 w-16 h-16 mx-auto mb-6 flex items-center justify-center">
+          <ShieldOff size={32} className="text-red-600" />
         </div>
         
         <h1 className="text-2xl font-bold text-gray-800 mb-3">Acesso Negado</h1>

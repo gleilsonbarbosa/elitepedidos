@@ -32,8 +32,16 @@ const DeliveryLogin: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-500 to-green-500 flex items-center justify-center p-3 sm:p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="bg-blue-100 rounded-full p-3 sm:p-4 w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 flex items-center justify-center">
-            <Truck size={32} className="text-blue-600" />
+          <div className="bg-white rounded-full p-2 w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 flex items-center justify-center shadow-lg border-2 border-blue-200">
+            <img 
+              src="/Logo_açai.jpeg" 
+              alt="Elite Açaí Logo" 
+              className="w-12 h-12 sm:w-16 sm:h-16 object-contain rounded-full"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = '/logo.jpg';
+              }}
+            />
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-800 mb-2">Portal do Entregador</h1>
           <p className="text-sm sm:text-base text-gray-600">Elite Açaí - Acesso aos Pedidos</p>

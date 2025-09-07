@@ -316,8 +316,16 @@ const MonthlyCashFlowPage: React.FC = () => {
       <div className="min-h-screen bg-gradient-to-br from-green-600 to-blue-500 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
           <div className="text-center mb-8">
-            <div className="bg-green-100 rounded-full p-4 w-24 h-24 mx-auto mb-4 flex items-center justify-center">
-              <TrendingUp size={36} className="text-green-600" />
+            <div className="bg-white rounded-full p-2 w-24 h-24 mx-auto mb-4 flex items-center justify-center shadow-lg border-2 border-green-200">
+              <img 
+                src="/Logo_açai.jpeg" 
+                alt="Elite Açaí Logo" 
+                className="w-20 h-20 object-contain rounded-full"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/logo.jpg';
+                }}
+              />
             </div>
             <h1 className="text-2xl font-bold text-gray-800 mb-2">Fluxo de Caixa Mensal</h1>
             <p className="text-gray-600">Elite Açaí - Acesso Restrito</p>

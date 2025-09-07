@@ -57,6 +57,44 @@ function UnifiedAttendancePage({ operator, storeSettings, scaleHook, onLogout }:
   });
   const [lastOrdersCheck, setLastOrdersCheck] = useState<string[]>([]);
 
+  // Função para verificar se um pedido deve gerar alerta
+  const shouldShowAlert = (order: any): boolean => {
+    // Verificar se o pedido existe e tem dados válidos
+    if (!order || !order.id || !order.status) {
+      console.log('❌ [ALERT-FILTER] Pedido inválido ou sem dados:', order);
+      return false;
+    }
+    
+    // Verificar se é o pedido específico que deve ser ignorado
+    if (order.id.includes('e569030f')) {
+      console.log('🚫 [ALERT-FILTER] Pedido e569030f ignorado (removido do sistema)');
+      return false;
+    }
+    
+    // Verificar se o status é pendente
+    if (order.status !== 'pending') {
+      console.log('🚫 [ALERT-FILTER] Pedido ignorado - status não é pendente:', {
+        orderId: order.id.slice(-8),
+        status: order.status
+      });
+      return false;
+    }
+    
+    // Verificar se já foi processado
+    if (lastOrdersCheck.includes(order.id)) {
+      console.log('🚫 [ALERT-FILTER] Pedido já processado anteriormente:', order.id.slice(-8));
+      return false;
+    }
+    
+    console.log('✅ [ALERT-FILTER] Pedido aprovado para alerta:', {
+      orderId: order.id.slice(-8),
+      status: order.status,
+      customerName: order.customer_name
+    });
+    
+    return true;
+  };
+
   // Carregar configurações de impressão
   useEffect(() => {
     const loadPrinterSettings = async () => {
@@ -219,71 +257,74 @@ function UnifiedAttendancePage({ operator, storeSettings, scaleHook, onLogout }:
         if (latestOrders && latestOrders.length > 0) {
           // Verificar se há pedidos novos que não estavam na última verificação
           const currentOrderIds = latestOrders.map(order => order.id);
-          const newOrderIds = currentOrderIds.filter(id => !lastOrdersCheck.includes(id));
+          const newOrders = latestOrders.filter(order => 
+            !lastOrdersCheck.includes(order.id) && shouldShowAlert(order)
+          );
           
-          if (newOrderIds.length > 0) {
-            console.log('🚨 [GLOBAL-ALERTS] NOVOS PEDIDOS DETECTADOS VIA POLLING!', newOrderIds.length);
+          if (newOrders.length > 0) {
+            console.log('🚨 [GLOBAL-ALERTS] NOVOS PEDIDOS VÁLIDOS DETECTADOS VIA POLLING!', newOrders.length);
             
             // Processar cada novo pedido
-            newOrderIds.forEach(newOrderId => {
-              const newOrder = latestOrders.find(order => order.id === newOrderId);
-              if (newOrder) {
-                console.log('📦 [GLOBAL-ALERTS] Processando novo pedido:', newOrder.id);
+            newOrders.forEach(newOrder => {
+              console.log('📦 [GLOBAL-ALERTS] Processando novo pedido válido:', {
+                orderId: newOrder.id.slice(-8),
+                status: newOrder.status,
+                customerName: newOrder.customer_name
+              });
                 
-                // Atualizar lista de pedidos
-                setOrders(prev => {
-                  const exists = prev.some(p => p.id === newOrder.id);
-                  if (!exists) {
-                    return [newOrder, ...prev];
-                  }
-                  return prev;
-                });
-                
-                // Mostrar alerta
-                setNewOrderAlert(newOrder);
-                
-                // Tocar som
-                playGlobalNotificationSound(newOrder);
-                
-                // Impressão automática (apenas se há caixa aberto)
-                if (currentRegister && printerSettings.auto_print_enabled && printerSettings.auto_print_delivery) {
-                  console.log('🖨️ [GLOBAL-ALERTS] Ativando impressão automática via polling');
-                  
-                  const printData = {
-                    id: newOrder.id,
-                    customer_name: newOrder.customer_name,
-                    customer_phone: newOrder.customer_phone,
-                    customer_address: newOrder.customer_address,
-                    customer_neighborhood: newOrder.customer_neighborhood,
-                    customer_complement: newOrder.customer_complement,
-                    total_price: newOrder.total_price,
-                    payment_method: newOrder.payment_method,
-                    change_for: newOrder.change_for,
-                    created_at: newOrder.created_at,
-                    delivery_type: newOrder.delivery_type,
-                    scheduled_pickup_date: newOrder.scheduled_pickup_date,
-                    scheduled_pickup_time: newOrder.scheduled_pickup_time,
-                    delivery_fee: newOrder.delivery_fee,
-                    status: newOrder.status,
-                    items: newOrder.items || []
-                  };
-                  
-                  setPrintOrderData(printData);
-                  setShowPrintPreview(true);
-                } else if (!currentRegister) {
-                  console.log('⚠️ [GLOBAL-ALERTS] Impressão automática desabilitada - nenhum caixa aberto');
+              // Atualizar lista de pedidos
+              setOrders(prev => {
+                const exists = prev.some(p => p.id === newOrder.id);
+                if (!exists) {
+                  return [newOrder, ...prev];
                 }
+                return prev;
+              });
                 
-                // Auto-ocultar alerta após 15 segundos
-                setTimeout(() => {
-                  console.log('⏰ [GLOBAL-ALERTS] Ocultando alerta automaticamente');
-                  setNewOrderAlert(null);
-                }, 15000);
+              // Mostrar alerta
+              setNewOrderAlert(newOrder);
+                
+              // Tocar som
+              playGlobalNotificationSound(newOrder);
+                
+              // Impressão automática (apenas se há caixa aberto)
+              if (currentRegister && printerSettings.auto_print_enabled && printerSettings.auto_print_delivery) {
+                console.log('🖨️ [GLOBAL-ALERTS] Ativando impressão automática via polling');
+                  
+                const printData = {
+                  id: newOrder.id,
+                  customer_name: newOrder.customer_name,
+                  customer_phone: newOrder.customer_phone,
+                  customer_address: newOrder.customer_address,
+                  customer_neighborhood: newOrder.customer_neighborhood,
+                  customer_complement: newOrder.customer_complement,
+                  total_price: newOrder.total_price,
+                  payment_method: newOrder.payment_method,
+                  change_for: newOrder.change_for,
+                  created_at: newOrder.created_at,
+                  delivery_type: newOrder.delivery_type,
+                  scheduled_pickup_date: newOrder.scheduled_pickup_date,
+                  scheduled_pickup_time: newOrder.scheduled_pickup_time,
+                  delivery_fee: newOrder.delivery_fee,
+                  status: newOrder.status,
+                  items: newOrder.items || []
+                };
+                // Mostrar tela de impressão
+                setPrintOrderData(printData);
+                setShowPrintPreview(true);
+              } else if (!currentRegister) {
+                console.log('⚠️ [GLOBAL-ALERTS] Impressão automática desabilitada - nenhum caixa aberto');
               }
+                
+              // Auto-ocultar alerta após 15 segundos
+              setTimeout(() => {
+                console.log('⏰ [GLOBAL-ALERTS] Ocultando alerta automaticamente');
+                setNewOrderAlert(null);
+              }, 15000);
             });
             
             // Atualizar controle de pedidos verificados
-            setLastOrdersCheck(currentOrderIds);
+            setLastOrdersCheck(prev => [...prev, ...newOrders.map(o => o.id)]);
           }
         }
       } catch (err) {
@@ -308,7 +349,21 @@ function UnifiedAttendancePage({ operator, storeSettings, scaleHook, onLogout }:
           
           const newOrder = payload.new;
           if (newOrder && newOrder.id) {
-            console.log('🔔 [GLOBAL-ALERTS] Processando pedido via realtime:', newOrder.id);
+            // Verificar se deve mostrar alerta para este pedido
+            if (!shouldShowAlert(newOrder)) {
+              console.log('🚫 [GLOBAL-ALERTS] Pedido via realtime ignorado:', {
+                orderId: newOrder.id.slice(-8),
+                status: newOrder.status,
+                reason: 'Não atende critérios para alerta'
+              });
+              return;
+            }
+            
+            console.log('🔔 [GLOBAL-ALERTS] Processando pedido válido via realtime:', {
+              orderId: newOrder.id.slice(-8),
+              status: newOrder.status,
+              customerName: newOrder.customer_name
+            });
             
             // Se há caixa aberto e o pedido não tem caixa, vincular automaticamente
             if (currentRegister && !newOrder.cash_register_id) {
@@ -580,14 +635,14 @@ function UnifiedAttendancePage({ operator, storeSettings, scaleHook, onLogout }:
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white rounded-full p-1 border-2 border-green-200 flex items-center justify-center">
+              <div className="w-12 h-12 bg-white rounded-full p-1 border-2 border-green-200 flex items-center justify-center shadow-md">
                 <img 
-                  src="/logo.jpg" 
+                  src="/Logo_açai.jpeg" 
                   alt="Elite Açaí Logo" 
                   className="w-10 h-10 object-contain rounded-full"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
-                    target.src = '/logo-fallback.svg';
+                    target.src = '/logo.jpg';
                   }}
                 />
               </div>
