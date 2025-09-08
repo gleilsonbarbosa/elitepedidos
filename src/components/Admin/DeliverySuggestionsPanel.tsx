@@ -15,6 +15,7 @@ import {
   Target,
   BarChart3
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface SuggestionSettings {
   enabled: boolean;
@@ -54,63 +55,196 @@ const DeliverySuggestionsPanel: React.FC = () => {
   // Carregar configurações do localStorage
   useEffect(() => {
     try {
-      const savedSettings = localStorage.getItem('delivery_suggestions_settings');
-      if (savedSettings) {
-        const parsed = JSON.parse(savedSettings);
-        setSettings(prev => ({ ...prev, ...parsed }));
-        console.log('✅ Configurações de sugestões carregadas:', parsed);
-      }
+      const loadSettings = async () => {
+        console.log('🤖 [ADMIN-PANEL] Carregando configurações do banco...');
+        
+        // Check if Supabase is configured
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        if (!supabaseUrl || !supabaseKey || 
+            supabaseUrl.includes('placeholder') || 
+            supabaseKey.includes('placeholder')) {
+          console.warn('⚠️ [ADMIN-PANEL] Supabase não configurado - carregando do localStorage');
+          loadFromLocalStorage();
+          return;
+        }
+
+        try {
+          const { data, error } = await supabase
+            .from('order_settings')
+            .select('*')
+            .eq('id', 'default')
+            .maybeSingle();
+
+          if (error) {
+            console.error('❌ [ADMIN-PANEL] Erro ao carregar do banco:', error);
+            loadFromLocalStorage();
+            return;
+          }
+
+          if (data) {
+            console.log('✅ [ADMIN-PANEL] Configurações carregadas do banco:', data);
+            
+            const loadedSettings: SuggestionSettings = {
+              enabled: data.ai_suggestions_enabled ?? true,
+              maxSuggestions: data.ai_max_suggestions ?? 2,
+              socialProofEnabled: data.ai_social_proof_enabled ?? true,
+              urgencyEnabled: data.ai_urgency_enabled ?? true,
+              affinityEnabled: data.ai_affinity_enabled ?? true,
+              valueBasedEnabled: data.ai_value_based_enabled ?? true,
+              complementSuggestionsEnabled: data.ai_complement_suggestions_enabled ?? true,
+              upsellThreshold: data.ai_upsell_threshold ?? 25.00,
+              showInCart: data.ai_show_in_cart ?? true,
+              showInCheckout: data.ai_show_in_checkout ?? true,
+              autoRotateInterval: data.ai_auto_rotate_interval ?? 8,
+              confidenceThreshold: data.ai_confidence_threshold ?? 0.6
+            };
+            
+            setSettings(loadedSettings);
+            
+            // Backup no localStorage
+            localStorage.setItem('delivery_suggestions_settings', JSON.stringify(loadedSettings));
+            localStorage.setItem('ai_sales_assistant_enabled', JSON.stringify(loadedSettings.enabled));
+            
+            console.log('💾 [ADMIN-PANEL] Backup salvo no localStorage');
+          } else {
+            console.log('ℹ️ [ADMIN-PANEL] Nenhuma configuração encontrada no banco, usando padrões');
+            loadFromLocalStorage();
+          }
+        } catch (dbError) {
+          console.error('❌ [ADMIN-PANEL] Erro de conexão com banco:', dbError);
+          loadFromLocalStorage();
+        }
+      };
+      
+      const loadFromLocalStorage = () => {
+        try {
+          const savedSettings = localStorage.getItem('delivery_suggestions_settings');
+          console.log('🤖 [ADMIN-PANEL] Carregando do localStorage:', savedSettings);
+          
+          if (savedSettings) {
+            const parsed = JSON.parse(savedSettings);
+            setSettings(prev => ({ ...prev, ...parsed }));
+            console.log('✅ [ADMIN-PANEL] Configurações do localStorage aplicadas:', parsed);
+          } else {
+            console.log('ℹ️ [ADMIN-PANEL] Nenhuma configuração no localStorage, usando padrões');
+          }
+        } catch (error) {
+          console.error('❌ [ADMIN-PANEL] Erro ao carregar do localStorage:', error);
+        }
+      };
+      
+      loadSettings();
     } catch (error) {
-      console.error('Erro ao carregar configurações:', error);
+      console.error('❌ [ADMIN-PANEL] Erro geral ao carregar configurações:', error);
     }
   }, []);
 
   const handleSave = async () => {
     setLoading(true);
     try {
-      // Salvar no localStorage
-      localStorage.setItem('delivery_suggestions_settings', JSON.stringify(settings));
+      console.log('💾 [ADMIN] Salvando configurações no banco de dados:', settings);
       
-      // Também salvar configurações relacionadas para compatibilidade
-      localStorage.setItem('ai_suggestions_config', JSON.stringify({
-        enabled: settings.enabled,
-        maxSuggestions: settings.maxSuggestions,
-        triggers: {
-          social_proof: settings.socialProofEnabled,
-          urgency: settings.urgencyEnabled,
-          affinity: settings.affinityEnabled,
-          value: settings.valueBasedEnabled
-        },
-        complements: settings.complementSuggestionsEnabled,
-        thresholds: {
-          upsell: settings.upsellThreshold,
-          confidence: settings.confidenceThreshold
-        },
-        display: {
-          showInCart: settings.showInCart,
-          showInCheckout: settings.showInCheckout,
-          rotateInterval: settings.autoRotateInterval
-        }
-      }));
+      // Check if Supabase is configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl.includes('placeholder') || 
+          supabaseKey.includes('placeholder')) {
+        console.warn('⚠️ Supabase não configurado - salvando apenas no localStorage');
+        
+        // Fallback para localStorage se Supabase não estiver configurado
+        localStorage.setItem('delivery_suggestions_settings', JSON.stringify(settings));
+        localStorage.setItem('ai_sales_assistant_enabled', JSON.stringify(settings.enabled));
+        
+        setLastSaved(new Date());
+        
+        // Disparar evento para atualizar componentes
+        const configEvent = new CustomEvent('aiSuggestionsConfigChanged', {
+          detail: { enabled: settings.enabled, settings }
+        });
+        window.dispatchEvent(configEvent);
+        
+        // Show success message
+        const successMessage = document.createElement('div');
+        successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
+        successMessage.innerHTML = `
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+          Configurações salvas localmente (Supabase não configurado)
+        `;
+        document.body.appendChild(successMessage);
+        
+        setTimeout(() => {
+          if (document.body.contains(successMessage)) {
+            document.body.removeChild(successMessage);
+          }
+        }, 3000);
+        
+        return;
+      }
 
-      // Salvar configuração específica para o AISalesAssistant
+      // Salvar no banco de dados Supabase
+      const { data, error } = await supabase
+        .from('order_settings')
+        .upsert({
+          id: 'default',
+          // Configurações de IA
+          ai_suggestions_enabled: settings.enabled,
+          ai_max_suggestions: settings.maxSuggestions,
+          ai_social_proof_enabled: settings.socialProofEnabled,
+          ai_urgency_enabled: settings.urgencyEnabled,
+          ai_affinity_enabled: settings.affinityEnabled,
+          ai_value_based_enabled: settings.valueBasedEnabled,
+          ai_complement_suggestions_enabled: settings.complementSuggestionsEnabled,
+          ai_upsell_threshold: settings.upsellThreshold,
+          ai_show_in_cart: settings.showInCart,
+          ai_show_in_checkout: settings.showInCheckout,
+          ai_auto_rotate_interval: settings.autoRotateInterval,
+          ai_confidence_threshold: settings.confidenceThreshold,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'id'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('❌ [ADMIN] Erro ao salvar no banco:', error);
+        throw error;
+      }
+
+      console.log('✅ [ADMIN] Configurações salvas no banco:', data);
+      
+      // Backup no localStorage para compatibilidade
+      localStorage.setItem('delivery_suggestions_settings', JSON.stringify(settings));
       localStorage.setItem('ai_sales_assistant_enabled', JSON.stringify(settings.enabled));
       
       // Disparar evento customizado para notificar outros componentes
-      window.dispatchEvent(new CustomEvent('aiSuggestionsConfigChanged', {
+      const configEvent = new CustomEvent('aiSuggestionsConfigChanged', {
         detail: { enabled: settings.enabled, settings }
-      }));
-
+      });
+      
+      window.dispatchEvent(configEvent);
+      
+      console.log('📡 [ADMIN] Evento disparado após salvamento no banco:', {
+        enabled: settings.enabled,
+        eventDetail: { enabled: settings.enabled, settings }
+      });
+      
       setLastSaved(new Date());
       
-      // Mostrar feedback de sucesso
+      // Show success message
       const successMessage = document.createElement('div');
       successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
       successMessage.innerHTML = `
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
         </svg>
-        Configurações de sugestões salvas!
+        Configurações salvas no banco de dados!
       `;
       document.body.appendChild(successMessage);
       
@@ -121,8 +255,22 @@ const DeliverySuggestionsPanel: React.FC = () => {
       }, 3000);
       
     } catch (error) {
-      console.error('Erro ao salvar configurações:', error);
-      alert('Erro ao salvar configurações. Tente novamente.');
+      console.error('❌ [ADMIN] Erro ao salvar configurações:', error);
+      
+      // Fallback para localStorage se banco falhar
+      console.warn('⚠️ [ADMIN] Salvando no localStorage como fallback');
+      localStorage.setItem('delivery_suggestions_settings', JSON.stringify(settings));
+      localStorage.setItem('ai_sales_assistant_enabled', JSON.stringify(settings.enabled));
+      
+      // Disparar evento mesmo com fallback
+      const configEvent = new CustomEvent('aiSuggestionsConfigChanged', {
+        detail: { enabled: settings.enabled, settings }
+      });
+      window.dispatchEvent(configEvent);
+      
+      setLastSaved(new Date());
+      
+      alert('Erro ao salvar no banco. Configurações salvas localmente como backup.');
     } finally {
       setLoading(false);
     }
