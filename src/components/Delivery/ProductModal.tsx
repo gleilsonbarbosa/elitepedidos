@@ -47,18 +47,6 @@ const ProductModal: React.FC<ProductModalProps> = ({
   const activePromotion = getPromotionForProduct(product.id);
   const hasActivePromotion = !!activePromotion;
   
-  // Reset form when modal opens with new data
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedSize(initialSize || (product.sizes ? product.sizes[0] : undefined));
-      setQuantity(initialQuantity);
-      setObservations(initialObservations);
-      setSelectedComplements(initialComplements);
-      setIncompleteGroups([]);
-      setShowValidationAlert(false);
-    }
-  }, [isOpen, initialSize, initialQuantity, initialObservations, initialComplements]);
-
   // Fetch product image when component mounts or product changes
   useEffect(() => {
     const loadProductImage = async () => {
@@ -224,7 +212,7 @@ const ProductModal: React.FC<ProductModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300" style={{ zIndex: 9999 }}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 transition-opacity duration-300">
       <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] shadow-xl overflow-hidden flex flex-col">
         {/* Header with image */}
         <div className="relative h-48">
@@ -240,11 +228,6 @@ const ProductModal: React.FC<ProductModalProps> = ({
           {/* Product name on image */}
           <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
             <h2 className="text-2xl font-bold">{product.name}</h2>
-            {isEditing && (
-              <p className="text-yellow-200 text-sm font-medium">
-                ✏️ Editando produto do carrinho
-              </p>
-            )}
           </div>
           
           {/* Close button */}
