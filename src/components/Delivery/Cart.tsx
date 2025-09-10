@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus, Trash2, X, Edit3 } from 'lucide-react';
 import { CartItem } from '../../types/cart';
 import AISalesAssistant from './AISalesAssistant';
@@ -17,6 +17,7 @@ interface CartProps {
   onCheckout?: () => void;
   availableProducts?: Product[];
   onAddProduct?: (product: Product) => void;
+  aiSuggestionsEnabled?: boolean;
 }
 
 const Cart: React.FC<CartProps> = ({
@@ -31,8 +32,148 @@ const Cart: React.FC<CartProps> = ({
   onEditItem,
   onCheckout,
   availableProducts = [],
-  onAddProduct
+  onAddProduct,
+  aiSuggestionsEnabled = true
 }) => {
+  const [localAiEnabled, setLocalAiEnabled] = useState(true);
+  const [showInCart, setShowInCart] = useState(true);
+
+  // Carregar configurações de IA
+  useEffect(() => {
+    const checkAISettings = () => {
+      try {
+        console.log('🤖 [CART] Verificando configurações de IA...');
+        
+        // Verificar configuração específica primeiro
+        const aiEnabled = localStorage.getItem('ai_sales_assistant_enabled');
+        console.log('🤖 [CART] ai_sales_assistant_enabled:', aiEnabled);
+        
+        if (aiEnabled !== null) {
+          const enabled = JSON.parse(aiEnabled);
+          setLocalAiEnabled(enabled);
+          console.log('🤖 [CART] Estado local definido (específico):', enabled);
+          return;
+        }
+        
+        // Fallback para configuração geral
+        const savedSettings = localStorage.getItem('delivery_suggestions_settings');
+        console.log('🤖 [CART] delivery_suggestions_settings:', savedSettings);
+        
+        if (savedSettings) {
+          const settings = JSON.parse(savedSettings);
+          const enabled = settings.enabled !== false;
+          const showInCartSetting = settings.showInCart !== false;
+          setLocalAiEnabled(enabled);
+          setShowInCart(showInCartSetting);
+          console.log('🤖 [CART] Estado local definido (geral):', enabled);
+          console.log('🤖 [CART] Mostrar no carrinho:', showInCartSetting);
+        } else {
+          setLocalAiEnabled(true);
+          setShowInCart(true);
+          console.log('🤖 [CART] Estado local definido (padrão): true');
+        }
+      } catch (error) {
+        console.warn('🤖 [CART] Erro ao verificar configuração:', error);
+        setLocalAiEnabled(true);
+        setShowInCart(true);
+      }
+    };
+
+    checkAISettings();
+
+    // Escutar mudanças nas configurações
+    const loadSettings = async () => {
+      try {
+        // Check if Supabase is configured
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+        
+        if (!supabaseUrl || !supabaseKey || 
+            supabaseUrl.includes('placeholder') || 
+            supabaseKey.includes('placeholder')) {
+          console.warn('⚠️ [CART] Supabase não configurado - usando localStorage');
+          loadFromLocalStorage();
+          return;
+        }
+
+        // Carregar do banco de dados
+        const { data, error } = await supabase
+          .from('order_settings')
+          .select('ai_suggestions_enabled')
+          .eq('id', 'default')
+          .maybeSingle();
+
+        if (error) {
+          console.error('❌ [CART] Erro ao carregar do banco:', error);
+          loadFromLocalStorage();
+          return;
+        }
+
+        if (data) {
+          const enabled = data.ai_suggestions_enabled ?? true;
+          setLocalAiEnabled(enabled);
+          console.log('✅ [CART] Configuração carregada do banco:', enabled);
+          
+          // Backup no localStorage
+          localStorage.setItem('ai_sales_assistant_enabled', JSON.stringify(enabled));
+        } else {
+          console.log('ℹ️ [CART] Nenhuma configuração no banco, usando localStorage');
+          loadFromLocalStorage();
+        }
+      } catch (dbError) {
+        console.error('❌ [CART] Erro de conexão com banco:', dbError);
+        loadFromLocalStorage();
+      }
+    };
+    
+    const loadFromLocalStorage = () => {
+      try {
+        const aiEnabled = localStorage.getItem('ai_sales_assistant_enabled');
+        console.log('🤖 [CART] Carregando do localStorage:', aiEnabled);
+        
+        if (aiEnabled !== null) {
+          const enabled = JSON.parse(aiEnabled);
+          setLocalAiEnabled(enabled);
+          console.log('🤖 [CART] Estado do localStorage aplicado:', enabled);
+        }
+      } catch (error) {
+        console.error('❌ [CART] Erro ao carregar do localStorage:', error);
+      }
+    };
+
+    const handleConfigChange = (event: CustomEvent) => {
+      console.log('🤖 [CART] Evento de mudança de configuração recebido:', event.detail);
+      setLocalAiEnabled(event.detail.enabled);
+      if (event.detail.settings) {
+        setShowInCart(event.detail.settings.showInCart !== false);
+      }
+      
+      // Forçar re-render
+      setTimeout(() => {
+        console.log('🤖 [CART] Estado após evento:', event.detail.enabled);
+      }, 100);
+    };
+
+    window.addEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
+    };
+  }, []);
+
+  // Combinar configurações: prop externa E configuração local
+  const finalAiEnabled = aiSuggestionsEnabled && localAiEnabled && showInCart;
+
+  console.log('🤖 [CART] Estado final das sugestões IA:', {
+    aiSuggestionsEnabled,
+    localAiEnabled,
+    showInCart,
+    finalAiEnabled,
+    itemsCount: items.length,
+    hasAvailableProducts: availableProducts.length > 0,
+    hasOnAddProduct: !!onAddProduct
+  });
+
   if (!isOpen) return null;
 
   const formatPrice = (price: number) => {
@@ -43,7 +184,7 @@ const Cart: React.FC<CartProps> = ({
   };
 
   const handleQuantityChange = (itemId: string, newQuantity: number) => {
-    if (newQuantity < 1) {
+    if (newQuantity <= 0) {
       onRemoveItem(itemId);
     } else {
       onUpdateQuantity(itemId, newQuantity);
@@ -126,16 +267,6 @@ const Cart: React.FC<CartProps> = ({
                         
                         {/* Action Buttons */}
                         <div className="flex gap-1 ml-2 flex-shrink-0">
-                          {onEditItem && (
-                            <button
-                              onClick={() => onEditItem(item)}
-                              className="p-1.5 md:p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors touch-manipulation"
-                              disabled={disabled}
-                              title="Editar produto"
-                            >
-                              <Edit3 size={14} className="md:w-4 md:h-4" />
-                            </button>
-                          )}
                           <button
                             onClick={() => onRemoveItem(item.id)}
                             className="p-1.5 md:p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors touch-manipulation"
@@ -150,7 +281,18 @@ const Cart: React.FC<CartProps> = ({
                       {/* Complementos */}
                       {item.selectedComplements && item.selectedComplements.length > 0 && (
                         <div className="mb-2">
-                          <p className="text-xs font-medium text-gray-700 mb-1">Complementos:</p>
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-xs font-medium text-gray-700">Complementos:</p>
+                            {onEditItem && (
+                              <button
+                                onClick={() => onEditItem(item)}
+                                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                disabled={disabled}
+                              >
+                                Editar
+                              </button>
+                            )}
+                          </div>
                           <div className="max-h-16 md:max-h-20 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
                             <div className="flex flex-wrap gap-1 pr-2">
                             {item.selectedComplements.slice(0, 4).map((selectedComp, idx) => (
@@ -175,9 +317,37 @@ const Cart: React.FC<CartProps> = ({
                       {/* Observações */}
                       {item.observations && (
                         <div className="mb-2 p-2 md:p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1">
                           <p className="text-xs text-yellow-800">
                             <strong>Obs:</strong> {item.observations}
                           </p>
+                            </div>
+                            {onEditItem && (
+                              <button
+                                onClick={() => onEditItem(item)}
+                                className="text-xs text-blue-600 hover:text-blue-800 font-medium flex-shrink-0"
+                                disabled={disabled}
+                                title="Editar observações"
+                              >
+                                Editar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Edit Product Button - More Prominent */}
+                      {onEditItem && (item.selectedComplements.length > 0 || item.observations || item.selectedSize) && (
+                        <div className="mb-2">
+                          <button
+                            onClick={() => onEditItem(item)}
+                            className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm font-medium border border-blue-200"
+                            disabled={disabled}
+                          >
+                            <Edit3 size={16} />
+                            Personalizar este produto
+                          </button>
                         </div>
                       )}
 
@@ -218,8 +388,14 @@ const Cart: React.FC<CartProps> = ({
         </div>
 
         {/* AI Sales Assistant */}
-        {items.length > 0 && availableProducts.length > 0 && onAddProduct && (
+        {items.length > 0 && availableProducts.length > 0 && onAddProduct && finalAiEnabled && (
           <div className="p-4 md:p-6 border-t border-gray-200">
+            <div className="mb-3">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-xs text-green-600 font-medium">IA Ativa</span>
+              </div>
+            </div>
             <AISalesAssistant
               cartItems={items}
               availableProducts={availableProducts}
@@ -299,7 +475,6 @@ const Cart: React.FC<CartProps> = ({
                {onCheckout ? 'Finalizar' : 'Fechar'}
               </button>
             </div>
-
           </div>
         )}
       </div>
