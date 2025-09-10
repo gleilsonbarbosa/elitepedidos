@@ -27,78 +27,6 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
   const [currentSuggestion, setCurrentSuggestion] = useState<UpsellSuggestion | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [suggestionIndex, setSuggestionIndex] = useState(0);
-  const [aiEnabled, setAiEnabled] = useState(true);
-  const [maxSuggestions, setMaxSuggestions] = useState(2);
-  const [socialProofEnabled, setSocialProofEnabled] = useState(true);
-  const [urgencyEnabled, setUrgencyEnabled] = useState(true);
-  const [affinityEnabled, setAffinityEnabled] = useState(true);
-  const [valueBasedEnabled, setValueBasedEnabled] = useState(true);
-  const [upsellThreshold, setUpsellThreshold] = useState(25.00);
-  const [confidenceThreshold, setConfidenceThreshold] = useState(0.6);
-
-  // Verificar se as sugestões IA estão habilitadas - CORRIGIDO
-  useEffect(() => {
-    const checkAISettings = () => {
-      try {
-        console.log('🤖 [UPSELL-BANNER] Verificando configurações de IA...');
-        
-        const aiEnabled = localStorage.getItem('ai_sales_assistant_enabled');
-        console.log('🤖 [UPSELL-BANNER] ai_sales_assistant_enabled:', aiEnabled);
-        
-        if (aiEnabled !== null) {
-          const enabled = JSON.parse(aiEnabled);
-          setAiEnabled(enabled);
-          setMaxSuggestions(settings.maxSuggestions || 2);
-          setSocialProofEnabled(settings.socialProofEnabled !== false);
-          setUrgencyEnabled(settings.urgencyEnabled !== false);
-          setAffinityEnabled(settings.affinityEnabled !== false);
-          setValueBasedEnabled(settings.valueBasedEnabled !== false);
-          setUpsellThreshold(settings.upsellThreshold || 25.00);
-          setConfidenceThreshold(settings.confidenceThreshold || 0.6);
-          console.log('🤖 [UPSELL-BANNER] Estado definido (específico):', enabled);
-        } else {
-          const savedSettings = localStorage.getItem('delivery_suggestions_settings');
-          console.log('🤖 [UPSELL-BANNER] delivery_suggestions_settings:', savedSettings);
-          
-          if (savedSettings) {
-            const settings = JSON.parse(savedSettings);
-            const enabled = settings.enabled !== false;
-            setAiEnabled(enabled);
-            console.log('🤖 [UPSELL-BANNER] Estado definido (geral):', enabled);
-          } else {
-            setAiEnabled(true);
-            console.log('🤖 [UPSELL-BANNER] Estado definido (padrão): true');
-          }
-        }
-      } catch (error) {
-        console.warn('🤖 [UPSELL-BANNER] Erro ao verificar configuração:', error);
-        setAiEnabled(true);
-      }
-    };
-
-    checkAISettings();
-
-    // Escutar mudanças nas configurações
-    const handleConfigChange = (event: CustomEvent) => {
-      console.log('🤖 [UPSELL-BANNER] Evento de configuração recebido:', event.detail);
-      setAiEnabled(event.detail.enabled);
-      if (event.detail.settings) {
-        setMaxSuggestions(event.detail.settings.maxSuggestions || 2);
-        setSocialProofEnabled(event.detail.settings.socialProofEnabled !== false);
-        setUrgencyEnabled(event.detail.settings.urgencyEnabled !== false);
-        setAffinityEnabled(event.detail.settings.affinityEnabled !== false);
-        setValueBasedEnabled(event.detail.settings.valueBasedEnabled !== false);
-        setUpsellThreshold(event.detail.settings.upsellThreshold || 25.00);
-        setConfidenceThreshold(event.detail.settings.confidenceThreshold || 0.6);
-      }
-    };
-
-    window.addEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
-    
-    return () => {
-      window.removeEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
-    };
-  }, []);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -140,54 +68,49 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
     });
 
     // Size upgrade suggestions (high priority)
-    // PRIORITY: Açaí 300g promotion message - apenas se social proof estiver habilitado
-    if (socialProofEnabled) {
-      const hasNoAcai300g = !cartItems.some(item => 
-        item.product.name.includes('300g') && item.product.category === 'acai'
-      );
+    // PRIORITY: Açaí 300g promotion message
+    const hasNoAcai300g = !cartItems.some(item => 
+      item.product.name.includes('300g') && item.product.category === 'acai'
+    );
 
-      if (hasNoAcai300g) {
-        const acai300g = availableProducts.find(p => 
-          p.name.includes('300g') && p.category === 'acai' && !addedProductIds.has(p.id)
-        );
-        
-        if (acai300g) {
-          suggestions.push({
-            product: acai300g,
-            message: 'O Açaí 300g é um dos mais pedidos do dia! Garanta o seu por apenas R$14,50.',
-            trigger: 'social_proof',
-            confidence: 0.95
-          });
-        }
+    if (hasNoAcai300g) {
+      const acai300g = availableProducts.find(p => 
+        p.name.includes('300g') && p.category === 'acai' && !addedProductIds.has(p.id)
+      );
+      
+      if (acai300g) {
+        suggestions.push({
+          product: acai300g,
+          message: 'O Açaí 300g é um dos mais pedidos do dia! Garanta o seu por apenas R$14,50.',
+          trigger: 'social_proof',
+          confidence: 0.95
+        });
       }
     }
 
-    // Size upgrade suggestions - apenas se social proof estiver habilitado
-    if (socialProofEnabled) {
-      const smallAcaiItems = cartItems.filter(item => 
-        item.product.category === 'acai' && item.product.name.includes('300g')
-      );
+    const smallAcaiItems = cartItems.filter(item => 
+      item.product.category === 'acai' && item.product.name.includes('300g')
+    );
 
-      if (smallAcaiItems.length > 0) {
-        const upgrade500g = availableProducts.find(p => 
-          p.name.includes('500g') && p.category === 'acai' && !addedProductIds.has(p.id)
-        );
-        
-        if (upgrade500g) {
-          const priceIncrease = upgrade500g.price - smallAcaiItems[0].product.price;
-          suggestions.push({
-            product: upgrade500g,
-            message: `🔥 **87% dos clientes** preferem o tamanho 500g! Mais açaí por apenas +${formatPrice(priceIncrease)}`,
-            trigger: 'social_proof',
-            confidence: 0.9,
-            priceIncrease
-          });
-        }
+    if (smallAcaiItems.length > 0) {
+      const upgrade500g = availableProducts.find(p => 
+        p.name.includes('500g') && p.category === 'acai' && !addedProductIds.has(p.id)
+      );
+      
+      if (upgrade500g) {
+        const priceIncrease = upgrade500g.price - smallAcaiItems[0].product.price;
+        suggestions.push({
+          product: upgrade500g,
+          message: `🔥 **87% dos clientes** preferem o tamanho 500g! Mais açaí por apenas +${formatPrice(priceIncrease)}`,
+          trigger: 'social_proof',
+          confidence: 0.9,
+          priceIncrease
+        });
       }
     }
 
     // Combo suggestions for single items
-    if (valueBasedEnabled && cartItems.length === 1 && !cartItems.some(item => item.product.category === 'combo')) {
+    if (cartItems.length === 1 && !cartItems.some(item => item.product.category === 'combo')) {
       const comboProduct = availableProducts.find(p => 
         p.category === 'combo' && !addedProductIds.has(p.id)
       );
@@ -203,7 +126,7 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
     }
 
     // Beverage pairing for açaí orders
-    if (socialProofEnabled && cartItems.some(item => item.product.category === 'acai') && 
+    if (cartItems.some(item => item.product.category === 'acai') && 
         !cartItems.some(item => item.product.category === 'bebidas')) {
       const beverage = availableProducts.find(p => 
         p.category === 'bebidas' && !addedProductIds.has(p.id)
@@ -220,7 +143,7 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
     }
 
     // Milkshake complement for açaí
-    if (affinityEnabled && cartItems.some(item => item.product.category === 'acai') && 
+    if (cartItems.some(item => item.product.category === 'acai') && 
         !cartItems.some(item => item.product.category === 'milkshake')) {
       const milkshake = availableProducts.find(p => 
         p.category === 'milkshake' && !addedProductIds.has(p.id)
@@ -237,7 +160,7 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
     }
 
     // Sugestões de complementos pagos para açaí
-    if (affinityEnabled && cartItems.some(item => item.product.category === 'acai')) {
+    if (cartItems.some(item => item.product.category === 'acai')) {
       const complementSuggestions = [
         {
           complement: paidComplements.find(c => c.name.includes('PAÇOCA')),
@@ -262,13 +185,6 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
       ];
       
       complementSuggestions.forEach(({ complement, message, trigger }) => {
-        // Verificar se o tipo de trigger está habilitado
-        const triggerEnabled = trigger === 'social_proof' ? socialProofEnabled :
-                              trigger === 'urgency' ? urgencyEnabled :
-                              trigger === 'affinity' ? affinityEnabled : true;
-        
-        if (!triggerEnabled) return;
-        
         if (complement && !addedComplements.has(complement.name.toLowerCase())) {
           // Criar produto virtual para o complemento
           const virtualProduct: Product = {
@@ -292,7 +208,7 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
     }
 
     // Low cart value upsell
-    if (urgencyEnabled && cartTotal < upsellThreshold) {
+    if (cartTotal < 25) {
       const premiumProduct = availableProducts.find(p => 
         p.price > cartTotal * 0.5 && !addedProductIds.has(p.id) && p.category === 'acai'
       );
@@ -308,7 +224,7 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
     }
 
     // High value customer - premium suggestions
-    if (affinityEnabled && cartTotal > 40) {
+    if (cartTotal > 40) {
       const premiumOptions = availableProducts.filter(p => 
         p.originalPrice && p.originalPrice > p.price && !addedProductIds.has(p.id)
       );
@@ -324,57 +240,26 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
       }
     }
 
-    // Filtrar por confiança e limitar ao número máximo configurado
-    const filteredSuggestions = suggestions.filter(suggestion => {
-      const confidence = suggestion.confidence || 0.6;
-      return confidence >= confidenceThreshold;
-    });
-    
-    console.log('🤖 [UPSELL-BANNER] Sugestões filtradas:', {
-      total: suggestions.length,
-      afterConfidenceFilter: filteredSuggestions.length,
-      maxSuggestions,
-      final: filteredSuggestions.slice(0, maxSuggestions).length
-    });
-    
-    return filteredSuggestions.slice(0, maxSuggestions);
+    return suggestions.slice(0, 2); // Limitar a 2 para melhor experiência
   };
 
   // Update suggestions when cart changes
   useEffect(() => {
-    console.log('🤖 [UPSELL-BANNER] Atualizando sugestões:', {
-      aiEnabled,
-      maxSuggestions,
-      socialProofEnabled,
-      urgencyEnabled,
-      affinityEnabled,
-      valueBasedEnabled,
-      upsellThreshold,
-      confidenceThreshold,
-      cartItemsCount: cartItems.length,
-      availableProductsCount: availableProducts.length
-    });
-    
     const suggestions = generateUpsellSuggestions();
     
-    if (suggestions.length > 0 && aiEnabled) {
+    if (suggestions.length > 0) {
       setCurrentSuggestion(suggestions[0]);
       setIsVisible(true);
       setSuggestionIndex(0);
-      console.log('🤖 [UPSELL-BANNER] Banner visível com sugestão:', suggestions[0].product.name);
     } else {
       setIsVisible(false);
       setCurrentSuggestion(null);
-      console.log('🤖 [UPSELL-BANNER] Banner oculto:', {
-        suggestionsCount: suggestions.length,
-        aiEnabled
-      });
     }
-  }, [cartItems, availableProducts, aiEnabled, maxSuggestions, socialProofEnabled, urgencyEnabled, affinityEnabled, valueBasedEnabled, upsellThreshold, confidenceThreshold]);
+  }, [cartItems, availableProducts]);
 
   // Rotate suggestions every 8 seconds
   useEffect(() => {
-    if (!isVisible || !aiEnabled) return;
+    if (!isVisible) return;
 
     const suggestions = generateUpsellSuggestions();
     if (suggestions.length <= 1) return;
@@ -388,7 +273,7 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
     }, 8000);
 
     return () => clearInterval(interval);
-  }, [isVisible, cartItems, aiEnabled]);
+  }, [isVisible, cartItems]);
 
   const getTriggerIcon = (trigger: string) => {
     switch (trigger) {
@@ -420,16 +305,9 @@ const SmartUpsellBanner: React.FC<SmartUpsellBannerProps> = ({
     }
   };
 
-  if (!isVisible || !currentSuggestion || !aiEnabled) {
-    console.log('🤖 [UPSELL-BANNER] Componente oculto:', {
-      isVisible,
-      hasCurrentSuggestion: !!currentSuggestion,
-      aiEnabled
-    });
+  if (!isVisible || !currentSuggestion) {
     return null;
   }
-
-  console.log('🤖 [UPSELL-BANNER] Renderizando banner com sugestão:', currentSuggestion.product.name);
 
   return (
     <div className={`relative overflow-hidden rounded-xl shadow-lg ${className}`}>

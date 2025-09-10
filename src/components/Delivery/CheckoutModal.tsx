@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { X, User, Phone, MapPin, CreditCard, Calendar, Clock, Store, Truck, AlertCircle, Gift, DollarSign } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { CartItem } from '../../types/cart';
 import { useNeighborhoods } from '../../hooks/useNeighborhoods';
 import { useOrders } from '../../hooks/useOrders';
@@ -20,7 +19,6 @@ interface CheckoutModalProps {
   items: CartItem[];
   totalPrice: number;
   onOrderComplete: () => void;
-  aiSuggestionsEnabled?: boolean;
 }
 
 const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -28,8 +26,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   onClose,
   items,
   totalPrice,
-  onOrderComplete,
-  aiSuggestionsEnabled = true
+  onOrderComplete
 }) => {
   const { neighborhoods } = useNeighborhoods();
   const { createOrder } = useOrders();
@@ -53,7 +50,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [appliedCashback, setAppliedCashback] = useState(0);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [showAISuggestions, setShowAISuggestions] = useState(true);
-  const [showInCheckout, setShowInCheckout] = useState(true);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -70,9 +66,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setCustomerBalance(null);
       setAppliedCashback(0);
       setCustomerId(null);
-      setShowAISuggestions(aiSuggestionsEnabled);
+      setShowAISuggestions(true);
     }
-  }, [isOpen, aiSuggestionsEnabled]);
+  }, [isOpen]);
 
   // Search for customer when phone changes
   useEffect(() => {
@@ -229,6 +225,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       return false;
     }
 
+
     return true;
   };
 
@@ -343,16 +340,15 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         `👤 Cliente: ${customerName}\n` +
         `💰 Total: ${formatPrice(getFinalTotal())}\n` +
         `${appliedCashback > 0 ? `🎁 Cashback usado: ${formatPrice(appliedCashback)}\n` : ''}` +
-        `${deliveryType === 'pickup' ? 
-          `📍 *LOCAL DE RETIRADA:*\nRua Um, 1614-C – Residencial 1 – Cágado\n📅 Data: ${scheduledPickupDate ? new Date(scheduledPickupDate).toLocaleDateString('pt-BR') : 'Não definida'}\n⏰ Horário: ${scheduledPickupTime || 'Não definido'}\n\n` :
-          `📍 *ENDEREÇO DE ENTREGA:*\n${customerAddress}\n🏘️ Bairro: ${customerNeighborhood}\n${customerComplement ? `🏠 Complemento: ${customerComplement}\n` : ''}\n\n`
+        `${deliveryType === 'pickup' 
+          ? `📅 Retirada: ${new Date(scheduledPickupDate).toLocaleDateString('pt-BR')} às ${scheduledPickupTime}\n`
+          : `🚚 Entrega: ${getEstimatedDeliveryTime()} minutos\n`
         }` +
-        `🔗 *ACOMPANHE SEU PEDIDO:*\n${window.location.origin}/pedido/[ID_DO_PEDIDO]\n\n` +
-        `Elite Açaí - O melhor açaí da cidade! 🍧`
+        `\n🔗 Acompanhe seu pedido:\n${orderTrackingLink}\n\n` +
+        `Você receberá atualizações por WhatsApp!`
       );
 
       onOrderComplete();
-      onClose();
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
       let errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
@@ -404,80 +400,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setIsSubmitting(false);
     }
   };
-
-  const loadSettings = async () => {
-    try {
-      // Check if Supabase is configured
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (!supabaseUrl || !supabaseKey || 
-          supabaseUrl.includes('placeholder') || 
-          supabaseKey.includes('placeholder')) {
-        console.warn('⚠️ [CHECKOUT] Supabase não configurado - usando localStorage');
-        loadFromLocalStorage();
-        return;
-      }
-
-      // Carregar do banco de dados
-      const { data, error } = await supabase
-        .from('order_settings')
-        .select('ai_suggestions_enabled, ai_show_in_checkout')
-        .eq('id', 'default')
-        .maybeSingle();
-
-      if (error) {
-        console.error('❌ [CHECKOUT] Erro ao carregar do banco:', error);
-        loadFromLocalStorage();
-        return;
-      }
-
-      if (data) {
-        const enabled = data.ai_suggestions_enabled ?? true;
-        const showInCheckoutDb = data.ai_show_in_checkout ?? true;
-        setShowAISuggestions(enabled);
-        setShowInCheckout(showInCheckoutDb);
-        console.log('✅ [CHECKOUT] Configuração carregada do banco:', enabled);
-        console.log('✅ [CHECKOUT] Mostrar no checkout (banco):', showInCheckoutDb);
-        
-        // Backup no localStorage
-        localStorage.setItem('ai_sales_assistant_enabled', JSON.stringify(enabled));
-      } else {
-        console.log('ℹ️ [CHECKOUT] Nenhuma configuração no banco, usando localStorage');
-        loadFromLocalStorage();
-      }
-    } catch (dbError) {
-      console.error('❌ [CHECKOUT] Erro de conexão com banco:', dbError);
-      loadFromLocalStorage();
-    }
-  };
-  
-  const loadFromLocalStorage = () => {
-    try {
-      const aiEnabled = localStorage.getItem('ai_sales_assistant_enabled');
-      console.log('🤖 [CHECKOUT] Carregando do localStorage:', aiEnabled);
-      
-      if (aiEnabled !== null) {
-        const enabled = JSON.parse(aiEnabled);
-        setShowAISuggestions(enabled);
-        
-        // Carregar configuração de mostrar no checkout
-        const savedSettings = localStorage.getItem('delivery_suggestions_settings');
-        if (savedSettings) {
-          const settings = JSON.parse(savedSettings);
-          setShowInCheckout(settings.showInCheckout !== false);
-        }
-        
-        console.log('🤖 [CHECKOUT] Estado do localStorage aplicado:', enabled);
-      }
-    } catch (error) {
-      console.error('❌ [CHECKOUT] Erro ao carregar do localStorage:', error);
-    }
-  };
-
-  useEffect(() => {
-    loadSettings();
-  }, []);
 
   if (!isOpen) return null;
 
@@ -608,17 +530,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
           )}
 
           {/* Cashback Section */}
-          {customerBalance && customerBalance.available_balance > 0 && (
-            <div className="space-y-4">
-              <CashbackButton
-                customerBalance={customerBalance}
-                orderTotal={totalPrice + getDeliveryFee()}
-                appliedCashback={appliedCashback}
-                onApplyCashback={handleApplyCashback}
-                onRemoveCashback={handleRemoveCashback}
-              />
-            </div>
-          )}
 
           {/* Push Notification Banner */}
           {customerPhone && customerPhone.replace(/\D/g, '').length >= 11 && (
@@ -634,14 +545,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
           )}
 
           {/* AI Sales Assistant */}
-          {showAISuggestions && showInCheckout && aiSuggestionsEnabled && items.length > 0 && (
+          {showAISuggestions && items.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-gray-800">🤖 Sugestões Personalizadas</h3>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-green-600 font-medium">IA Ativa</span>
-                </div>
                 <button
                   onClick={() => setShowAISuggestions(false)}
                   className="text-gray-400 hover:text-gray-600 p-1"
@@ -695,7 +602,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
               />
             </div>
           )}
-          
+
           {/* Pickup Scheduler (only for pickup) */}
           {deliveryType === 'pickup' && (
             <PickupScheduler
@@ -809,7 +716,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   value={changeFor || ''}
                   onChange={(e) => setChangeFor(parseFloat(e.target.value) || undefined)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder={"Mínimo: " + formatPrice(getFinalTotal())}
+                  placeholder={`Mínimo: ${formatPrice(getFinalTotal())}`}
                 />
                 {changeFor && changeFor > getFinalTotal() && (
                   <p className="text-sm text-green-600 mt-1">
