@@ -178,15 +178,17 @@ export const useCashback = () => {
       // Converter de volta para reais
       const availableBalance = availableBalanceCents / 100;
       
+      // Apply precision cleanup and ensure non-negative
+      const cleanBalance = Math.abs(availableBalance) < 0.01 ? 0 : availableBalance;
+      const finalBalance = Math.max(0, cleanBalance);
+      const preciseBalance = Math.round(finalBalance * 100) / 100;
+      
       // Calcular data de expiração (fim do mês atual)
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
       const daysUntilEndOfMonth = Math.ceil((endOfMonth.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       
-      // Garantir que o saldo nunca seja negativo
-      const finalBalance = Math.max(0, availableBalance);
-      
       console.log('✅ SALDO MENSAL - Baseado apenas no mês atual:', {
-        availableBalance: finalBalance,
+        availableBalance: preciseBalance,
         mesAtual: `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`,
         transacoesDoMes: allTransactions.length,
         expiraEm: `${daysUntilEndOfMonth} dias (fim do mês)`,
@@ -195,8 +197,8 @@ export const useCashback = () => {
       
       return {
         customer_id: customerId,
-        available_balance: finalBalance,
-        expiring_amount: daysUntilEndOfMonth <= 7 ? finalBalance : 0, // Todo saldo expira no fim do mês
+        available_balance: preciseBalance,
+        expiring_amount: daysUntilEndOfMonth <= 7 ? preciseBalance : 0, // Todo saldo expira no fim do mês
         expiration_date: endOfMonth.toISOString()
       };
     } catch (error) {
@@ -358,12 +360,14 @@ export const useCashback = () => {
         }
       });
 
-      // Converter de volta para reais
+      // Converter de volta para reais e garantir precisão
       const monthlyBalance = Math.round(monthlyBalanceCents) / 100;
-
-      // CRÍTICO: Se saldo é negativo ou zero, retornar saldo zero
-      const finalBalance = Math.max(0, monthlyBalance);
-      const availableBalance = finalBalance;
+      
+      // Apply precision cleanup and ensure non-negative
+      const cleanBalance = Math.abs(monthlyBalance) < 0.01 ? 0 : monthlyBalance;
+      const finalBalance = Math.max(0, cleanBalance);
+      const availableBalance = Math.round(finalBalance * 100) / 100;
+      
       const roundedAmount = Math.round(amount * 100) / 100;
       
       // Convert to integer cents to avoid floating-point precision issues
@@ -372,10 +376,9 @@ export const useCashback = () => {
       
       console.log('💰 Verificação de saldo mensal:', {
         availableBalance,
-        monthlyBalance,
+        monthlyBalance: cleanBalance,
         monthlyBalanceRaw: monthlyBalance,
         finalBalance: finalBalance,
-        requestedCents: roundedAmountCents,
         availableCents: availableBalanceCents,
         requestedAmount: roundedAmount,
         sufficient: availableBalanceCents >= roundedAmountCents,
@@ -389,10 +392,14 @@ export const useCashback = () => {
       }
       
       if (availableBalanceCents < roundedAmountCents) {
-        const formattedBalance = new Intl.NumberFormat('pt-BR', {
+        // Garantir formatação correta com precisão exata
+        const safeBalance = Math.round(Math.max(0, availableBalance) * 100) / 100;
+        const formattedBalance = safeBalance.toLocaleString('pt-BR', {
           style: 'currency',
-          currency: 'BRL'
-        }).format(availableBalance);
+          currency: 'BRL',
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
         
         throw new Error(`Saldo insuficiente no mês atual. Disponível: ${formattedBalance}`);
       }
@@ -413,20 +420,35 @@ export const useCashback = () => {
       if (error) {
         console.error('❌ Erro ao criar transação de resgate:', error);
         
-        // Fix malformed currency error messages from Supabase
+        // Corrigir mensagens de erro com formatação de moeda malformada do Supabase
         let errorMessage = error.message || 'Erro ao processar resgate de cashback';
         
-        // Check for malformed currency format like "R$ -18.9100500000000002.2f"
-        const malformedCurrencyMatch = errorMessage.match(/R\$ (-?[\d.]+)(?:\.2f)?/);
+        // Corrigir formatos malformados como "R$ 1.6995.2f", "R$ -18.91.2f", etc.
+        const malformedCurrencyMatch = errorMessage.match(/R\$ (-?[\d.,]+)(?:\.2f|f)?/g);
         if (malformedCurrencyMatch) {
-          const numericValue = parseFloat(malformedCurrencyMatch[1]);
-          if (!isNaN(numericValue)) {
-            const formattedCurrency = new Intl.NumberFormat('pt-BR', {
-              style: 'currency',
-              currency: 'BRL'
-            }).format(numericValue);
-            errorMessage = errorMessage.replace(malformedCurrencyMatch[0], formattedCurrency);
-          }
+          malformedCurrencyMatch.forEach(match => {
+            // Extrair apenas os números da string malformada
+            const numericPart = match.replace(/R\$\s*/, '').replace(/[^\d.,-]/g, '');
+            const numericValue = parseFloat(numericPart.replace(',', '.'));
+            
+            if (!isNaN(numericValue) && numericValue >= 0) {
+              // Garantir precisão de 2 casas decimais
+              const cleanValue = Math.round(numericValue * 100) / 100;
+              const formattedCurrency = new Intl.NumberFormat('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+              }).format(cleanValue);
+              errorMessage = errorMessage.replace(match, formattedCurrency);
+            } else {
+              // Se valor é negativo ou inválido, substituir por R$ 0,00
+              errorMessage = errorMessage.replace(match, 'R$ 0,00');
+            }
+          });
+        }
+        
+        // Corrigir mensagens específicas de saldo insuficiente
+        if (errorMessage.includes('Saldo insuficiente')) {
+          errorMessage = 'Saldo insuficiente no mês atual. Verifique seu cashback disponível.';
         }
         
         throw new Error(errorMessage);
@@ -628,6 +650,7 @@ export const useCashback = () => {
       throw error;
     }
   };
+
   return {
     getCustomerByPhone,
     getCustomerBalance,

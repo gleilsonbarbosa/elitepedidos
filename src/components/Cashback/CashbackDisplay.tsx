@@ -15,6 +15,25 @@ const CashbackDisplay: React.FC<CashbackDisplayProps> = ({ balance, className = 
     }).format(price);
   };
 
+  // Don't show component if balance is effectively zero
+  if (balance.available_balance <= 0.01) {
+    return (
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
+        <div className="text-center">
+          <div className="bg-gray-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+            <Gift size={32} className="text-gray-400" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-600 mb-2">
+            Sem Cashback Disponível
+          </h3>
+          <p className="text-gray-500">
+            Você não possui cashback disponível no momento.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const formatExpirationDate = (dateString?: string) => {
     if (!dateString) return null;
     

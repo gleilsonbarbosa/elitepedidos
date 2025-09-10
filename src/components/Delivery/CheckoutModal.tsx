@@ -151,7 +151,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   };
 
   const getFinalTotal = () => {
-    const total = totalPrice + getDeliveryFee() - appliedCashback;
+    const total = totalPrice + getDeliveryFee();
     const roundedTotal = Math.round(total * 100) / 100;
     return Math.max(0, roundedTotal);
   };
@@ -168,13 +168,13 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     }
     
     // Round to 2 decimal places with consistent precision handling
-    const roundedBalance = Math.round(availableBalance * 100) / 100;
-    const roundedOrderTotal = Math.round(orderTotal * 100) / 100;
-    const roundedAmount = Math.round(amount * 100) / 100;
+    const preciseBalance = Math.round(Math.max(0, availableBalance) * 100) / 100;
+    const preciseOrderTotal = Math.round(orderTotal * 100) / 100;
+    const preciseAmount = Math.round(amount * 100) / 100;
     
     // Use consistent rounding for all values
-    const maxAmount = Math.min(roundedBalance, roundedOrderTotal);
-    const appliedAmount = Math.min(roundedAmount, maxAmount);
+    const maxAmount = Math.min(preciseBalance, preciseOrderTotal);
+    const appliedAmount = Math.min(preciseAmount, maxAmount);
     
     // Final safety check
     if (appliedAmount <= 0) {
@@ -240,13 +240,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      // Process cashback redemption if applied (validation already done when applying)
-      if (appliedCashback > 0 && customerId) {
-        console.log('🎁 Processando resgate de cashback (já validado):', { customerId, appliedCashback });
-        const redemptionResult = await createRedemptionTransaction(customerId, appliedCashback);
-        console.log('✅ Cashback resgatado com sucesso:', redemptionResult);
-      }
-
       const neighborhood = neighborhoods.find(n => n.name === customerNeighborhood);
       
       // Map payment methods to database-accepted values
@@ -342,7 +335,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         `📋 ID: ${newOrder.id.slice(-8)}\n` +
         `👤 Cliente: ${customerName}\n` +
         `💰 Total: ${formatPrice(getFinalTotal())}\n` +
-        `${appliedCashback > 0 ? `🎁 Cashback usado: ${formatPrice(appliedCashback)}\n` : ''}` +
         `${deliveryType === 'pickup' ? 
           `📍 *LOCAL DE RETIRADA:*\nRua Um, 1614-C – Residencial 1 – Cágado\n📅 Data: ${scheduledPickupDate ? new Date(scheduledPickupDate).toLocaleDateString('pt-BR') : 'Não definida'}\n⏰ Horário: ${scheduledPickupTime || 'Não definido'}\n\n` :
           `📍 *ENDEREÇO DE ENTREGA:*\n${customerAddress}\n🏘️ Bairro: ${customerNeighborhood}\n${customerComplement ? `🏠 Complemento: ${customerComplement}\n` : ''}\n\n`
@@ -357,47 +349,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       console.error('Erro ao criar pedido:', error);
       let errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       
-      // Fix malformed currency in error messages - improved regex
-      const currencyMatch = errorMessage.match(/R\$\s*(-?[\d.,]+)(?:\.2f|f)?/);
-      if (currencyMatch) {
-        // Clean the numeric value and parse it
-        const cleanValue = currencyMatch[1].replace(/[^\d.,-]/g, '').replace(',', '.');
-        const numericValue = parseFloat(cleanValue);
-        if (!isNaN(numericValue)) {
-          const formattedCurrency = new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL'
-          }).format(numericValue);
-          errorMessage = errorMessage.replace(/R\$\s*-?[\d.,]+(?:\.2f|f)?/, formattedCurrency);
-        }
-      }
+      // Enhanced currency error message cleanup
+      const cleanCurrencyInErrorMessage = (message: string): string => {
+        return 'Saldo de cashback insuficiente para este pedido.';
+      };
       
-      // Also fix patterns like "-R$ 18,91f"
-      const negativeMatch = errorMessage.match(/-R\$\s*([\d.,]+)f?/);
-      if (negativeMatch) {
-        const cleanValue = negativeMatch[1].replace(',', '.');
-        const numericValue = parseFloat(cleanValue);
-        if (!isNaN(numericValue)) {
-          const formattedCurrency = new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL'
-          }).format(-numericValue);
-          errorMessage = errorMessage.replace(/-R\$\s*[\d.,]+f?/, formattedCurrency);
-        }
-      }
-      
-      // Fix patterns like "R$ -18.1105500000000002.2f"
-      const precisionMatch = errorMessage.match(/R\$\s*(-?[\d.]+\d{10,})(?:\.2f)?/);
-      if (precisionMatch) {
-        const numericValue = parseFloat(precisionMatch[1]);
-        if (!isNaN(numericValue)) {
-          const formattedCurrency = new Intl.NumberFormat('pt-BR', {
-            style: 'currency',
-            currency: 'BRL'
-          }).format(numericValue);
-          errorMessage = errorMessage.replace(/R\$\s*-?[\d.]+\d{10,}(?:\.2f)?/, formattedCurrency);
-        }
-      }
+      errorMessage = cleanCurrencyInErrorMessage(errorMessage);
       
       alert(`Erro ao finalizar pedido: ${errorMessage}`);
     } finally {
@@ -607,17 +564,14 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
             </div>
           )}
 
-          {/* Cashback Section */}
-          {customerBalance && customerBalance.available_balance > 0 && (
-            <div className="space-y-4">
-              <CashbackButton
-                customerBalance={customerBalance}
-                orderTotal={totalPrice + getDeliveryFee()}
-                appliedCashback={appliedCashback}
-                onApplyCashback={handleApplyCashback}
-                onRemoveCashback={handleRemoveCashback}
-              />
-            </div>
+          {/* Pickup Scheduler (only for pickup) */}
+          {deliveryType === 'pickup' && (
+            <PickupScheduler
+              selectedDate={scheduledPickupDate}
+              selectedTime={scheduledPickupTime}
+              onDateChange={setScheduledPickupDate}
+              onTimeChange={setScheduledPickupTime}
+            />
           )}
 
           {/* Push Notification Banner */}
@@ -695,22 +649,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
               />
             </div>
           )}
-          
-          {/* Pickup Scheduler (only for pickup) */}
-          {deliveryType === 'pickup' && (
-            <PickupScheduler
-              selectedDate={scheduledPickupDate}
-              selectedTime={scheduledPickupTime}
-              onDateChange={setScheduledPickupDate}
-              onTimeChange={setScheduledPickupTime}
-            />
-          )}
 
           {/* Payment Method */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Forma de Pagamento</h3>
             
-            <div className="space-y-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label className="flex items-center gap-3 p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
                 <input
                   type="radio"
@@ -883,13 +827,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 <div className="flex justify-between text-sm">
                   <span className="text-green-700">Taxa de entrega:</span>
                   <span className="font-medium text-green-600">Grátis (retirada)</span>
-                </div>
-              )}
-              
-              {appliedCashback > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span className="text-green-700">Desconto (Cashback):</span>
-                  <span className="font-medium text-purple-600">-{formatPrice(appliedCashback)}</span>
                 </div>
               )}
               

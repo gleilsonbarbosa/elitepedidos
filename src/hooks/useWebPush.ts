@@ -467,6 +467,17 @@ export const useWebPush = () => {
     try {
       console.log('📤 Enviando notificação via servidor para:', targetPhone);
       
+      // Check if we're in development environment (StackBlitz/WebContainer)
+      const isDevelopment = window.location.hostname === 'localhost' || 
+                           window.location.hostname.includes('webcontainer') ||
+                           window.location.hostname.includes('stackblitz');
+      
+      if (isDevelopment) {
+        console.warn('⚠️ Edge Functions não disponíveis no ambiente de desenvolvimento - simulando notificação');
+        console.log('📱 Notificação simulada:', { targetPhone, payload });
+        return;
+      }
+      
       const { data, error } = await supabase.functions.invoke('send-push-notification', {
         body: {
           target_phone: targetPhone,
@@ -475,15 +486,25 @@ export const useWebPush = () => {
       });
 
       if (error) {
-        console.error('❌ Erro na Edge Function:', error);
-        console.warn('⚠️ Falha ao enviar notificação Push (não crítico):', error.message);
+        // Check for network-related errors
+        if (error.message?.includes('Failed to fetch') || error.message?.includes('TypeError')) {
+          console.warn('⚠️ Erro de rede ao chamar Edge Function (não crítico) - continuando sem notificação');
+        } else {
+          console.error('❌ Erro na Edge Function:', error);
+          console.warn('⚠️ Falha ao enviar notificação Push (não crítico):', error.message);
+        }
         return; // Don't throw error, just log and continue
       }
 
       console.log('✅ Notificação enviada via servidor:', data);
     } catch (err) {
-      console.error('❌ Erro ao enviar notificação via servidor:', err);
-      console.warn('⚠️ Notificação Push falhou (não crítico) - continuando sem notificação');
+      // Enhanced error handling for different types of failures
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        console.warn('⚠️ Erro de conectividade com Edge Function (não crítico) - continuando sem notificação');
+      } else {
+        console.error('❌ Erro ao enviar notificação via servidor:', err);
+        console.warn('⚠️ Notificação Push falhou (não crítico) - continuando sem notificação');
+      }
       // Don't throw error to prevent breaking the checkout process
     }
   }, []);
