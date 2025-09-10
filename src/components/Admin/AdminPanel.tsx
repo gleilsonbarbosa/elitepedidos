@@ -18,6 +18,7 @@ import OrderSettingsPanel from './OrderSettingsPanel';
 import CashbackManagementPanel from './CashbackManagementPanel';
 import WhatsAppContactsPanel from './WhatsAppContactsPanel';
 import DeliverySuggestionsPanel from './DeliverySuggestionsPanel';
+import AdvancedReportsPanel from './AdvancedReportsPanel';
 
 import { useScale } from '../../hooks/useScale';
 import { useStoreHours } from '../../hooks/useStoreHours';
@@ -27,7 +28,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'neighborhoods' | 'hours' | 'users' | 'order-settings' | 'cashback' | 'whatsapp-contacts' | 'promotions' | 'delivery-suggestions'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'neighborhoods' | 'hours' | 'users' | 'order-settings' | 'cashback' | 'whatsapp-contacts' | 'promotions' | 'delivery-suggestions' | 'advanced-reports'>('products');
   const scale = useScale();
   const { storeSettings } = useStoreHours();
 
@@ -51,6 +52,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
         return <PromotionsPanel />;
       case 'delivery-suggestions':
         return <DeliverySuggestionsPanel />;
+      case 'advanced-reports':
+        return <AdvancedReportsPanel />;
       default:
         return <ProductsPanel />;
     }
@@ -85,7 +88,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Tabs */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-9 gap-3">
             <button
               onClick={() => setActiveTab('products')}
               className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
@@ -188,6 +191,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
               <span className="text-sm">Sugestões IA</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('advanced-reports')}
+              className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
+                activeTab === 'advanced-reports'
+                  ? 'bg-indigo-600 text-white shadow-lg'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <BarChart3 size={20} />
+              <span className="text-sm">Relatórios</span>
             </button>
           </div>
         </div>
