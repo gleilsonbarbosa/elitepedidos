@@ -154,7 +154,8 @@ export const useStoreHours = () => {
       console.log('🔴 Loja manualmente fechada');
       return {
         isOpen: false,
-        message: 'Loja temporariamente fechada',
+        message: storeSettings.global_closure_message || 'Loja temporariamente fechada',
+        closureMessage: storeSettings.global_closure_message,
         currentDay: dayNames[currentDay]
       };
     }
@@ -167,9 +168,14 @@ export const useStoreHours = () => {
       console.log('🔴 Loja fechada hoje ou horário não configurado');
       // Buscar próximo dia que abre
       const nextOpenDay = findNextOpenDay(currentDay);
+      
+      // Verificar se há mensagem específica para hoje
+      const closureMessage = todayHours?.temporary_closure_message;
+      
       return {
         isOpen: false,
-        message: nextOpenDay.message,
+        message: closureMessage || nextOpenDay.message,
+        closureMessage: closureMessage,
         nextOpenTime: nextOpenDay.time,
         currentDay: dayNames[currentDay]
       };

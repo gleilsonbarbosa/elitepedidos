@@ -505,6 +505,71 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
                   <p className="text-gray-600">Não é um documento fiscal</p>
                 </div>
               </div>
+              
+              {/* Observações */}
+              <div className="mb-4">
+                <div className="text-sm font-bold mb-2 text-center">OBSERVAÇÕES</div>
+                <div className="text-xs space-y-1">
+                  <div className="font-bold">DESCRIÇÃO DAS MOVIMENTAÇÕES:</div>
+                  <div className="space-y-1">
+                    {entries.filter(entry => entry.type === 'income').length > 0 && (
+                      <div>
+                        <div className="font-bold">ENTRADAS:</div>
+                        {entries.filter(entry => entry.type === 'income').map((entry, index) => (
+                          <div key={index} className="ml-2">
+                            • {entry.description} - {formatPrice(entry.amount)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {entries.filter(entry => entry.type === 'expense').length > 0 && (
+                      <div>
+                        <div className="font-bold">SAÍDAS:</div>
+                        {entries.filter(entry => entry.type === 'expense').map((entry, index) => (
+                          <div key={index} className="ml-2">
+                            • {entry.description} - {formatPrice(entry.amount)}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="mt-3 pt-2 border-t border-gray-300">
+                    <div className="text-xs leading-relaxed">
+                      <p className="font-bold mb-2">📋 JUSTIFICATIVA OBRIGATÓRIA:</p>
+                      {Math.abs(register.difference || 0) < 0.01 ? (
+                        <p>
+                          Caixa fechado sem diferenças. Todas as movimentações foram 
+                          devidamente registradas e conferidas. Saldo esperado de {formatPrice(summary.expected_balance)} 
+                          confere com o saldo informado de {formatPrice(register.closing_amount || 0)}.
+                        </p>
+                      ) : (
+                        <p>
+                          Diferença de {formatPrice(Math.abs(register.difference || 0))} 
+                          ({(register.difference || 0) > 0 ? 'sobra' : 'falta'}) identificada no fechamento. 
+                          Saldo esperado: {formatPrice(summary.expected_balance)}. 
+                          Saldo informado: {formatPrice(register.closing_amount || 0)}. 
+                          Esta diferença requer investigação e justificativa conforme procedimentos internos.
+                        </p>
+                      )}
+                      <p className="mt-2">
+                        Responsável pelo fechamento: {register.operator?.name || 'Sistema'}<br/>
+                        Data/Hora: {new Date(register.closed_at || '').toLocaleString('pt-BR')}
+                      </p>
+                    </div>
+                    
+                    <div className="mt-2">
+                      <div className="font-bold">RESPONSÁVEL PELO FECHAMENTO:</div>
+                      <div>{register.operator?.name || 'Sistema'}</div>
+                    </div>
+                    
+                    <div className="mt-2">
+                      <div className="font-bold">DATA/HORA DO FECHAMENTO:</div>
+                      <div>{new Date(register.closed_at || new Date()).toLocaleString('pt-BR')}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -524,7 +589,7 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
           </div>
 
           {/* Order Info */}
-          <div style={{ marginBottom: '10px', color: 'black', background: 'white' }}>
+          <div style={{ borderBottom: '1px dashed black', paddingBottom: '5px', marginBottom: '10px', color: 'black', background: 'white' }}>
             <p style={{ fontSize: '14px', fontWeight: 'bold', textAlign: 'center', marginBottom: '5px' }}>=== MOVIMENTAÇÕES DO CAIXA ===</p>
             <p style={{ fontSize: '12px', margin: '1px 0' }}>Caixa: #{register.id.slice(-8)}</p>
             <p style={{ fontSize: '12px', margin: '1px 0' }}>Data: {new Date(register.opened_at).toLocaleDateString('pt-BR')}</p>
@@ -591,7 +656,6 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
           </div>
 
           {/* Detailed Movements */}
-          {/* Payment Methods Summary */}
           <div style={{ borderBottom: '1px dashed black', paddingBottom: '5px', marginBottom: '10px', color: 'black', background: 'white' }}>
             <p style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '3px' }}>POR FORMA DE PAGAMENTO:</p>
             <div style={{ fontSize: '12px' }}>
@@ -735,15 +799,15 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
             color: #333333 !important;
             font-weight: normal !important;
           }
+          
+          .thermal-print-content .item-value {
             font-weight: bold !important;
-            color: black !important;
             color: #000000 !important;
-            font-weight: bold !important;
           }
           
           .thermal-print-content .total-value {
+            font-weight: bold !important;
             color: #000000 !important;
-            color: black !important;
             font-size: 15px !important;
           }
         }

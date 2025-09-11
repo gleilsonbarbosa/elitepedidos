@@ -54,7 +54,7 @@ const StoreStatusBanner: React.FC = () => {
   }
 
   return (
-    <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+    <div className="bg-red-50 border border-red-200 rounded-xl p-6 mb-6 shadow-lg">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <AlertCircle size={24} className="text-red-600" />

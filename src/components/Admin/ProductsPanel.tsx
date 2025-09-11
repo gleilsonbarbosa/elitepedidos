@@ -216,6 +216,7 @@ const ProductsPanel: React.FC = () => {
   const [supabaseConfigured, setSupabaseConfigured] = useState(true);
   const [editingProduct, setEditingProduct] = useState<ProductFormData | null>(null);
   const [productImages, setProductImages] = useState<Record<string, string>>({});
+  const [networkError, setNetworkError] = useState<string | null>(null);
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     category: 'acai',
@@ -261,150 +262,184 @@ const ProductsPanel: React.FC = () => {
     setSupabaseConfigured(isConfigured);
   }, []);
 
-  // Carregar imagens dos produtos
-  useEffect(() => {
-    const loadProductImages = async () => {
-      // Skip image loading if Supabase is not configured
-      if (!supabaseConfigured) {
-        console.warn('⚠️ Supabase não configurado - pulando carregamento de imagens');
-        return;
-      }
+  // Add retry mechanism for failed image loads
+  const retryLoadImages = async () => {
+    console.log('Retrying image load...');
+    await loadProductImages();
+  };
 
-      try {
-        // Skip if Supabase is not configured
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const loadProductImages = async () => {
+    // Skip image loading if Supabase is not configured
+    if (!supabaseConfigured) {
+      console.warn('⚠️ Supabase não configurado - pulando carregamento de imagens');
+      return;
+    }
 
-        if (!supabaseUrl || !supabaseKey || 
-            supabaseUrl.includes('placeholder') || 
-            supabaseKey.includes('placeholder')) {
-          console.warn('⚠️ Supabase não configurado - usando imagens padrão dos produtos');
-          return;
-        }
-
-        // Verificar se há produtos para carregar
-        if (filteredProducts.length === 0) {
-          return;
-        }
-
-        const images: Record<string, string> = {};
-        
-        // Process products with timeout and error handling for each
-        const imagePromises = filteredProducts.map(async (product) => {
-          try {
-            // Set timeout for each individual request
-            const timeoutPromise = new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout')), 3000)
-            );
-            
-            const imagePromise = getProductImage(product.id);
-            
-            const savedImage = await Promise.race([imagePromise, timeoutPromise]) as string | null;
-            
-            if (savedImage) {
-              images[product.id] = savedImage;
-            }
-          } catch (error) {
-            // Handle network errors gracefully for individual products
-            if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-              console.warn(`⚠️ Erro de rede ao carregar imagem do produto ${product.name} - usando fallback`);
-            } else if (error instanceof Error && error.message === 'Timeout') {
-              console.warn(`⏰ Timeout ao carregar imagem do produto ${product.name}`);
-            } else {
-              console.warn(`⚠️ Erro ao carregar imagem do produto ${product.name}:`, error);
-            }
-            // Don't add to images object, will use product's default image
-          }
-        });
-
-        // Wait for all image loading attempts to complete
-        await Promise.allSettled(imagePromises);
-        
-        setProductImages(images);
-      } catch (error) {
-        // Handle any other unexpected errors
-        console.error('❌ Erro geral ao carregar imagens dos produtos:', error);
-        return;
-      }
-
-      // Skip image loading if Supabase is not configured
+    try {
+      // Skip if Supabase is not configured
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
       if (!supabaseUrl || !supabaseKey || 
           supabaseUrl.includes('placeholder') || 
           supabaseKey.includes('placeholder')) {
-        console.warn('⚠️ Supabase não configurado - pulando carregamento de imagens');
+        console.warn('⚠️ Supabase não configurado - usando imagens padrão dos produtos');
         return;
       }
 
-      // Skip image loading if no products to load
+      // Verificar se há produtos para carregar
       if (filteredProducts.length === 0) {
         return;
       }
 
-      // Skip image loading if there are no products
-      if (deliveryProducts.length === 0) return;
+      setNetworkError(null);
+
+      const images: Record<string, string> = {};
       
-      const supabaseUrl2 = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey2 = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      // Process products with timeout and error handling for each
+      const imagePromises = filteredProducts.map(async (product) => {
+        try {
+          // Set timeout for each individual request
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout')), 3000)
+          );
+          
+          const imagePromise = getProductImage(product.id);
+          
+          const savedImage = await Promise.race([imagePromise, timeoutPromise]) as string | null;
+          
+          if (savedImage) {
+            images[product.id] = savedImage;
+          }
+        } catch (error) {
+          // Handle network errors gracefully for individual products
+          if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+            console.warn(`⚠️ Erro de rede ao carregar imagem do produto ${product.name} - usando fallback`);
+          } else if (error instanceof Error && error.message === 'Timeout') {
+            console.warn(`⏰ Timeout ao carregar imagem do produto ${product.name}`);
+          } else {
+            console.warn(`⚠️ Erro ao carregar imagem do produto ${product.name}:`, error);
+          }
+          // Don't add to images object, will use product's default image
+        }
+      });
+
+      // Wait for all image loading attempts to complete
+      await Promise.allSettled(imagePromises);
       
-      // Check if Supabase is properly configured
-      if (!supabaseUrl2 || !supabaseKey2 ||
-          supabaseUrl2.includes('placeholder') || 
-          supabaseKey2.includes('placeholder') ||
-          supabaseUrl2 === 'your_supabase_url_here' ||
-          supabaseKey2 === 'your_supabase_anon_key_here') {
-        console.warn('⚠️ Supabase not configured, skipping image loading');
-        return;
+      setProductImages(images);
+    } catch (error) {
+      console.error('❌ Erro geral ao carregar imagens dos produtos:', error);
+      
+      // Handle network errors specifically
+      if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+        setNetworkError('Erro de conectividade com o banco de dados. Verifique sua conexão com a internet e se o Supabase está configurado corretamente.');
+      } else {
+        setNetworkError('Erro ao carregar imagens dos produtos. Tente novamente.');
       }
+      return;
+    }
+
+    // Skip image loading if Supabase is not configured
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseKey || 
+        supabaseUrl.includes('placeholder') || 
+        supabaseKey.includes('placeholder')) {
+      console.warn('⚠️ Supabase não configurado - pulando carregamento de imagens');
+      return;
+    }
+
+    // Skip image loading if no products to load
+    if (filteredProducts.length === 0) {
+      return;
+    }
+
+    // Skip image loading if there are no products
+    if (deliveryProducts.length === 0) return;
+    
+    const supabaseUrl2 = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey2 = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    // Check if Supabase is properly configured
+    if (!supabaseUrl2 || !supabaseKey2 ||
+        supabaseUrl2.includes('placeholder') || 
+        supabaseKey2.includes('placeholder') ||
+        supabaseUrl2 === 'your_supabase_url_here' ||
+        supabaseKey2 === 'your_supabase_anon_key_here') {
+      console.warn('⚠️ Supabase not configured, skipping image loading');
+      return;
+    }
+
+   try {
+     console.log('🔄 Carregando imagens dos produtos...');
+     const images: Record<string, string> = {};
+     let successCount = 0;
+     let errorCount = 0;
+     
+     // Verificar se Supabase está configurado
+     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+     
+     if (!supabaseUrl || !supabaseKey || 
+         supabaseUrl.includes('placeholder') || 
+         supabaseKey.includes('placeholder')) {
+       console.warn('⚠️ Supabase não configurado - imagens não disponíveis');
+       return;
+     }
+
+     console.log('Loading product images...');
+     const imagePromises = deliveryProducts.map(async (product) => {
+       try {
+         const imageUrl = await getProductImage(product.id);
+         return { productId: product.id, imageUrl };
+       } catch (error) {
+         console.warn(`Failed to load image for product ${product.id}:`, error);
+         return { productId: product.id, imageUrl: null };
+       }
+     });
 
      try {
-       console.log('🔄 Carregando imagens dos produtos...');
-       const images: Record<string, string> = {};
-       let successCount = 0;
-       let errorCount = 0;
+       const results = await Promise.allSettled(imagePromises);
        
-       // Verificar se Supabase está configurado
-       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-       const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-       
-       if (!supabaseUrl || !supabaseKey || 
-           supabaseUrl.includes('placeholder') || 
-           supabaseKey.includes('placeholder')) {
-         console.warn('⚠️ Supabase não configurado - imagens não disponíveis');
-         return;
-       }
-
-       const imagePromises = deliveryProducts.map(async (product) => {
-         try {
-           const imageUrl = await getProductImage(product.id);
-           return { productId: product.id, imageUrl };
-         } catch (error) {
-           console.warn(`Erro ao carregar imagem do produto ${product.id}:`, error);
-           return { productId: product.id, imageUrl: null };
-         }
-       });
-
-       const results = await Promise.all(imagePromises);
-       const imageMap: Record<string, string> = {};
-       
-       results.forEach(({ productId, imageUrl }) => {
-         if (imageUrl) {
+       const imageMap: Record<string, string | null> = {};
+       results.forEach((result, index) => {
+         if (result.status === 'fulfilled') {
+           const { productId, imageUrl } = result.value;
            imageMap[productId] = imageUrl;
+         } else {
+           // Handle rejected promises gracefully
+           const productId = deliveryProducts[index]?.id;
+           if (productId) {
+             console.warn(`Image loading failed for product ${productId}:`, result.reason);
+             imageMap[productId] = null;
+           }
          }
        });
        
        setProductImages(imageMap);
+       console.log('Product images loaded successfully');
      } catch (error) {
-       if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
-         console.warn('⚠️ Erro de conectividade - trabalhando sem imagens');
-       } else {
-         console.error('Erro ao carregar imagens dos produtos:', error);
-       }
+       console.error('Error loading product images:', error);
+       // Set empty image map as fallback
+       const fallbackImageMap: Record<string, string | null> = {};
+       deliveryProducts.forEach(product => {
+         fallbackImageMap[product.id] = null;
+       });
+       setProductImages(fallbackImageMap);
      }
-    };
+   } catch (error) {
+     if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+       console.warn('⚠️ Erro de conectividade - trabalhando sem imagens');
+     } else {
+       console.error('Erro ao carregar imagens dos produtos:', error);
+     }
+   }
+  };
 
+  // Carregar imagens dos produtos
+  useEffect(() => {
     // Adicionar delay para evitar múltiplas chamadas simultâneas
     const timeoutId = setTimeout(() => {
       loadProductImages();
@@ -1034,6 +1069,57 @@ const ProductsPanel: React.FC = () => {
                 Algumas funcionalidades como upload de imagens estarão limitadas.
               </p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Network Error Alert */}
+      {networkError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-red-100 rounded-full p-2">
+              <AlertCircle size={20} className="text-red-600" />
+            </div>
+            <div>
+              <h3 className="font-medium text-red-800">Erro de Conectividade</h3>
+              <p className="text-red-700 text-sm">{networkError}</p>
+              <div className="mt-2 text-xs text-red-600">
+                <p>• Verifique sua conexão com a internet</p>
+                <p>• Confirme se o projeto Supabase está ativo</p>
+                <p>• Verifique as variáveis VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY</p>
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                setNetworkError(null);
+                refetch();
+                loadProductImages();
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm transition-colors"
+            >
+              Tentar Novamente
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Products Error Alert */}
+      {error && !networkError && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-yellow-100 rounded-full p-2">
+              <AlertCircle size={20} className="text-yellow-600" />
+            </div>
+            <div>
+              <h3 className="font-medium text-yellow-800">Erro ao Carregar Produtos</h3>
+              <p className="text-yellow-700 text-sm">{error}</p>
+            </div>
+            <button
+              onClick={refetch}
+              className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-2 rounded-lg text-sm transition-colors"
+            >
+              Recarregar
+            </button>
           </div>
         </div>
       )}

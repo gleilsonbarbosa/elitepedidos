@@ -207,19 +207,18 @@ export const useImageUpload = () => {
         if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
           console.warn('Problema de conectividade ao buscar imagem:', error.message);
         } else {
-          console.warn('⚠️ Erro ao buscar imagem do produto:', error);
+          console.warn('Error fetching product image:', error);
         }
         return null;
       }
 
-      if (!data || !data.product_images) {
+      return data?.product_images?.public_url || null;
+    } catch (err) {
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+        console.warn('Network error fetching image for product:', productId, '- using fallback');
         return null;
       }
-
-      return (data.product_images as any).public_url;
-    } catch (err) {
-      // All errors are now handled silently or as warnings
-      console.warn('⚠️ Erro inesperado ao buscar imagem do produto:', err);
+      console.warn('Error in getProductImage:', err);
       return null;
     }
   };

@@ -38,7 +38,8 @@ const StoreHoursPanel: React.FC = () => {
     delivery_fee: 0,
     min_order_value: 0,
     estimated_delivery_time: 0,
-    is_open_now: true
+    is_open_now: true,
+    global_closure_message: ''
   });
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showDebug, setShowDebug] = useState(false);
@@ -63,7 +64,8 @@ const StoreHoursPanel: React.FC = () => {
         delivery_fee: storeSettings.delivery_fee || 0,
         min_order_value: storeSettings.min_order_value || 0,
         estimated_delivery_time: storeSettings.estimated_delivery_time || 0,
-        is_open_now: storeSettings.is_open_now ?? true
+        is_open_now: storeSettings.is_open_now ?? true,
+        global_closure_message: storeSettings.global_closure_message || ''
       });
     }
   }, [storeSettings]);
@@ -211,7 +213,8 @@ const StoreHoursPanel: React.FC = () => {
       delivery_fee: storeSettings?.delivery_fee || 0,
       min_order_value: storeSettings?.min_order_value || 0,
       estimated_delivery_time: storeSettings?.estimated_delivery_time || 0,
-      is_open_now: storeSettings?.is_open_now ?? true
+      is_open_now: storeSettings?.is_open_now ?? true,
+      global_closure_message: storeSettings?.global_closure_message || ''
     });
 
   return (
@@ -434,6 +437,22 @@ const StoreHoursPanel: React.FC = () => {
               placeholder="35"
             />
           </div>
+
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Mensagem de Fechamento Temporário (opcional)
+            </label>
+            <textarea
+              value={localSettings.global_closure_message}
+              onChange={(e) => setLocalSettings(prev => ({ ...prev, global_closure_message: e.target.value }))}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
+              rows={3}
+              placeholder="Ex: Fechado temporariamente para manutenção. Voltamos em 30 minutos."
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Esta mensagem aparecerá no delivery quando a loja estiver fechada manualmente
+            </p>
+          </div>
         </div>
       </div>
 
@@ -529,6 +548,20 @@ const StoreHoursPanel: React.FC = () => {
                     )}
                   </>
                 )}
+
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Mensagem de Fechamento (opcional)</label>
+                  <textarea
+                    value={localHours[index]?.temporary_closure_message || ''}
+                    onChange={(e) => updateLocalHours(index, 'temporary_closure_message', e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none text-sm"
+                    rows={2}
+                    placeholder="Ex: Fechado para limpeza especial"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Mensagem específica para este dia quando fechado
+                  </p>
+                </div>
               </div>
             );
           })}

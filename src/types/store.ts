@@ -4,6 +4,7 @@ export interface StoreHours {
   is_open: boolean;
   open_time: string; // HH:MM format
   close_time: string; // HH:MM format
+  temporary_closure_message?: string; // Mensagem opcional para fechamento temporário
   created_at: string;
   updated_at: string;
 }
@@ -18,6 +19,7 @@ export interface StoreSettings {
   min_order_value: number;
   estimated_delivery_time: number; // em minutos
   is_open_now: boolean;
+  global_closure_message?: string; // Mensagem global de fechamento
   created_at: string;
   updated_at: string;
 }
@@ -27,4 +29,5 @@ export interface StoreStatus {
   message: string;
   nextOpenTime?: string;
   currentDay: string;
+  closureMessage?: string; // Mensagem de fechamento temporário
 }
