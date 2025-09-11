@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import DeliveryPage from './Delivery/DeliveryPage';
 import OrderTrackingPage from './Customer/OrderTrackingPage';
 import OrderLookup from './Customer/OrderLookup';
-import CustomerCashbackPage from './Customer/CustomerCashbackPage';
 import AdminPage from './Admin/AdminPage';
 import AttendancePage from './AttendancePage';
 import AccessDeniedPage from './AccessDeniedPage';
@@ -38,7 +37,6 @@ const Router: React.FC = () => {
         <Route path="/" element={<DeliveryPage />} />
         <Route path="/buscar-pedido" element={<OrderLookup />} />
         <Route path="/pedido/:orderId" element={<OrderTrackingPage />} />
-        <Route path="/meu-cashback" element={<CustomerCashbackPage />} />
         <Route path="/atendimento" element={<AttendancePage />} />
         <Route path="/administrativo" element={<AdminPage />} />
         <Route path="/acesso-negado" element={<AccessDeniedPage />} />

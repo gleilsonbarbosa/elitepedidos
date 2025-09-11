@@ -264,7 +264,7 @@ export const useThermalPrinter = () => {
 
       // Order info
       receipt += commands.bold + commands.center;
-      receipt += centerText(`=== PEDIDO #${orderData.sale?.sale_number || orderData.id?.slice(-8)} ===`) + commands.lf;
+      receipt += centerText(`=== PEDIDO #${orderData.sale?.sale_number || orderData.id?.slice(-8).toUpperCase()} ===`) + commands.lf;
       receipt += commands.boldOff + commands.left;
       receipt += `Data: ${new Date(orderData.sale?.created_at || orderData.created_at).toLocaleDateString('pt-BR')}` + commands.lf;
       receipt += `Hora: ${new Date(orderData.sale?.created_at || orderData.created_at).toLocaleTimeString('pt-BR')}` + commands.lf;

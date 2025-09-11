@@ -152,7 +152,7 @@ const DeliveryOrdersPage: React.FC = () => {
         </div>
         
         <div class="mb-3 separator">
-          <div class="bold center mb-2">=== PEDIDO #${order.id.slice(-8)} ===</div>
+          <div class="bold center mb-2">=== PEDIDO #${order.id.slice(-8).toUpperCase()} ===</div>
           <div class="small">Data: ${new Date(order.created_at).toLocaleDateString('pt-BR')}</div>
           <div class="small">Hora: ${new Date(order.created_at).toLocaleTimeString('pt-BR')}</div>
         </div>

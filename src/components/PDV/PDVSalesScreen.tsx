@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePDVProducts, usePDVSales, usePDVCart } from '../../hooks/usePDV';
-import { usePermissions } from '../../hooks/usePermissions';
 import { usePDVCashRegister } from '../../hooks/usePDVCashRegister';
-import { useCashback } from '../../hooks/useCashback';
+import { usePermissions } from '../../hooks/usePermissions';
 import PermissionGuard from '../PermissionGuard';
 import { PesagemModal } from './PesagemModal';
 import PaymentModal from '../Delivery/PaymentModal';
@@ -42,7 +41,6 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
   const { products, loading: productsLoading, searchProducts } = usePDVProducts();
   const { createSale, loading: salesLoading } = usePDVSales();
   const { isOpen: isCashRegisterOpen, currentRegister } = usePDVCashRegister();
-  const { getCustomerByPhone, getCustomerBalance, createPurchaseTransaction, createRedemptionTransaction } = useCashback();
   const {
     items,
     discount,
@@ -81,11 +79,6 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
   const [showPrintView, setShowPrintView] = useState(false);
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerName, setCustomerName] = useState('');
-  const [customer, setCustomer] = useState<any>(null);
-  const [customerBalance, setCustomerBalance] = useState<any>(null);
-  const [appliedCashback, setAppliedCashback] = useState(0);
-  const [isNewCustomer, setIsNewCustomer] = useState(false);
-  const [customerId, setCustomerId] = useState<string | null>(null);
 
   // Check Supabase configuration
   useEffect(() => {
@@ -99,44 +92,6 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
     
     setSupabaseConfigured(isConfigured);
   }, []);
-
-  // Search for customer when phone changes
-  useEffect(() => {
-    const searchCustomer = async () => {
-      if (customerPhone.length >= 11) {
-        try {
-          const foundCustomer = await getCustomerByPhone(customerPhone);
-          if (foundCustomer) {
-            setIsNewCustomer(false);
-            setCustomer(foundCustomer);
-            setCustomerName(foundCustomer.name || '');
-            
-            // Get customer balance
-            const balance = await getCustomerBalance(foundCustomer.id);
-            setCustomerBalance(balance);
-          } else {
-            setIsNewCustomer(true);
-            setCustomer(null);
-            setCustomerBalance(null);
-            setCustomerName(''); // Clear name for new customer
-          }
-        } catch (error) {
-          console.error('Erro ao buscar cliente:', error);
-          setIsNewCustomer(false);
-          setCustomer(null);
-          setCustomerBalance(null);
-        }
-      } else {
-        setIsNewCustomer(false);
-        setCustomer(null);
-        setCustomerBalance(null);
-        setCustomerName('');
-      }
-    };
-
-    const timeoutId = setTimeout(searchCustomer, 500);
-    return () => clearTimeout(timeoutId);
-  }, [customerPhone, getCustomerByPhone, getCustomerBalance, updatePaymentInfo]);
 
   const filteredProducts = React.useMemo(() => {
     let result = searchTerm ? searchProducts(searchTerm) : products;
@@ -242,31 +197,6 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
     setShowSplitModal(false);
   };
 
-  const handleApplyCashback = (amount: number) => {
-    const availableBalance = customerBalance?.available_balance || 0;
-    const orderTotal = getTotal();
-    
-    // Round to 2 decimal places with consistent precision handling
-    const roundedBalance = Math.round(availableBalance * 100) / 100;
-    const roundedOrderTotal = Math.round(orderTotal * 100) / 100;
-    const roundedAmount = Math.round(amount * 100) / 100;
-    
-    // Use consistent rounding for all values
-    const maxAmount = Math.min(roundedBalance, roundedOrderTotal);
-    const appliedAmount = Math.min(roundedAmount, maxAmount);
-    
-    setAppliedCashback(appliedAmount);
-  };
-
-  const handleRemoveCashback = () => {
-    setAppliedCashback(0);
-  };
-
-  const getFinalTotal = () => {
-    const total = getTotal() - appliedCashback;
-    return Math.max(0, Math.round(total * 100) / 100);
-  };
-
   const formatPhone = (value: string) => {
     const numbers = value.replace(/\D/g, '');
     const limited = numbers.slice(0, 11);
@@ -308,60 +238,6 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
     }
 
     try {
-      // Process cashback if applied
-      if (appliedCashback > 0 && customer) {
-        console.log('🎁 Processando resgate de cashback:', { customerId: customer.id, appliedCashback });
-        await createRedemptionTransaction(customer.id, appliedCashback);
-      }
-      
-      // Create or update customer for cashback
-      let finalCustomerId = customer?.id;
-      
-      if (!finalCustomerId && customerPhone.length >= 11) {
-        // Create new customer if phone is provided but customer doesn't exist
-        try {
-          console.log('👤 Criando novo cliente para cashback:', { phone: customerPhone, name: customerName });
-          
-          const { data: newCustomer, error: createError } = await supabase
-            .from('customers')
-            .insert([{
-              phone: customerPhone.replace(/\D/g, ''),
-              name: customerName.trim() || null,
-              balance: 0
-            }])
-            .select()
-            .single();
-          
-          if (createError) {
-            console.error('❌ Erro ao criar cliente:', createError);
-          } else {
-            console.log('✅ Novo cliente criado:', newCustomer);
-            finalCustomerId = newCustomer.id;
-            setCustomer(newCustomer);
-          }
-        } catch (error) {
-          console.error('❌ Erro ao criar cliente:', error);
-        }
-      } else if (finalCustomerId && customerName.trim() && customerName !== customer?.name) {
-        // Update customer name if it was provided/changed
-        try {
-          console.log('📝 Atualizando nome do cliente:', { customerId: finalCustomerId, newName: customerName });
-          
-          const { error: updateError } = await supabase
-            .from('customers')
-            .update({ name: customerName.trim() })
-            .eq('id', finalCustomerId);
-          
-          if (updateError) {
-            console.error('❌ Erro ao atualizar nome do cliente:', updateError);
-          } else {
-            console.log('✅ Nome do cliente atualizado');
-          }
-        } catch (error) {
-          console.error('❌ Erro ao atualizar cliente:', error);
-        }
-      }
-      
       // Create sale data
       const saleData = {
         operator_id: operator?.id,
@@ -370,7 +246,7 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
         subtotal: getSubtotal(),
         discount_amount: getDiscountAmount(),
         discount_percentage: discount.type === 'percentage' ? discount.value : 0,
-        total_amount: getFinalTotal(),
+        total_amount: getTotal(),
         payment_type: paymentInfo.method,
         payment_details: paymentInfo.method === 'misto' ? {
           mixed_payments: paymentInfo.mixedPayments
@@ -402,17 +278,6 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
         throw new Error('Falha ao criar venda: dados inválidos retornados');
       }
       
-      // Create purchase transaction for cashback (5% of original total, not discounted total) 
-      if (finalCustomerId) {
-        const purchaseAmount = getSubtotal();
-        console.log('💳 Criando transação de compra para cashback:', { customerId: finalCustomerId, purchaseAmount });
-        const purchaseResult = await createPurchaseTransaction(finalCustomerId, purchaseAmount);
-        
-        if (purchaseResult) {
-          console.log('✅ Cashback de compra creditado:', purchaseResult);
-        }
-      }
-
       // Salvar dados da venda para impressão
       setLastSaleData({
         sale: { ...saleData, ...createdSale },
@@ -423,10 +288,6 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
       clearCart();
       setCustomerPhone('');
       setCustomerName('');
-      setCustomer(null);
-      setCustomerBalance(null);
-      setAppliedCashback(0);
-      setCustomerId(null);
       setMixedPayments([]);
       
       // Perguntar se quer imprimir
@@ -645,130 +506,11 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
               <div className="bg-white rounded-xl shadow-sm p-4">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Resumo</h3>
                 
-                {/* Customer Phone for Cashback */}
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                  <h4 className="font-medium text-purple-800 mb-3 flex items-center gap-2">
-                    <Phone size={16} />
-                    Telefone do Cliente (Cashback)
-                  </h4>
-                  <input
-                    type="tel"
-                    value={customerPhone}
-                    onChange={handlePhoneChange}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 mb-3"
-                    placeholder="(85) 99999-9999"
-                  />
-                  
-                  {/* New Customer Notification */}
-                  {isNewCustomer && customerPhone.length >= 11 && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="bg-blue-100 rounded-full p-2">
-                          <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <h4 className="font-medium text-blue-800 mb-1">🎉 Primeiro Cadastro!</h4>
-                          <p className="text-blue-700 text-sm">
-                            Este telefone não está cadastrado. Será criado um novo cadastro na primeira compra.
-                          </p>
-                          <p className="text-blue-600 text-xs mt-1">
-                            ✅ O cliente ganhará 5% de cashback automaticamente!
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nome do Cliente
-                    </label>
-                    <input
-                      type="text"
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                      placeholder={isNewCustomer ? "Nome do cliente (será cadastrado)" : "Nome do cliente (opcional)"}
-                    />
-                    {isNewCustomer && (
-                      <p className="text-xs text-blue-600 mt-1">
-                        💡 Digite o nome para criar o cadastro do cliente
-                      </p>
-                    )}
-                    <p className="text-xs text-gray-500 mt-1">
-                      {customer ? 'Atualize o nome se necessário' : 'Nome será salvo para futuras compras'}
-                    </p>
-                  </div>
-                  
-                  {/* Cashback Display */}
-                  {customerBalance && customerBalance.available_balance > 0 && (
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-green-800">
-                          Cashback disponível: {formatPrice(customerBalance.available_balance)}
-                        </span>
-                      </div>
-                      
-                      {appliedCashback > 0 ? (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-green-700">
-                            Desconto aplicado: {formatPrice(appliedCashback)}
-                          </span>
-                          <button
-                            onClick={handleRemoveCashback}
-                            className="text-red-600 hover:text-red-800 text-sm font-medium"
-                          >
-                            Remover
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleApplyCashback(Math.min(customerBalance.available_balance, getTotal()))}
-                            className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 px-3 rounded-lg text-sm font-medium transition-colors"
-                          >
-                            Usar Todo Cashback
-                          </button>
-                          <button
-                            onClick={() => {
-                              const amount = prompt(`Digite o valor do cashback a usar (máximo: ${formatPrice(Math.min(customerBalance.available_balance, getTotal()))})`);
-                              if (amount) {
-                                const numericAmount = parseFloat(amount.replace(',', '.'));
-                                if (!isNaN(numericAmount) && numericAmount > 0) {
-                                  handleApplyCashback(numericAmount);
-                                }
-                              }
-                            }}
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-3 rounded-lg text-sm font-medium transition-colors"
-                          >
-                            Valor Personalizado
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {customerPhone && !customerBalance && (
-                    <p className="text-sm text-gray-600">
-                      Cliente não encontrado ou sem cashback disponível
-                    </p>
-                  )}
-                </div>
-
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
                     <span>{formatPrice(getSubtotal())}</span>
                   </div>
-                  
-                  {appliedCashback > 0 && (
-                    <div className="flex justify-between text-purple-600">
-                      <span>Desconto (Cashback):</span>
-                      <span>-{formatPrice(appliedCashback)}</span>
-                    </div>
-                  )}
                   
                   {discount.type !== 'none' && discount.value > 0 && (
                     <div className="flex justify-between text-red-600">
@@ -780,7 +522,7 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
                   <div className="border-t border-gray-200 pt-2">
                     <div className="flex justify-between font-bold text-lg">
                       <span>Total:</span>
-                      <span className="text-green-600">{formatPrice(getFinalTotal())}</span>
+                      <span className="text-green-600">{formatPrice(getTotal())}</span>
                     </div>
                   </div>
                 </div>
@@ -967,7 +709,7 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
                     Venda finalizada com sucesso!
                   </p>
                   <p className="text-lg font-semibold text-green-600">
-                   Total: {formatPrice(lastSaleData?.sale?.total_amount || getTotal())}
+                    Total: {formatPrice(lastSaleData?.sale?.total_amount || getTotal())}
                   </p>
                 </div>
 

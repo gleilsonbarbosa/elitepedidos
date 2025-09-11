@@ -109,7 +109,7 @@ const DeliveryOrderCard: React.FC<DeliveryOrderCardProps> = ({
             </div>
             <div>
               <h3 className="text-sm sm:text-base font-semibold text-gray-800">
-                Pedido #{(order.id || 'unknown').slice(-8)}
+                Pedido #{(order.id || 'unknown').slice(-8).toUpperCase()}
               </h3>
               <p className="text-sm text-gray-500 flex items-center gap-1">
                 <Clock size={14} />

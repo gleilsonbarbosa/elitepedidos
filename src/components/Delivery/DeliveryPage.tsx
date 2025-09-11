@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageCircle, Filter, ShoppingCart, Star, Zap, AlertCircle } from 'lucide-react';
+import { MessageCircle, Filter, ShoppingCart, Star, Zap, AlertCircle, Gift } from 'lucide-react';
 import Header from './Header';
 import Footer from './Footer';
 import ProductCard from './ProductCard';
@@ -11,7 +11,6 @@ import CheckoutModal from './CheckoutModal';
 import RepeatOrderButton from './RepeatOrderButton';
 import PromotionBanner from './PromotionBanner';
 import PromotionCountdown from './PromotionCountdown';
-import SmartUpsellBanner from './SmartUpsellBanner';
 import PushNotificationBanner from './PushNotificationBanner';
 import { categoryNames } from '../../data/products';
 import { Product } from '../../types/product';
@@ -38,7 +37,6 @@ const DeliveryPage: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState<Product['category'] | 'all' | 'today'>('today');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showCheckout, setShowCheckout] = useState(false);
-  const [aiSuggestionsEnabled, setAiSuggestionsEnabled] = useState(true);
   
   // Customer state for recommendations
   const [customerId, setCustomerId] = useState<string | null>(null);
@@ -66,63 +64,6 @@ const DeliveryPage: React.FC = () => {
   React.useEffect(() => {
     setProductSchedulingHook(productScheduling);
   }, [productScheduling]);
-  
-  // Verificar configurações de sugestões IA - CORRIGIDO
-  React.useEffect(() => {
-    const checkAISettings = () => {
-      try {
-        console.log('🤖 [DELIVERY-PAGE] Verificando configurações de IA...');
-        
-        // Verificar configuração específica primeiro
-        const aiEnabled = localStorage.getItem('ai_sales_assistant_enabled');
-        console.log('🤖 [DELIVERY-PAGE] ai_sales_assistant_enabled encontrado:', aiEnabled);
-        
-        if (aiEnabled !== null) {
-          const enabled = JSON.parse(aiEnabled);
-          setAiSuggestionsEnabled(enabled);
-          console.log('🤖 [DELIVERY-PAGE] ✅ Configuração IA aplicada (específica):', enabled);
-          return;
-        } else {
-          // Fallback para configuração geral
-          const savedSettings = localStorage.getItem('delivery_suggestions_settings');
-          console.log('🤖 [DELIVERY-PAGE] delivery_suggestions_settings encontrado:', savedSettings);
-          
-          if (savedSettings) {
-            const settings = JSON.parse(savedSettings);
-            const enabled = settings.enabled !== false;
-            setAiSuggestionsEnabled(enabled);
-            console.log('🤖 [DELIVERY-PAGE] ✅ Configuração IA aplicada (geral):', enabled);
-          } else {
-            // Padrão: habilitado
-            setAiSuggestionsEnabled(true);
-            console.log('🤖 [DELIVERY-PAGE] ✅ Configuração IA padrão aplicada: true');
-          }
-        }
-      } catch (error) {
-        console.warn('🤖 [DELIVERY-PAGE] Erro ao verificar configuração de sugestões IA:', error);
-        setAiSuggestionsEnabled(true); // Padrão em caso de erro
-      }
-    };
-
-    checkAISettings();
-
-    // Escutar mudanças nas configurações
-    const handleConfigChange = (event: CustomEvent) => {
-      console.log('🤖 [DELIVERY-PAGE] 📡 Evento de mudança recebido:', event.detail);
-      setAiSuggestionsEnabled(event.detail.enabled);
-      
-      // Forçar re-render dos componentes
-      setTimeout(() => {
-        console.log('🤖 [DELIVERY-PAGE] ✅ Estado atualizado para:', event.detail.enabled);
-      }, 100);
-    };
-
-    window.addEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
-    
-    return () => {
-      window.removeEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
-    };
-  }, []);
   
   // Try to get customer ID from localStorage
   React.useEffect(() => {
@@ -456,24 +397,6 @@ const DeliveryPage: React.FC = () => {
       {/* Menu de Categorias */}
       <section className="py-8 bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-4">
-          {/* Smart Upsell Banner - Show when cart has items */}
-          {getTotalItems() > 0 && aiSuggestionsEnabled && (
-            <div className="mb-6">
-              {console.log('🤖 [DELIVERY-PAGE] Renderizando SmartUpsellBanner:', {
-                totalItems: getTotalItems(),
-                aiSuggestionsEnabled,
-                activeProductsCount: activeProducts.length
-              })}
-              <SmartUpsellBanner
-                cartItems={items}
-                availableProducts={activeProducts}
-                onProductSelect={(product) => {
-                  setSelectedProduct(product);
-                }}
-              />
-            </div>
-          )}
-          
           <div className="flex flex-wrap gap-4 justify-center">
             {availableCategories.map((category) => (
               <button
@@ -710,7 +633,6 @@ const DeliveryPage: React.FC = () => {
           // Add product with default settings
           addToCart(product, undefined, 1, '', []);
         }}
-        aiSuggestionsEnabled={aiSuggestionsEnabled}
         onCheckout={() => {
           setIsCartOpen(false);
           setShowCheckout(true);
@@ -723,7 +645,7 @@ const DeliveryPage: React.FC = () => {
         onClose={() => setShowCheckout(false)}
         items={items}
         totalPrice={getTotalPrice()}
-        aiSuggestionsEnabled={aiSuggestionsEnabled}
+        customerId={customerId}
         onOrderComplete={() => {
           clearCart();
           setShowCheckout(false);

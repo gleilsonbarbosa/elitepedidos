@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingCart, Plus, Minus, Trash2, X, Edit3 } from 'lucide-react';
 import { CartItem } from '../../types/cart';
-import AISalesAssistant from './AISalesAssistant';
 import { Product } from '../../types/product';
 
 interface CartProps {
@@ -17,7 +16,6 @@ interface CartProps {
   onCheckout?: () => void;
   availableProducts?: Product[];
   onAddProduct?: (product: Product) => void;
-  aiSuggestionsEnabled?: boolean;
 }
 
 const Cart: React.FC<CartProps> = ({
@@ -33,146 +31,7 @@ const Cart: React.FC<CartProps> = ({
   onCheckout,
   availableProducts = [],
   onAddProduct,
-  aiSuggestionsEnabled = true
 }) => {
-  const [localAiEnabled, setLocalAiEnabled] = useState(true);
-  const [showInCart, setShowInCart] = useState(true);
-
-  // Carregar configurações de IA
-  useEffect(() => {
-    const checkAISettings = () => {
-      try {
-        console.log('🤖 [CART] Verificando configurações de IA...');
-        
-        // Verificar configuração específica primeiro
-        const aiEnabled = localStorage.getItem('ai_sales_assistant_enabled');
-        console.log('🤖 [CART] ai_sales_assistant_enabled:', aiEnabled);
-        
-        if (aiEnabled !== null) {
-          const enabled = JSON.parse(aiEnabled);
-          setLocalAiEnabled(enabled);
-          console.log('🤖 [CART] Estado local definido (específico):', enabled);
-          return;
-        }
-        
-        // Fallback para configuração geral
-        const savedSettings = localStorage.getItem('delivery_suggestions_settings');
-        console.log('🤖 [CART] delivery_suggestions_settings:', savedSettings);
-        
-        if (savedSettings) {
-          const settings = JSON.parse(savedSettings);
-          const enabled = settings.enabled !== false;
-          const showInCartSetting = settings.showInCart !== false;
-          setLocalAiEnabled(enabled);
-          setShowInCart(showInCartSetting);
-          console.log('🤖 [CART] Estado local definido (geral):', enabled);
-          console.log('🤖 [CART] Mostrar no carrinho:', showInCartSetting);
-        } else {
-          setLocalAiEnabled(true);
-          setShowInCart(true);
-          console.log('🤖 [CART] Estado local definido (padrão): true');
-        }
-      } catch (error) {
-        console.warn('🤖 [CART] Erro ao verificar configuração:', error);
-        setLocalAiEnabled(true);
-        setShowInCart(true);
-      }
-    };
-
-    checkAISettings();
-
-    // Escutar mudanças nas configurações
-    const loadSettings = async () => {
-      try {
-        // Check if Supabase is configured
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-        
-        if (!supabaseUrl || !supabaseKey || 
-            supabaseUrl.includes('placeholder') || 
-            supabaseKey.includes('placeholder')) {
-          console.warn('⚠️ [CART] Supabase não configurado - usando localStorage');
-          loadFromLocalStorage();
-          return;
-        }
-
-        // Carregar do banco de dados
-        const { data, error } = await supabase
-          .from('order_settings')
-          .select('ai_suggestions_enabled')
-          .eq('id', 'default')
-          .maybeSingle();
-
-        if (error) {
-          console.error('❌ [CART] Erro ao carregar do banco:', error);
-          loadFromLocalStorage();
-          return;
-        }
-
-        if (data) {
-          const enabled = data.ai_suggestions_enabled ?? true;
-          setLocalAiEnabled(enabled);
-          console.log('✅ [CART] Configuração carregada do banco:', enabled);
-          
-          // Backup no localStorage
-          localStorage.setItem('ai_sales_assistant_enabled', JSON.stringify(enabled));
-        } else {
-          console.log('ℹ️ [CART] Nenhuma configuração no banco, usando localStorage');
-          loadFromLocalStorage();
-        }
-      } catch (dbError) {
-        console.error('❌ [CART] Erro de conexão com banco:', dbError);
-        loadFromLocalStorage();
-      }
-    };
-    
-    const loadFromLocalStorage = () => {
-      try {
-        const aiEnabled = localStorage.getItem('ai_sales_assistant_enabled');
-        console.log('🤖 [CART] Carregando do localStorage:', aiEnabled);
-        
-        if (aiEnabled !== null) {
-          const enabled = JSON.parse(aiEnabled);
-          setLocalAiEnabled(enabled);
-          console.log('🤖 [CART] Estado do localStorage aplicado:', enabled);
-        }
-      } catch (error) {
-        console.error('❌ [CART] Erro ao carregar do localStorage:', error);
-      }
-    };
-
-    const handleConfigChange = (event: CustomEvent) => {
-      console.log('🤖 [CART] Evento de mudança de configuração recebido:', event.detail);
-      setLocalAiEnabled(event.detail.enabled);
-      if (event.detail.settings) {
-        setShowInCart(event.detail.settings.showInCart !== false);
-      }
-      
-      // Forçar re-render
-      setTimeout(() => {
-        console.log('🤖 [CART] Estado após evento:', event.detail.enabled);
-      }, 100);
-    };
-
-    window.addEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
-    
-    return () => {
-      window.removeEventListener('aiSuggestionsConfigChanged', handleConfigChange as EventListener);
-    };
-  }, []);
-
-  // Combinar configurações: prop externa E configuração local
-  const finalAiEnabled = aiSuggestionsEnabled && localAiEnabled && showInCart;
-
-  console.log('🤖 [CART] Estado final das sugestões IA:', {
-    aiSuggestionsEnabled,
-    localAiEnabled,
-    showInCart,
-    finalAiEnabled,
-    itemsCount: items.length,
-    hasAvailableProducts: availableProducts.length > 0,
-    hasOnAddProduct: !!onAddProduct
-  });
 
   if (!isOpen) return null;
 
@@ -388,7 +247,7 @@ const Cart: React.FC<CartProps> = ({
         </div>
 
         {/* AI Sales Assistant */}
-        {items.length > 0 && availableProducts.length > 0 && onAddProduct && finalAiEnabled && (
+        {items.length > 0 && availableProducts.length > 0 && onAddProduct && (
           <div className="p-4 md:p-6 border-t border-gray-200">
             <div className="mb-3">
               <div className="flex items-center gap-2 mb-2">
@@ -396,35 +255,6 @@ const Cart: React.FC<CartProps> = ({
                 <span className="text-xs text-green-600 font-medium">IA Ativa</span>
               </div>
             </div>
-            <AISalesAssistant
-              cartItems={items}
-              availableProducts={availableProducts}
-              onAddSuggestion={(product, reason) => {
-                onAddProduct(product);
-                
-                // Show success message with AI reason
-                const successMessage = document.createElement('div');
-                successMessage.className = 'fixed top-4 right-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 md:px-4 py-2 rounded-lg shadow-lg z-50 max-w-xs md:max-w-sm text-sm md:text-base';
-                successMessage.innerHTML = `
-                  <div class="flex items-center gap-2">
-                    <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                    <div>
-                      <p class="font-medium text-xs md:text-sm">🤖 Sugestão adicionada!</p>
-                      <p class="text-xs opacity-90">${product.name}</p>
-                    </div>
-                  </div>
-                `;
-                document.body.appendChild(successMessage);
-                
-                setTimeout(() => {
-                  if (document.body.contains(successMessage)) {
-                    document.body.removeChild(successMessage);
-                  }
-                }, 4000);
-              }}
-            />
           </div>
         )}
         {/* Footer */}

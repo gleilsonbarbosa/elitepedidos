@@ -46,10 +46,19 @@ export const usePromotions = () => {
         return;
       }
 
-      const { data, error } = await supabase
+      // Create timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: Falha na conexão com o servidor')), 10000);
+      });
+
+      // Create the Supabase query promise
+      const queryPromise = supabase
         .from('promotions')
         .select('*')
         .order('created_at', { ascending: false });
+
+      // Race between query and timeout
+      const { data, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       if (error) throw error;
 
@@ -58,7 +67,42 @@ export const usePromotions = () => {
       updateActivePromotions(promotionsData);
     } catch (err) {
       console.error('❌ Erro ao carregar promoções:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao carregar promoções');
+      
+      // Provide more specific error messages
+      let errorMessage = 'Erro ao carregar promoções';
+      if (err instanceof Error) {
+        if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+          errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+        } else if (err.message.includes('Timeout')) {
+          errorMessage = err.message;
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
+      
+      // Fallback to demo promotions on network error
+      console.warn('⚠️ Usando promoções de demonstração devido ao erro de rede');
+      const demoPromotions: Promotion[] = [
+        {
+          id: 'demo-promo-1',
+          product_id: 'acai-500g',
+          product_name: 'Açaí Premium 500g',
+          original_price: 22.90,
+          promotional_price: 15.99,
+          start_time: new Date().toISOString(),
+          end_time: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+          title: 'Promoção Especial - Açaí 500g',
+          description: 'Até 22h de hoje, Copo 500ml por R$15,99',
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+      ];
+      
+      setPromotions(demoPromotions);
+      updateActivePromotions(demoPromotions);
     } finally {
       setLoading(false);
     }

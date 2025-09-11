@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, Search, Gift } from 'lucide-react';
+import { ShoppingBag, Search } from 'lucide-react';
 
 const Header: React.FC = () => {
   return (
@@ -39,13 +39,6 @@ const Header: React.FC = () => {
             >
               <Search size={20} />
               Acompanhar Pedido
-            </a>
-            <a
-              href="/meu-cashback"
-              className="bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white px-8 py-4 rounded-full font-semibold text-lg transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
-            >
-              <Gift size={20} />
-              Meu Cashback
             </a>
           </div>
         </div>

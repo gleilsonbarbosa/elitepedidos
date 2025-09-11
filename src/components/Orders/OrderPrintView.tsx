@@ -141,7 +141,7 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
         
         <!-- Dados do Pedido -->
         <div class="mb-3 separator">
-          <div class="section-title center mb-2">=== PEDIDO #${(order.id || '').slice(-8)} ===</div>
+          <div class="section-title center mb-2">=== PEDIDO #${(order.id || '').slice(-8).toUpperCase()} ===</div>
           <div class="medium">ID para Acompanhamento: ${(order.id || '').slice(-8)}</div>
           <div class="item-details">Data: ${new Date(order.created_at).toLocaleDateString('pt-BR')}</div>
           <div class="item-details">Hora: ${new Date(order.created_at).toLocaleTimeString('pt-BR')}</div>

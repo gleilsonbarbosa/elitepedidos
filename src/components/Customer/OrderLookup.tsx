@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Package, Phone, MessageCircle } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 const OrderLookup: React.FC = () => {
   const [orderId, setOrderId] = useState('');
@@ -28,15 +29,16 @@ const OrderLookup: React.FC = () => {
         return null;
       }
 
+      // Fetch recent orders and filter in JavaScript since UUID casting is complex in PostgREST
       const { data, error } = await supabase
         .from('orders')
         .select('id')
-        .like('id', `%${shortId}`)
-        .limit(10);
+        .order('created_at', { ascending: false })
+        .limit(100);
 
       if (error) throw error;
 
-      // Encontrar o pedido cujo ID termina exatamente com o shortId
+      // Filter orders in JavaScript to find matching short ID
       const matchingOrder = data?.find(order => 
         order.id.slice(-8).toLowerCase() === shortId.toLowerCase()
       );
@@ -192,7 +194,7 @@ const OrderLookup: React.FC = () => {
                 value={orderId}
                 onChange={handleOrderIdChange}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                placeholder="1a2b3c4d"
+                placeholder="1A2B3C4D"
                 required
                 maxLength={8}
               />

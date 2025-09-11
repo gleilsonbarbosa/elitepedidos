@@ -68,19 +68,14 @@ export const useOrders = () => {
 
   const createOrder = useCallback(async (orderData: Omit<Order, 'id' | 'created_at' | 'updated_at'>) => {
     try {
-      // Allow orders with zero total (cashback scenarios)
-      // Only validate that there are items in the order
       if (!orderData.items || orderData.items.length === 0) {
         throw new Error('Pedido deve conter pelo menos um item');
       }
       
-      // Set channel to delivery if not specified
-      // For manual orders, keep the channel as 'manual'
       const orderWithChannel = orderData.channel === 'manual' ? orderData : {
         ...orderData,
         channel: orderData.channel || 'delivery',
-        // Don't associate with cash register for zero-total orders (fully paid with cashback)
-        cash_register_id: (currentRegister && Math.round(orderData.total_price * 100) / 100 > 0.01) ? currentRegister.id : null
+        cash_register_id: currentRegister ? currentRegister.id : null
       };
       
       const { data, error } = await supabase

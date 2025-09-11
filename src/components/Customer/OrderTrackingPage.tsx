@@ -400,6 +400,7 @@ const OrderTrackingPage: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <a
               href={`https://wa.me/5585989041010?text=Olá! Gostaria de falar sobre o pedido ${order.id.slice(-8)}`}
+              href={`https://wa.me/5585989041010?text=Olá! Gostaria de falar sobre o pedido ${order.id.slice(-8).toUpperCase()}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors"

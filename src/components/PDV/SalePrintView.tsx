@@ -114,7 +114,7 @@ const SalePrintView: React.FC<SalePrintViewProps> = ({
         <!-- Cabeçalho -->
         <div class="center mb-3 separator">
           <div class="header-title">ELITE AÇAÍ</div>
-          <div class="medium">COMPROVANTE DE VENDA</div>
+          <div class="small">Venda #${sale.sale_number} - ID: ${sale.id.slice(-8).toUpperCase()}</div>
           <div class="small">Rua Um, 1614-C</div>
           <div class="small">Residencial 1 - Cágado</div>
           <div class="small">Tel: (85) 98904-1010</div>

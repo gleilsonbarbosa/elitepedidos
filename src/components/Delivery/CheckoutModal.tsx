@@ -4,12 +4,9 @@ import { supabase } from '../../lib/supabase';
 import { CartItem } from '../../types/cart';
 import { useNeighborhoods } from '../../hooks/useNeighborhoods';
 import { useOrders } from '../../hooks/useOrders';
-import { useCashback } from '../../hooks/useCashback';
 import { useStoreHours } from '../../hooks/useStoreHours';
 import DeliveryTypeSelector from './DeliveryTypeSelector';
 import PickupScheduler from './PickupScheduler';
-import CashbackButton from '../Cashback/CashbackButton';
-import AISalesAssistant from './AISalesAssistant';
 import { useDeliveryProducts } from '../../hooks/useDeliveryProducts';
 import PushNotificationBanner from './PushNotificationBanner';
 import { useWebPush } from '../../hooks/useWebPush';
@@ -20,7 +17,7 @@ interface CheckoutModalProps {
   items: CartItem[];
   totalPrice: number;
   onOrderComplete: () => void;
-  aiSuggestionsEnabled?: boolean;
+  customerId?: string | null;
 }
 
 const CheckoutModal: React.FC<CheckoutModalProps> = ({
@@ -29,11 +26,10 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   items,
   totalPrice,
   onOrderComplete,
-  aiSuggestionsEnabled = true
+  customerId,
 }) => {
   const { neighborhoods } = useNeighborhoods();
   const { createOrder } = useOrders();
-  const { getCustomerByPhone, getCustomerBalance, createPurchaseTransaction, createRedemptionTransaction } = useCashback();
   const { storeSettings } = useStoreHours();
   const { products: availableProducts } = useDeliveryProducts();
   const { sendServerNotification } = useWebPush();
@@ -49,11 +45,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [scheduledPickupDate, setScheduledPickupDate] = useState('');
   const [scheduledPickupTime, setScheduledPickupTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [customerBalance, setCustomerBalance] = useState<any>(null);
-  const [appliedCashback, setAppliedCashback] = useState(0);
-  const [customerId, setCustomerId] = useState<string | null>(null);
-  const [showAISuggestions, setShowAISuggestions] = useState(true);
-  const [showInCheckout, setShowInCheckout] = useState(true);
+  const [loadingCustomerData, setLoadingCustomerData] = useState(false);
 
   // Reset form when modal opens/closes
   useEffect(() => {
@@ -67,50 +59,99 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       setChangeFor(undefined);
       setScheduledPickupDate('');
       setScheduledPickupTime('');
-      setCustomerBalance(null);
-      setAppliedCashback(0);
-      setCustomerId(null);
-      setShowAISuggestions(aiSuggestionsEnabled);
     }
-  }, [isOpen, aiSuggestionsEnabled]);
+  }, [isOpen]);
 
-  // Search for customer when phone changes
-  useEffect(() => {
-    const searchCustomer = async () => {
-      if (customerPhone.length >= 11) {
-        try {
-          const customer = await getCustomerByPhone(customerPhone);
-          if (customer) {
-            setCustomerId(customer.id);
-            setCustomerName(customer.name || '');
-            
-            // Get customer balance
-            const balance = await getCustomerBalance(customer.id);
-            
-            // Only set balance if it's positive
-            if (balance && balance.available_balance > 0) {
-              setCustomerBalance(balance);
-            } else {
-              setCustomerBalance(null);
-              setAppliedCashback(0); // Reset any applied cashback
-            }
-          } else {
-            setCustomerId(null);
-            setCustomerBalance(null);
-            setAppliedCashback(0);
-          }
-        } catch (error) {
-          console.error('Erro ao buscar cliente:', error);
-          setCustomerBalance(null);
-          setAppliedCashback(0);
-        }
+  // Função para buscar dados do cliente pelo telefone
+  const searchCustomerByPhone = async (phone: string) => {
+    if (phone.replace(/\D/g, '').length < 11) return;
+
+    setLoadingCustomerData(true);
+    try {
+      const cleanPhone = phone.replace(/\D/g, '');
+      
+      // Check if Supabase is configured
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl.includes('placeholder') || 
+          supabaseKey.includes('placeholder')) {
+        console.warn('⚠️ Supabase não configurado - busca de cliente não disponível');
+        return;
       }
-    };
 
-    const timeoutId = setTimeout(searchCustomer, 500);
-    return () => clearTimeout(timeoutId);
-  }, [customerPhone, getCustomerByPhone, getCustomerBalance]);
+      console.log('🔍 Buscando cliente pelo telefone:', cleanPhone);
 
+      // Buscar cliente na tabela customers
+      const { data: customer, error } = await supabase
+        .from('customers')
+        .select('name, phone')
+        .eq('phone', cleanPhone)
+        .maybeSingle();
+
+      if (error) {
+        console.error('❌ Erro ao buscar cliente:', error);
+        return;
+      }
+
+      if (customer) {
+        console.log('✅ Cliente encontrado:', customer.name);
+        
+        // Preencher nome automaticamente
+        if (customer.name && !customerName.trim()) {
+          setCustomerName(customer.name);
+          
+          // Mostrar feedback visual
+          const successMessage = document.createElement('div');
+          successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
+          successMessage.innerHTML = `
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+            Dados do cliente preenchidos automaticamente!
+          `;
+          document.body.appendChild(successMessage);
+          
+          setTimeout(() => {
+            if (document.body.contains(successMessage)) {
+              document.body.removeChild(successMessage);
+            }
+          }, 3000);
+        }
+
+        // Buscar último endereço do cliente
+        const { data: lastOrder, error: orderError } = await supabase
+          .from('orders')
+          .select('customer_address, customer_neighborhood, customer_complement')
+          .eq('customer_phone', cleanPhone)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!orderError && lastOrder) {
+          console.log('✅ Último endereço encontrado');
+          
+          // Preencher endereço apenas se estiver vazio
+          if (lastOrder.customer_address && !customerAddress.trim()) {
+            setCustomerAddress(lastOrder.customer_address);
+          }
+          if (lastOrder.customer_neighborhood && !customerNeighborhood.trim()) {
+            setCustomerNeighborhood(lastOrder.customer_neighborhood);
+          }
+          if (lastOrder.customer_complement && !customerComplement.trim()) {
+            setCustomerComplement(lastOrder.customer_complement);
+          }
+        }
+      } else {
+        console.log('ℹ️ Cliente não encontrado no banco de dados');
+      }
+    } catch (err) {
+      console.error('❌ Erro ao buscar dados do cliente:', err);
+    } finally {
+      setLoadingCustomerData(false);
+    }
+  };
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
       style: 'currency',
@@ -134,6 +175,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatPhone(e.target.value);
     setCustomerPhone(formatted);
+    
+    // Buscar dados do cliente quando o telefone estiver completo
+    if (formatted.replace(/\D/g, '').length === 11) {
+      searchCustomerByPhone(formatted);
+    }
   };
 
   const getDeliveryFee = () => {
@@ -153,40 +199,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const getFinalTotal = () => {
     const total = totalPrice + getDeliveryFee();
     const roundedTotal = Math.round(total * 100) / 100;
-    return Math.max(0, roundedTotal);
-  };
-
-  const handleApplyCashback = (amount: number) => {
-    const availableBalance = customerBalance?.available_balance || 0;
-    const orderTotal = totalPrice + getDeliveryFee();
-    
-    // Prevent applying cashback if balance is zero or negative
-    if (availableBalance <= 0) {
-      console.warn('⚠️ Tentativa de aplicar cashback com saldo zero/negativo:', availableBalance);
-      setAppliedCashback(0);
-      return;
-    }
-    
-    // Round to 2 decimal places with consistent precision handling
-    const preciseBalance = Math.round(Math.max(0, availableBalance) * 100) / 100;
-    const preciseOrderTotal = Math.round(orderTotal * 100) / 100;
-    const preciseAmount = Math.round(amount * 100) / 100;
-    
-    // Use consistent rounding for all values
-    const maxAmount = Math.min(preciseBalance, preciseOrderTotal);
-    const appliedAmount = Math.min(preciseAmount, maxAmount);
-    
-    // Final safety check
-    if (appliedAmount <= 0) {
-      setAppliedCashback(0);
-      return;
-    }
-    
-    setAppliedCashback(appliedAmount);
-  };
-
-  const handleRemoveCashback = () => {
-    setAppliedCashback(0);
+    return roundedTotal;
   };
 
   const validateForm = () => {
@@ -311,22 +324,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         }
       }
 
-      // Create purchase transaction for cashback (5% of original total, not discounted total)
-      if (customerId) {
-        const purchaseAmount = totalPrice + getDeliveryFee();
-        console.log('💳 Criando transação de compra para cashback:', { customerId, purchaseAmount, orderId: newOrder.id });
-        const purchaseResult = await createPurchaseTransaction(customerId, purchaseAmount, newOrder.id);
-        
-        if (purchaseResult) {
-          console.log('✅ Cashback de compra creditado:', purchaseResult);
-        }
-      }
-
-      // Store customer ID for future recommendations
-      if (customerId) {
-        localStorage.setItem('customer_id', customerId);
-      }
-
       // Show success message with order tracking
       const orderTrackingLink = `${window.location.origin}/pedido/${newOrder.id}`;
       
@@ -348,93 +345,11 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
       let errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      
-      // Enhanced currency error message cleanup
-      const cleanCurrencyInErrorMessage = (message: string): string => {
-        return 'Saldo de cashback insuficiente para este pedido.';
-      };
-      
-      errorMessage = cleanCurrencyInErrorMessage(errorMessage);
-      
       alert(`Erro ao finalizar pedido: ${errorMessage}`);
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  const loadSettings = async () => {
-    try {
-      // Check if Supabase is configured
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (!supabaseUrl || !supabaseKey || 
-          supabaseUrl.includes('placeholder') || 
-          supabaseKey.includes('placeholder')) {
-        console.warn('⚠️ [CHECKOUT] Supabase não configurado - usando localStorage');
-        loadFromLocalStorage();
-        return;
-      }
-
-      // Carregar do banco de dados
-      const { data, error } = await supabase
-        .from('order_settings')
-        .select('ai_suggestions_enabled, ai_show_in_checkout')
-        .eq('id', 'default')
-        .maybeSingle();
-
-      if (error) {
-        console.error('❌ [CHECKOUT] Erro ao carregar do banco:', error);
-        loadFromLocalStorage();
-        return;
-      }
-
-      if (data) {
-        const enabled = data.ai_suggestions_enabled ?? true;
-        const showInCheckoutDb = data.ai_show_in_checkout ?? true;
-        setShowAISuggestions(enabled);
-        setShowInCheckout(showInCheckoutDb);
-        console.log('✅ [CHECKOUT] Configuração carregada do banco:', enabled);
-        console.log('✅ [CHECKOUT] Mostrar no checkout (banco):', showInCheckoutDb);
-        
-        // Backup no localStorage
-        localStorage.setItem('ai_sales_assistant_enabled', JSON.stringify(enabled));
-      } else {
-        console.log('ℹ️ [CHECKOUT] Nenhuma configuração no banco, usando localStorage');
-        loadFromLocalStorage();
-      }
-    } catch (dbError) {
-      console.error('❌ [CHECKOUT] Erro de conexão com banco:', dbError);
-      loadFromLocalStorage();
-    }
-  };
-  
-  const loadFromLocalStorage = () => {
-    try {
-      const aiEnabled = localStorage.getItem('ai_sales_assistant_enabled');
-      console.log('🤖 [CHECKOUT] Carregando do localStorage:', aiEnabled);
-      
-      if (aiEnabled !== null) {
-        const enabled = JSON.parse(aiEnabled);
-        setShowAISuggestions(enabled);
-        
-        // Carregar configuração de mostrar no checkout
-        const savedSettings = localStorage.getItem('delivery_suggestions_settings');
-        if (savedSettings) {
-          const settings = JSON.parse(savedSettings);
-          setShowInCheckout(settings.showInCheckout !== false);
-        }
-        
-        console.log('🤖 [CHECKOUT] Estado do localStorage aplicado:', enabled);
-      }
-    } catch (error) {
-      console.error('❌ [CHECKOUT] Erro ao carregar do localStorage:', error);
-    }
-  };
-
-  useEffect(() => {
-    loadSettings();
-  }, []);
 
   if (!isOpen) return null;
 
@@ -471,6 +386,33 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Telefone *
+                </label>
+                <div className="relative">
+                  <Phone size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  {loadingCustomerData && (
+                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
+                    </div>
+                  )}
+                  <input
+                    type="tel"
+                    value={customerPhone}
+                    onChange={handlePhoneChange}
+                    className={`w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                      loadingCustomerData ? 'pr-10' : ''
+                    }`}
+                    placeholder="(85) 99999-9999"
+                    required
+                  />
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Preencheremos seus dados automaticamente se já for cliente
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
                   Nome Completo *
                 </label>
                 <div className="relative">
@@ -484,25 +426,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     required
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Telefone *
-                </label>
-                <div className="relative">
-                  <Phone size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="tel"
-                    value={customerPhone}
-                    onChange={handlePhoneChange}
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    placeholder="(85) 99999-9999"
-                    required
-                  />
-                </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  Usado para atualizações do pedido via WhatsApp
+                  Preenchido automaticamente se já for cliente
                 </p>
               </div>
             </div>
@@ -533,6 +458,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     ))}
                   </select>
                 </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Preenchido automaticamente se já for cliente
+                </p>
               </div>
 
               <div>
@@ -547,6 +475,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   placeholder="Rua, número, casa/apartamento"
                   required
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Preenchido automaticamente se já for cliente
+                </p>
               </div>
 
               <div>
@@ -560,6 +491,9 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                   className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
                   placeholder="Apartamento, bloco, referência..."
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Preenchido automaticamente se já for cliente
+                </p>
               </div>
             </div>
           )}
@@ -582,69 +516,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                 customerName={customerName}
                 onSubscribed={(subscription) => {
                   console.log('✅ Cliente inscrito para notificações:', subscription);
-                }}
-              />
-            </div>
-          )}
-
-          {/* AI Sales Assistant */}
-          {showAISuggestions && showInCheckout && aiSuggestionsEnabled && items.length > 0 && (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-800">🤖 Sugestões Personalizadas</h3>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs text-green-600 font-medium">IA Ativa</span>
-                </div>
-                <button
-                  onClick={() => setShowAISuggestions(false)}
-                  className="text-gray-400 hover:text-gray-600 p-1"
-                  title="Ocultar sugestões"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-              
-              <AISalesAssistant
-                cartItems={items}
-                availableProducts={availableProducts.map(dbProduct => ({
-                  id: dbProduct.id,
-                  name: dbProduct.name,
-                  category: dbProduct.category as any,
-                  price: dbProduct.price,
-                  originalPrice: dbProduct.original_price,
-                  description: dbProduct.description,
-                  image: dbProduct.image_url || 'https://images.pexels.com/photos/1092730/pexels-photo-1092730.jpeg?auto=compress&cs=tinysrgb&w=400',
-                  isActive: dbProduct.is_active,
-                  complementGroups: dbProduct.complement_groups || [],
-                  sizes: dbProduct.sizes || []
-                }))}
-                onAddSuggestion={(product, reason) => {
-                  // Close suggestions after adding
-                  setShowAISuggestions(false);
-                  
-                  // Show notification that user should add via main menu
-                  const suggestionMessage = document.createElement('div');
-                  suggestionMessage.className = 'fixed top-4 right-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white px-4 py-3 rounded-lg shadow-lg z-50 max-w-sm';
-                  suggestionMessage.innerHTML = `
-                    <div class="flex items-start gap-3">
-                      <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                      </svg>
-                      <div>
-                        <p class="font-medium text-sm">💡 Sugestão da IA</p>
-                        <p class="text-xs opacity-90 mt-1">Volte ao cardápio para adicionar <strong>${product.name}</strong></p>
-                        <p class="text-xs opacity-75 mt-1">${reason.replace(/\*\*(.*?)\*\*/g, '$1')}</p>
-                      </div>
-                    </div>
-                  `;
-                  document.body.appendChild(suggestionMessage);
-                  
-                  setTimeout(() => {
-                    if (document.body.contains(suggestionMessage)) {
-                      document.body.removeChild(suggestionMessage);
-                    }
-                  }, 6000);
                 }}
               />
             </div>
