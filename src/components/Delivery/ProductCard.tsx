@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Zap, Clock, Package } from 'lucide-react';
+import { Plus, Zap, Clock, Package, Sparkles } from 'lucide-react';
 import { Product } from '../../types/product';
 import { formatPrice } from '../../utils/formatters';
 import { isProductAvailable } from '../../utils/availability';
@@ -139,7 +139,14 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal, isSpeci
             }}
           />
         )}
-        
+
+        {product.isNew && (
+          <div className="absolute top-2 right-2 bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-3 py-1 rounded-full shadow-lg flex items-center gap-1 animate-pulse">
+            <Sparkles size={14} className="animate-bounce" />
+            <span className="text-xs font-bold">NOVIDADE</span>
+          </div>
+        )}
+
         {!isAvailable && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
             <div className="bg-white rounded-full px-3 py-1 flex items-center gap-2">

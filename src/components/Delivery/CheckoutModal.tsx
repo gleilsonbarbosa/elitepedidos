@@ -40,7 +40,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerNeighborhood, setCustomerNeighborhood] = useState('');
   const [customerComplement, setCustomerComplement] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'money' | 'pix_entregador' | 'pix_online' | 'cartao_credito' | 'cartao_debito'>('money');
+  const [paymentMethod, setPaymentMethod] = useState<'money' | 'pix_entregador' | 'cartao_credito' | 'cartao_debito'>('money');
   const [changeFor, setChangeFor] = useState<number | undefined>(undefined);
   const [scheduledPickupDate, setScheduledPickupDate] = useState('');
   const [scheduledPickupTime, setScheduledPickupTime] = useState('');
@@ -256,8 +256,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
       const neighborhood = neighborhoods.find(n => n.name === customerNeighborhood);
       
       // Map payment methods to database-accepted values
-      const dbPaymentMethod = paymentMethod === 'pix_entregador' || paymentMethod === 'pix_online' 
-        ? 'pix' 
+      const dbPaymentMethod = paymentMethod === 'pix_entregador'
+        ? 'pix'
         : paymentMethod === 'cartao_credito' || paymentMethod === 'cartao_debito'
         ? 'card'
         : paymentMethod;
@@ -333,7 +333,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
         `👤 Cliente: ${customerName}\n` +
         `💰 Total: ${formatPrice(getFinalTotal())}\n` +
         `${deliveryType === 'pickup' ? 
-          `📍 *LOCAL DE RETIRADA:*\nRua Um, 1614-C – Residencial 1 – Cágado\n📅 Data: ${scheduledPickupDate ? new Date(scheduledPickupDate).toLocaleDateString('pt-BR') : 'Não definida'}\n⏰ Horário: ${scheduledPickupTime || 'Não definido'}\n\n` :
+          `📍 *LOCAL DE RETIRADA:*\nRua Um, 1614-C – Residencial 1 – Cágado\n📅 Data: ${scheduledPickupDate ? new Date(scheduledPickupDate + 'T00:00:00').toLocaleDateString('pt-BR') : 'Não definida'}\n⏰ Horário: ${scheduledPickupTime || 'Não definido'}\n\n` :
           `📍 *ENDEREÇO DE ENTREGA:*\n${customerAddress}\n🏘️ Bairro: ${customerNeighborhood}\n${customerComplement ? `🏠 Complemento: ${customerComplement}\n` : ''}\n\n`
         }` +
         `🔗 *ACOMPANHE SEU PEDIDO:*\n${window.location.origin}/pedido/[ID_DO_PEDIDO]\n\n` +
@@ -555,28 +555,8 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                   <div>
-                    <span className="font-medium">PIX Entregador</span>
-                    <p className="text-xs text-gray-500">Pagar na entrega</p>
-                  </div>
-                </div>
-              </label>
-              
-              <label className="flex items-center gap-3 p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
-                <input
-                  type="radio"
-                  name="payment"
-                  value="pix_online"
-                  checked={paymentMethod === 'pix_online'}
-                  onChange={(e) => setPaymentMethod(e.target.value as any)}
-                  className="text-green-600"
-                />
-                <div className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  <div>
-                    <span className="font-medium">PIX Online</span>
-                    <p className="text-xs text-gray-500">Pagar agora</p>
+                    <span className="font-medium">PIX com entregador na maquineta</span>
+                    <p className="text-xs text-gray-500">Pagar na entrega com PIX</p>
                   </div>
                 </div>
               </label>
@@ -634,27 +614,6 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
               </div>
             )}
 
-            {paymentMethod === 'pix_online' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-blue-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div>
-                    <h4 className="font-medium text-blue-800 mb-2">Dados para PIX Online</h4>
-                    <div className="text-sm text-blue-700 space-y-1">
-                      <p><strong>Chave PIX:</strong> 85989041010</p>
-                      <p><strong>Nome:</strong> Amanda Suyelen da Costa Pereira</p>
-                      <p><strong>Valor:</strong> {formatPrice(getFinalTotal())}</p>
-                    </div>
-                    <p className="text-xs text-blue-600 mt-2">
-                      Realize o PIX agora e envie o comprovante via WhatsApp
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {paymentMethod === 'pix_entregador' && (
               <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                 <div className="flex items-start gap-3">
@@ -662,14 +621,12 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <div>
-                    <h4 className="font-medium text-green-800 mb-2">PIX na Entrega</h4>
+                    <h4 className="font-medium text-green-800 mb-2">PIX com Entregador na Maquineta</h4>
                     <div className="text-sm text-green-700 space-y-1">
-                      <p><strong>Chave PIX:</strong> 85989041010</p>
-                      <p><strong>Nome:</strong> Amanda Suyelen da Costa Pereira</p>
                       <p><strong>Valor:</strong> {formatPrice(getFinalTotal())}</p>
                     </div>
                     <p className="text-xs text-green-600 mt-2">
-                      Você pagará via PIX quando o entregador chegar
+                      Você pagará via PIX na maquineta do entregador quando ele chegar
                     </p>
                   </div>
                 </div>
@@ -717,7 +674,7 @@ const CheckoutModal: React.FC<CheckoutModalProps> = ({
               
               {deliveryType === 'pickup' && scheduledPickupDate && scheduledPickupTime && (
                 <div className="text-sm text-green-700 mt-2">
-                  <p>📅 Retirada agendada para: {new Date(scheduledPickupDate).toLocaleDateString('pt-BR')} às {scheduledPickupTime}</p>
+                  <p>📅 Retirada agendada para: {new Date(scheduledPickupDate + 'T00:00:00').toLocaleDateString('pt-BR')} às {scheduledPickupTime}</p>
                   <p>📍 Local: Rua Um, 1614-C – Residencial 1 – Cágado</p>
                 </div>
               )}

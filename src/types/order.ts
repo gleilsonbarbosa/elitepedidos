@@ -20,9 +20,10 @@ export interface Order {
   updated_at: string;
   estimated_delivery?: string;
   channel?: string;
+  cash_register_id?: string;
 }
 
-interface OrderItem {
+export interface OrderItem {
   id: string;
   product_name: string;
   product_image: string;
@@ -34,7 +35,7 @@ interface OrderItem {
   complements: OrderComplement[];
 }
 
-interface OrderComplement {
+export interface OrderComplement {
   name: string;
   price: number;
 }
@@ -60,6 +61,16 @@ export interface ChatMessage {
 }
 
 interface OrderNotification {
+  id: string;
+  order_id: string;
+  type: 'new_order' | 'new_message' | 'status_update';
+  title: string;
+  message: string;
+  read: boolean;
+  created_at: string;
+}
+
+export interface OrderNotification {
   id: string;
   order_id: string;
   type: 'new_order' | 'new_message' | 'status_update';

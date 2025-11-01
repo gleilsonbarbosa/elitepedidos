@@ -1,13 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Order, OrderStatus, ChatMessage } from '../types/order';
 import { usePDVCashRegister } from './usePDVCashRegister';
 
-export const useOrders = () => {
+export const useOrders = (onNewOrder?: (order: Order) => void) => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { currentRegister, isOpen: isCashRegisterOpen } = usePDVCashRegister();
+  const onNewOrderRef = useRef(onNewOrder);
+  const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Manter a referência atualizada
+  useEffect(() => {
+    onNewOrderRef.current = onNewOrder;
+  }, [onNewOrder]);
 
   const fetchOrders = useCallback(async () => {
     try {
@@ -68,8 +75,20 @@ export const useOrders = () => {
 
   const createOrder = useCallback(async (orderData: Omit<Order, 'id' | 'created_at' | 'updated_at'>) => {
     try {
+      console.log('🚀 Criando pedido:', orderData);
+      
       if (!orderData.items || orderData.items.length === 0) {
         throw new Error('Pedido deve conter pelo menos um item');
+      }
+      
+      // Verificar se Supabase está configurado
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseKey || 
+          supabaseUrl.includes('placeholder') || 
+          supabaseKey.includes('placeholder')) {
+        throw new Error('Supabase não configurado. Configure as variáveis de ambiente para usar esta funcionalidade.');
       }
       
       const orderWithChannel = orderData.channel === 'manual' ? orderData : {
@@ -77,6 +96,8 @@ export const useOrders = () => {
         channel: orderData.channel || 'delivery',
         cash_register_id: currentRegister ? currentRegister.id : null
       };
+      
+      console.log('📝 Dados do pedido preparados:', orderWithChannel);
       
       const { data, error } = await supabase
         .from('orders')
@@ -90,13 +111,15 @@ export const useOrders = () => {
 
       if (error) throw error;
       
+      console.log('✅ Pedido criado no banco:', data);
+      
       // Criar notificação para novo pedido
       const notificationTitle = orderData.channel === 'manual' ? 'Pedido Manual Criado' : 'Novo Pedido';
       const notificationMessage = orderData.channel === 'manual' 
         ? `Pedido manual criado para ${orderData.customer_name}`
         : `Novo pedido de ${orderData.customer_name}`;
         
-      await supabase
+      const { error: notificationError } = await supabase
         .from('notifications')
         .insert([{
           order_id: data.id,
@@ -106,9 +129,14 @@ export const useOrders = () => {
           read: false,
           created_at: new Date().toISOString()
         }]);
+      
+      if (notificationError) {
+        console.warn('⚠️ Erro ao criar notificação (não crítico):', notificationError);
+      }
 
       return data;
     } catch (err) {
+      console.error('❌ Erro ao criar pedido:', err);
       throw new Error(err instanceof Error ? err.message : 'Erro ao criar pedido');
     }
   }, [currentRegister]);
@@ -178,25 +206,34 @@ export const useOrders = () => {
   const playNotificationSound = () => {
     // Criar um som de notificação simples
     try {
+      // Parar qualquer som anterior antes de tocar um novo
+      if (notificationAudioRef.current) {
+        notificationAudioRef.current.pause();
+        notificationAudioRef.current.currentTime = 0;
+      }
+
       // Obter configuração de som do localStorage
       const soundSettings = localStorage.getItem('orderSoundSettings');
       const settings = soundSettings ? JSON.parse(soundSettings) : { enabled: true, volume: 0.7, soundUrl: "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" };
-      
+
       // Verificar se o som está habilitado
       if (!settings.enabled) {
         console.log('🔕 Som de notificação desabilitado nas configurações');
         return;
       }
-      
+
       // Criar um elemento de áudio e tocar o som configurado
       const audio = new Audio(settings.soundUrl);
-      audio.volume = settings.volume; // Ajustar volume conforme configuração
+      audio.volume = settings.volume;
+      audio.loop = false; // Garantir que não toque em loop
+      notificationAudioRef.current = audio; // Guardar referência
+
       audio.play().catch(e => {
         console.error('Erro ao tocar som de notificação:', e);
         // Tentar método alternativo se falhar
         playFallbackSound();
       });
-      
+
       // Mostrar notificação visual também, se suportado pelo navegador
       if ('Notification' in window && Notification.permission === 'granted') {
         new Notification('Novo Pedido!', {
@@ -293,21 +330,58 @@ export const useOrders = () => {
           
           if (shouldInclude) {
             setOrders(prev => [newOrder, ...prev]);
+
+            // Tocar som de notificação para novos pedidos
+            console.log('🔔 Tocando som de notificação para novo pedido');
             playNotificationSound();
+
+            // Chamar callback se fornecido
+            console.log('🎯 Verificando callback onNewOrderRef:', !!onNewOrderRef.current);
+            if (onNewOrderRef.current) {
+              console.log('🚀 Chamando callback onNewOrder para pedido:', newOrder.id.slice(-8));
+              try {
+                onNewOrderRef.current(newOrder);
+                console.log('✅ Callback executado com sucesso');
+              } catch (error) {
+                console.error('❌ Erro ao executar callback:', error);
+              }
+            } else {
+              console.log('⚠️ Callback onNewOrder não foi fornecido');
+            }
           }
         }
       )
-      .on('postgres_changes', 
-        { 
-          event: 'UPDATE', 
-          schema: 'public', 
+      .on('postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
           table: 'orders'
         },
         (payload) => {
           console.log('🔄 Pedido atualizado via realtime (useOrders):', payload);
-          setOrders(prev => prev.map(order => 
-            order.id === payload.new.id ? payload.new as Order : order
+          const updatedOrder = payload.new as Order;
+
+          setOrders(prev => prev.map(order =>
+            order.id === updatedOrder.id ? updatedOrder : order
           ));
+
+          // Se o status mudou de 'pending', parar qualquer alerta sonoro
+          const oldOrder = payload.old as Order;
+          if (oldOrder.status === 'pending' && updatedOrder.status !== 'pending') {
+            console.log('✅ Pedido não está mais pendente, parando alerta sonoro');
+            // Parar o som de notificação se estiver tocando
+            if (notificationAudioRef.current) {
+              notificationAudioRef.current.pause();
+              notificationAudioRef.current.currentTime = 0;
+              notificationAudioRef.current = null;
+            }
+            // Parar qualquer outro áudio que possa estar tocando
+            const audios = document.querySelectorAll('audio');
+            audios.forEach(audio => {
+              audio.pause();
+              audio.currentTime = 0;
+            });
+          }
         }
       )
       .subscribe((status) => console.log('🔌 Status da inscrição de pedidos (useOrders):', status));
@@ -315,6 +389,11 @@ export const useOrders = () => {
     return () => {
       if (ordersChannel) {
         supabase.removeChannel(ordersChannel);
+      }
+      // Parar som ao desmontar
+      if (notificationAudioRef.current) {
+        notificationAudioRef.current.pause();
+        notificationAudioRef.current = null;
       }
     };
   }, [fetchOrders, currentRegister]);

@@ -13,6 +13,7 @@ export interface DeliveryProduct {
   image_url?: string;
   is_active: boolean;
   is_weighable: boolean;
+  is_new?: boolean;
   price_per_gram?: number;
   complement_groups?: any;
   sizes?: any;

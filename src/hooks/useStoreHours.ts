@@ -16,7 +16,15 @@ export const useStoreHours = () => {
         .order('day_of_week');
 
       if (error) throw error;
-      setStoreHours(data || []);
+
+      // Normalizar horários removendo segundos se presentes
+      const normalizedData = (data || []).map(hour => ({
+        ...hour,
+        open_time: hour.open_time?.substring(0, 5) || '08:00',
+        close_time: hour.close_time?.substring(0, 5) || '22:00'
+      }));
+
+      setStoreHours(normalizedData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar horários');
     }
@@ -38,6 +46,8 @@ export const useStoreHours = () => {
 
   const updateStoreHours = useCallback(async (dayOfWeek: number, hours: Partial<StoreHours>) => {
     try {
+      console.log('💾 Salvando horário para dia', dayOfWeek, ':', hours);
+
       const { data, error } = await supabase
         .from('store_hours')
         .upsert({
@@ -50,22 +60,37 @@ export const useStoreHours = () => {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Erro ao salvar horário:', error);
+        throw error;
+      }
+
+      console.log('✅ Horário salvo com sucesso:', data);
+
+      // Normalizar dados retornados
+      const normalizedData = {
+        ...data,
+        open_time: data.open_time?.substring(0, 5) || '08:00',
+        close_time: data.close_time?.substring(0, 5) || '22:00'
+      };
 
       // Atualizar estado local imediatamente
       setStoreHours(prev => {
         const updated = prev.filter(h => h.day_of_week !== dayOfWeek);
-        return [...updated, data].sort((a, b) => a.day_of_week - b.day_of_week);
+        return [...updated, normalizedData].sort((a, b) => a.day_of_week - b.day_of_week);
       });
 
-      return data;
+      return normalizedData;
     } catch (err) {
+      console.error('❌ Erro completo ao atualizar horário:', err);
       throw new Error(err instanceof Error ? err.message : 'Erro ao atualizar horário');
     }
   }, []);
 
   const updateStoreSettings = useCallback(async (settings: Partial<StoreSettings>) => {
     try {
+      console.log('⚙️ Salvando configurações:', settings);
+
       const { data, error } = await supabase
         .from('store_settings')
         .upsert({
@@ -78,13 +103,19 @@ export const useStoreHours = () => {
         .select()
         .single();
 
-      if (error) throw error;
-      
+      if (error) {
+        console.error('❌ Erro ao salvar configurações:', error);
+        throw error;
+      }
+
+      console.log('✅ Configurações salvas com sucesso:', data);
+
       // Atualizar estado local imediatamente
       setStoreSettings(data);
-      
+
       return data;
     } catch (err) {
+      console.error('❌ Erro completo ao atualizar configurações:', err);
       throw new Error(err instanceof Error ? err.message : 'Erro ao atualizar configurações');
     }
   }, [storeSettings]);
@@ -402,28 +433,49 @@ export const useStoreHours = () => {
   }, [fetchStoreHours, fetchStoreSettings]);
 
   // Inicializar horários padrão se não existirem
-  useEffect(() => {
-    if (!loading && storeHours.length === 0) {
-      initializeDefaultHours();
-    }
-  }, [loading, storeHours.length, initializeDefaultHours]);
+  // REMOVIDO: Esta função estava causando reinicializações indesejadas
+  // useEffect(() => {
+  //   if (!loading && storeHours.length === 0) {
+  //     initializeDefaultHours();
+  //   }
+  // }, [loading, storeHours.length, initializeDefaultHours]);
 
   // Configurar realtime para atualizações automáticas
   useEffect(() => {
     const storeHoursChannel = supabase
       .channel('store_hours_changes')
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'store_hours' },
-        () => {
-          console.log('Horários atualizados no banco, recarregando...');
+        { event: 'UPDATE', schema: 'public', table: 'store_hours' },
+        (payload) => {
+          console.log('✏️ Horários atualizados no banco via realtime:', payload);
+          // Atualizar apenas o registro modificado no estado local
+          setStoreHours(prev => {
+            const updated = prev.map(hour => {
+              if (hour.id === payload.new.id) {
+                return {
+                  ...payload.new,
+                  open_time: payload.new.open_time?.substring(0, 5) || hour.open_time,
+                  close_time: payload.new.close_time?.substring(0, 5) || hour.close_time
+                };
+              }
+              return hour;
+            });
+            return updated;
+          });
+        }
+      )
+      .on('postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'store_hours' },
+        (payload) => {
+          console.log('➕ Novo horário inserido no banco:', payload);
           fetchStoreHours();
         }
       )
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'store_settings' },
-        () => {
-          console.log('Configurações atualizadas no banco, recarregando...');
-          fetchStoreSettings();
+        { event: 'UPDATE', schema: 'public', table: 'store_settings' },
+        (payload) => {
+          console.log('⚙️ Configurações atualizadas no banco:', payload);
+          setStoreSettings(payload.new as StoreSettings);
         }
       )
       .subscribe();
@@ -431,7 +483,7 @@ export const useStoreHours = () => {
     return () => {
       supabase.removeChannel(storeHoursChannel);
     };
-  }, [fetchStoreHours, fetchStoreSettings]);
+  }, [fetchStoreHours]);
 
   // Atualizar status a cada minuto para manter sincronizado
   useEffect(() => {

@@ -33,6 +33,7 @@ interface ProductFormData {
   image_url?: string;
   is_active: boolean;
   is_weighable: boolean;
+  is_new?: boolean;
   price_per_gram?: number;
   has_complements: boolean;
   complement_groups?: ComplementGroup[];
@@ -1479,6 +1480,26 @@ const ProductsPanel: React.FC = () => {
                         Produto ativo
                       </span>
                     </label>
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={formData.is_new || false}
+                        onChange={(e) => setFormData(prev => ({ ...prev, is_new: e.target.checked }))}
+                        className="w-4 h-4 text-orange-600"
+                      />
+                      <span className="text-sm font-medium text-gray-700 flex items-center gap-1">
+                        <span>Marcar como Novidade</span>
+                        <span className="text-xs bg-gradient-to-r from-yellow-400 to-orange-500 text-white px-2 py-0.5 rounded-full">
+                          ✨ NOVO
+                        </span>
+                      </span>
+                    </label>
+                    <p className="text-xs text-gray-500 ml-6 mt-1">
+                      Exibe um badge de "NOVIDADE" no card do produto no delivery
+                    </p>
                   </div>
 
                   <div>

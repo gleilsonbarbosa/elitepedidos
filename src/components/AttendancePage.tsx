@@ -33,6 +33,7 @@ const AttendancePage: React.FC = () => {
       code: attendanceUser.username.toUpperCase(),
       password_hash: attendanceUser.password_hash,
       is_active: attendanceUser.is_active,
+      role: attendanceUser.role || 'attendant', // Adicionar campo role
       permissions: {
         can_cancel: attendanceUser.permissions?.can_cancel || false,
         can_discount: attendanceUser.permissions?.can_discount || false,
@@ -47,6 +48,8 @@ const AttendancePage: React.FC = () => {
         can_view_attendance: attendanceUser.permissions?.can_view_attendance || false,
         can_view_cash_report: attendanceUser.permissions?.can_view_cash_report || false,
         can_view_sales_report: attendanceUser.permissions?.can_view_sales_report || false,
+        can_view_tables: attendanceUser.permissions?.can_view_tables || false,
+        can_view_history: attendanceUser.permissions?.can_view_history || false,
         can_view_cash_register: attendanceUser.permissions?.can_view_cash_register || false,
         can_view_expected_balance: attendanceUser.permissions?.can_view_expected_balance || false,
         can_edit_orders: attendanceUser.permissions?.can_edit_orders || false,
@@ -57,7 +60,11 @@ const AttendancePage: React.FC = () => {
         can_delete_sales: attendanceUser.permissions?.can_delete_sales || false,
         can_edit_cash_entries: attendanceUser.permissions?.can_edit_cash_entries || false,
         can_delete_cash_entries: attendanceUser.permissions?.can_delete_cash_entries || false,
-        can_cancel_cash_entries: attendanceUser.permissions?.can_cancel_cash_entries || false
+        can_cancel_cash_entries: attendanceUser.permissions?.can_cancel_cash_entries || false,
+        can_view_cash_balance: attendanceUser.permissions?.can_view_cash_balance || false,
+        can_view_cash_details: attendanceUser.permissions?.can_view_cash_details || false,
+        can_view_sales_totals: attendanceUser.permissions?.can_view_sales_totals || false,
+        can_view_cash_entries: attendanceUser.permissions?.can_view_cash_entries || false
       },
       created_at: attendanceUser.created_at,
       updated_at: attendanceUser.updated_at,

@@ -12,8 +12,9 @@ export interface Product {
   complementGroups?: ComplementGroup[];
   availability?: ProductAvailability;
   isActive?: boolean;
-  scheduledDays?: ScheduledDays; // Nova propriedade para dias programados
-  is_weighable?: boolean; // Propriedade para produtos pesáveis
+  scheduledDays?: ScheduledDays;
+  is_weighable?: boolean;
+  isNew?: boolean;
 }
 
 export interface ProductSize {

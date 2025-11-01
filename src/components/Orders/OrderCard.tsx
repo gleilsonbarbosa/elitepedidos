@@ -24,18 +24,33 @@ interface OrderCardProps {
   storeSettings?: any;
   isAttendant?: boolean;
   className?: string;
+  onOpenChat?: (order: Order) => void;
+  operator?: any;
 }
 
-const OrderCard: React.FC<OrderCardProps> = ({ 
-  order, 
+const OrderCard: React.FC<OrderCardProps> = ({
+  order,
   storeSettings,
-  onStatusChange, 
+  onStatusChange,
   isAttendant = false,
-  className = ''
+  className = '',
+  operator
 }) => {
-  const { hasPermission } = usePermissions();
+  const { hasPermission } = usePermissions(operator);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showPrintView, setShowPrintView] = useState(false);
+
+  // Debug: Log do operador e permissões
+  console.log('🎯 OrderCard - Dados do operador:', {
+    hasOperator: !!operator,
+    operatorName: operator?.name,
+    operatorUsername: operator?.username,
+    isAttendant,
+    hasPermissions: !!operator?.permissions,
+    can_update_status: operator?.permissions?.can_update_status,
+    can_edit_orders: operator?.permissions?.can_edit_orders,
+    allPermissions: operator?.permissions
+  });
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -251,11 +266,25 @@ const OrderCard: React.FC<OrderCardProps> = ({
         </div>
 
         {/* Status Change (Attendant Only) */}
-        {isAttendant && (hasPermission('can_update_status') || hasPermission('can_edit_orders')) && (
-          <div className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-100 print:hidden">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              🔄 Alterar Status do Pedido:
-            </label>
+        {(() => {
+          const canUpdateStatus = hasPermission('can_update_status');
+          const canEditOrders = hasPermission('can_edit_orders');
+          const shouldShowStatusChange = isAttendant && (canUpdateStatus || canEditOrders);
+
+          console.log('🔍 OrderCard - Verificação de exibição do status:', {
+            orderId: order.id.slice(-8),
+            isAttendant,
+            canUpdateStatus,
+            canEditOrders,
+            shouldShowStatusChange,
+            operatorName: operator?.name
+          });
+
+          return shouldShowStatusChange ? (
+            <div className="p-6 bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-100 print:hidden">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                🔄 Alterar Status do Pedido:
+              </label>
             <select
               value={order.status}
               onChange={async (e) => {
@@ -309,7 +338,8 @@ const OrderCard: React.FC<OrderCardProps> = ({
               ))}
             </select>
           </div>
-        )}
+          ) : null;
+        })()}
 
         {/* Expanded Details */}
         {isExpanded && (

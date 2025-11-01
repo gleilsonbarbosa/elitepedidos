@@ -95,6 +95,7 @@ const DeliveryPage: React.FC = () => {
       image: dbProduct.image_url || 'https://images.pexels.com/photos/1092730/pexels-photo-1092730.jpeg?auto=compress&cs=tinysrgb&w=400',
       isActive: dbProduct.is_active,
       is_weighable: dbProduct.is_weighable,
+      isNew: dbProduct.is_new,
       complementGroups: Array.isArray(dbProduct.complement_groups) 
         ? dbProduct.complement_groups.map(group => ({
             id: group.id || `group-${Math.random()}`,

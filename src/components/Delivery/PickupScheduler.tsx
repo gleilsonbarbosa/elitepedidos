@@ -21,10 +21,9 @@ const PickupScheduler: React.FC<PickupSchedulerProps> = ({
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
   const [selectedDateHours, setSelectedDateHours] = useState<{ open_time: string; close_time: string } | null>(null);
 
-  // Get minimum date (today + 30 minutes for preparation)
+  // Get minimum date (today - allowing same day if there are available times)
   const getMinDate = () => {
     const now = new Date();
-    now.setMinutes(now.getMinutes() + 30); // Add 30 minutes for preparation
     return now.toISOString().split('T')[0];
   };
 

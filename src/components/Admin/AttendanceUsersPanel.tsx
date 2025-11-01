@@ -13,7 +13,12 @@ interface AttendanceUser {
     can_view_orders: boolean;
     can_print_orders: boolean;
     can_update_status: boolean;
+    can_cancel_orders?: boolean;
+    can_edit_orders?: boolean;
     can_create_manual_orders: boolean;
+    can_view_tables: boolean;
+    can_view_history: boolean;
+    can_view_cash_balance: boolean;
   };
   created_at: string;
   last_login?: string;
@@ -30,7 +35,12 @@ interface UserFormData {
     can_view_orders: boolean;
     can_print_orders: boolean;
     can_update_status: boolean;
+    can_cancel_orders?: boolean;
+    can_edit_orders?: boolean;
     can_create_manual_orders: boolean;
+    can_view_tables: boolean;
+    can_view_history: boolean;
+    can_view_cash_balance: boolean;
   };
 }
 
@@ -50,29 +60,11 @@ const AttendanceUsersPanel: React.FC = () => {
       can_view_orders: true,
       can_print_orders: true,
       can_update_status: true,
-      can_create_manual_orders: false,
-      can_view_cash_register: false,
-      can_view_sales: false,
-      can_view_reports: false,
-      can_view_cash_report: false,
-      can_view_sales_report: false,
-      can_manage_products: false,
-      can_view_operators: false,
-      can_view_attendance: false,
-      can_manage_settings: false,
-      can_use_scale: false,
-      can_discount: false,
-      can_cancel: false,
-      can_view_expected_balance: false,
-      can_edit_orders: false,
-      can_delete_orders: false,
       can_cancel_orders: false,
-      can_manage_cash_entries: false,
-      can_edit_sales: false,
-      can_delete_sales: false,
-      can_edit_cash_entries: false,
-      can_delete_cash_entries: false,
-      can_cancel_cash_entries: false
+      can_edit_orders: false,
+      can_create_manual_orders: false,
+      can_view_tables: false,
+      can_view_history: false
     }
   });
 
@@ -109,7 +101,16 @@ const AttendanceUsersPanel: React.FC = () => {
         can_view_orders: true,
         can_print_orders: true,
         can_update_status: true,
-        can_create_manual_orders: false
+        can_cancel_orders: false,
+        can_edit_orders: false,
+        can_create_manual_orders: false,
+        can_view_tables: false,
+        can_view_history: false,
+        can_view_expected_balance: false,
+        can_view_cash_balance: true,
+        can_view_cash_details: false,
+        can_view_sales_totals: false,
+        can_view_cash_entries: false
       }
     });
     setEditingUser(null);
@@ -415,6 +416,70 @@ const AttendanceUsersPanel: React.FC = () => {
                   </span>
                 </label>
               </div>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={formData.permissions.can_view_cash_balance}
+                    onChange={(e) => setFormData(prev => ({
+                      ...prev,
+                      permissions: { ...prev.permissions, can_view_cash_balance: e.target.checked }
+                    }))}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-sm text-gray-700">Visualizar saldos de caixa</span>
+                </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_view_cash_details}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_view_cash_details: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Ver detalhes completos do caixa</span>
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_view_sales_totals}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_view_sales_totals: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Visualizar totais de vendas</span>
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_view_cash_entries}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_view_cash_entries: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Visualizar movimentações de caixa</span>
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_view_expected_balance}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_view_expected_balance: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Visualizar saldo esperado</span>
+                  </label>
 
               {/* Permissions */}
               <div>
@@ -449,7 +514,7 @@ const AttendanceUsersPanel: React.FC = () => {
                     <span className="text-sm text-gray-700">Chat com clientes</span>
                   </label>
 
-                  <label className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-yellow-50 border border-yellow-200">
                     <input
                       type="checkbox"
                       checked={formData.permissions.can_update_status}
@@ -459,7 +524,42 @@ const AttendanceUsersPanel: React.FC = () => {
                       }))}
                       className="w-4 h-4 text-blue-600"
                     />
-                    <span className="text-sm text-gray-700">Atualizar status</span>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-gray-800">Mudar status dos pedidos</span>
+                      <span className="text-xs text-gray-600">Permite alterar status: preparo, pronto, entregue, etc.</span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-red-50 border border-red-200">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_cancel_orders || false}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_cancel_orders: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-gray-800">Cancelar pedidos</span>
+                      <span className="text-xs text-gray-600">Permite cancelar pedidos existentes</span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 border border-blue-200">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_edit_orders || false}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_edit_orders: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-gray-800">Editar pedidos</span>
+                      <span className="text-xs text-gray-600">Permite modificar itens e valores dos pedidos</span>
+                    </div>
                   </label>
 
                   <label className="flex items-center gap-2">
@@ -491,16 +591,41 @@ const AttendanceUsersPanel: React.FC = () => {
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
-                      checked={formData.permissions.can_view_sales}
+                      checked={formData.permissions.can_view_tables}
                       onChange={(e) => setFormData(prev => ({
                         ...prev,
-                        permissions: { ...prev.permissions, can_view_sales: e.target.checked }
+                        permissions: { ...prev.permissions, can_view_tables: e.target.checked }
                       }))}
                       className="w-4 h-4 text-blue-600"
                     />
-                    <span className="text-sm text-gray-700">Visualizar vendas</span>
+                    <span className="text-sm text-gray-700">Visualizar mesas</span>
                   </label>
 
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_view_history}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_view_history: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Visualizar histórico</span>
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_view_expected_balance}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_view_expected_balance: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Visualizar saldo esperado</span>
+                  </label>
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
@@ -512,6 +637,97 @@ const AttendanceUsersPanel: React.FC = () => {
                       className="w-4 h-4 text-blue-600"
                     />
                     <span className="text-sm text-gray-700">Visualizar caixa</span>
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_open_cash_register}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_open_cash_register: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Abrir caixa</span>
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_close_cash_register}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_close_cash_register: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Fechar caixa</span>
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_manage_cash_entries}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_manage_cash_entries: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Gerenciar movimentações de caixa</span>
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_add_cash_entries}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_add_cash_entries: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Adicionar movimentações de caixa</span>
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_edit_cash_entries}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_edit_cash_entries: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Editar movimentações de caixa</span>
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_delete_cash_entries}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_delete_cash_entries: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Excluir movimentações de caixa</span>
+                  </label>
+
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.permissions.can_cancel_cash_entries}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        permissions: { ...prev.permissions, can_cancel_cash_entries: e.target.checked }
+                      }))}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">Cancelar movimentações de caixa</span>
                   </label>
 
                   <label className="flex items-center gap-2">
@@ -643,156 +859,26 @@ const AttendanceUsersPanel: React.FC = () => {
                     />
                     <span className="text-sm text-gray-700">Cancelar vendas</span>
                   </label>
-
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.permissions.can_view_expected_balance}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        permissions: { ...prev.permissions, can_view_expected_balance: e.target.checked }
-                      }))}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm text-gray-700">Ver saldo esperado</span>
-                  </label>
-
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.permissions.can_edit_orders}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        permissions: { ...prev.permissions, can_edit_orders: e.target.checked }
-                      }))}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm text-gray-700">Editar pedidos</span>
-                  </label>
-
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.permissions.can_delete_orders}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        permissions: { ...prev.permissions, can_delete_orders: e.target.checked }
-                      }))}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm text-gray-700">Excluir pedidos</span>
-                  </label>
-
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.permissions.can_cancel_orders}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        permissions: { ...prev.permissions, can_cancel_orders: e.target.checked }
-                      }))}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm text-gray-700">Cancelar pedidos</span>
-                  </label>
-
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.permissions.can_manage_cash_entries}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        permissions: { ...prev.permissions, can_manage_cash_entries: e.target.checked }
-                      }))}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm text-gray-700">Gerenciar movimentações de caixa</span>
-                  </label>
-
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.permissions.can_edit_sales}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        permissions: { ...prev.permissions, can_edit_sales: e.target.checked }
-                      }))}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm text-gray-700">Editar vendas</span>
-                  </label>
-
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.permissions.can_delete_sales}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        permissions: { ...prev.permissions, can_delete_sales: e.target.checked }
-                      }))}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm text-gray-700">Excluir vendas</span>
-                  </label>
-
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.permissions.can_edit_cash_entries}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        permissions: { ...prev.permissions, can_edit_cash_entries: e.target.checked }
-                      }))}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm text-gray-700">Editar movimentações de caixa</span>
-                  </label>
-
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.permissions.can_delete_cash_entries}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        permissions: { ...prev.permissions, can_delete_cash_entries: e.target.checked }
-                      }))}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm text-gray-700">Excluir movimentações de caixa</span>
-                  </label>
-
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.permissions.can_cancel_cash_entries}
-                      onChange={(e) => setFormData(prev => ({
-                        ...prev,
-                        permissions: { ...prev.permissions, can_cancel_cash_entries: e.target.checked }
-                      }))}
-                      className="w-4 h-4 text-blue-600"
-                    />
-                    <span className="text-sm text-gray-700">Cancelar movimentações de caixa</span>
-                  </label>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
+              <div className="flex gap-3 pt-6 border-t border-gray-200">
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <Save size={20} />
+                  {editingUser ? 'Atualizar Usuário' : 'Criar Usuário'}
+                </button>
                 <button
                   type="button"
                   onClick={() => {
                     setShowModal(false);
                     resetForm();
                   }}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <Save size={16} />
-                  {editingUser ? 'Salvar Alterações' : 'Criar Usuário'}
                 </button>
               </div>
             </form>

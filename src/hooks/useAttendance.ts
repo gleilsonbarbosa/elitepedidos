@@ -14,6 +14,8 @@ interface AttendanceUser {
     can_print_orders: boolean;
     can_update_status: boolean;
     can_create_manual_orders: boolean;
+    can_view_tables: boolean;
+    can_view_history: boolean;
     can_view_cash_register: boolean;
     can_view_sales: boolean;
     can_view_reports: boolean;
@@ -88,6 +90,8 @@ export const useAttendance = () => {
         can_print_orders: true,
         can_update_status: true,
         can_create_manual_orders: true,
+        can_view_tables: true,
+        can_view_history: true,
         can_view_cash_register: true,
         can_view_sales: true,
         can_view_reports: true,
@@ -127,6 +131,8 @@ export const useAttendance = () => {
         can_print_orders: true,
         can_update_status: true,
         can_create_manual_orders: false,
+        can_view_tables: false,
+        can_view_history: false,
         can_view_cash_register: true,
         can_view_sales: true,
         can_view_reports: false,
@@ -148,7 +154,8 @@ export const useAttendance = () => {
         can_delete_sales: false,
         can_edit_cash_entries: false,
         can_delete_cash_entries: false,
-        can_cancel_cash_entries: false
+        can_cancel_cash_entries: false,
+        can_view_cash_balance: true
       },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -166,6 +173,8 @@ export const useAttendance = () => {
         can_print_orders: true,
         can_update_status: true,
         can_create_manual_orders: false,
+        can_view_tables: false,
+        can_view_history: false,
         can_view_cash_register: true,
         can_view_sales: true,
         can_view_reports: false,
@@ -178,7 +187,7 @@ export const useAttendance = () => {
         can_use_scale: false,
         can_discount: false,
         can_cancel: false,
-        can_view_expected_balance: false,
+        can_view_expected_balance: true,
         can_edit_orders: false,
         can_delete_orders: false,
         can_cancel_orders: false,
@@ -187,7 +196,11 @@ export const useAttendance = () => {
         can_delete_sales: false,
         can_edit_cash_entries: false,
         can_delete_cash_entries: false,
-        can_cancel_cash_entries: false
+        can_cancel_cash_entries: false,
+        can_view_cash_balance: false,
+        can_view_cash_details: false,
+        can_view_sales_totals: false,
+        can_view_cash_entries: false
       },
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -484,7 +497,7 @@ export const useAttendance = () => {
             .select('*')
             .eq('username', username)
             .eq('is_active', true)
-            .single();
+            .maybeSingle();
           
           if (!error && dbUser && dbUser.password_hash === password) {
             console.log('✅ Usuário encontrado no banco com permissões atualizadas:', {

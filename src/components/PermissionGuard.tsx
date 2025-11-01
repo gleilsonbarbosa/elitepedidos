@@ -20,7 +20,8 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
   console.log('🛡️ PermissionGuard check:', { 
     hasPermission, 
     showMessage,
-    currentPath: window.location.pathname
+    currentPath: window.location.pathname,
+    bypassReason: null
   });
 
   // 1) Se tem permissão explícita, libera imediatamente
@@ -29,23 +30,21 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
     return <>{children}</>;
   }
 
-  // 2) Bypass em desenvolvimento E produção para funcionalidades essenciais
+  // 2) Bypass apenas em desenvolvimento para debugging
   const isDevelopment = import.meta.env.DEV || 
                        import.meta.env.MODE === 'development' ||
                        window.location.hostname === 'localhost' ||
                        window.location.hostname.includes('bolt.host');
 
-  // 3) Bypass para admin (via localStorage.pdv_operator)
+  // 3) Verificar se é admin via localStorage
   let isAdmin = false;
   try {
     if (typeof window !== 'undefined') {
-      // Check both pdv_operator and attendance_session
       const storedOperator = localStorage.getItem('pdv_operator') || 
                             localStorage.getItem('attendance_session');
       if (storedOperator) {
         const operator = JSON.parse(storedOperator);
         
-        // Check if it's a session object with user property
         const user = operator.user || operator;
         
         const code = String(user?.code || '').toUpperCase();
@@ -65,7 +64,9 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
             username: user.username,
             id: user.id,
             role: user.role,
-            permissions: user.permissions ? Object.keys(user.permissions).filter(key => user.permissions[key]) : 'No permissions'
+            permissions: user.permissions ? Object.entries(user.permissions)
+              .filter(([_, value]) => value)
+              .map(([key, _]) => key) : 'No permissions'
           } : 'No user',
           isAdmin,
           hasPermission,
@@ -77,53 +78,43 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
     console.error('Erro ao verificar admin no localStorage:', err);
   }
 
-  // 4) Verificação especial para funcionalidades essenciais (caixa)
-  const isEssentialFeature = window.location.pathname.includes('/atendimento') ||
-                            window.location.pathname.includes('/caixas') ||
-                            window.location.pathname.includes('/cash');
-
-  if (isDevelopment || isAdmin) {
+  // 4) Liberar acesso apenas se for admin ou desenvolvimento
+  if (isAdmin) {
     console.log('✅ Access granted via development mode or admin status:', {
       isDevelopment,
       isAdmin,
-      reason: isDevelopment ? 'Development mode' : 'Admin status'
+      reason: isAdmin ? 'Admin status' : 'Development mode'
     });
     return <>{children}</>;
   }
 
-  // 5) Liberar acesso para funcionalidades essenciais mesmo sem permissão específica
-  if (isEssentialFeature) {
-    console.log('✅ Access granted for essential feature:', window.location.pathname);
+  // 5) Bypass apenas em desenvolvimento para debugging
+  if (isDevelopment) {
+    console.log('✅ Access granted via development mode');
     return <>{children}</>;
   }
 
-  console.log('❌ Access denied, showing fallback:', {
+  console.log('❌ Access denied:', {
     hasPermission,
     isAdmin,
     isDevelopment,
-    isEssentialFeature,
     currentPath: window.location.pathname
   });
   
-  // 6) Sem permissão -> mensagem amigável OU redirect
+  // 6) Sem permissão -> mostrar mensagem ou redirecionar
   if (showMessage) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
           <div className="bg-red-100 rounded-full p-3 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+            <Shield className="w-8 h-8 text-red-600" />
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Acesso Negado</h2>
           <p className="text-gray-600 mb-6">
-            Você não tem permissão para acessar esta funcionalidade. 
-            {window.location.pathname.includes('/atendimento') && (
-              <span className="block mt-2 text-sm">
-                Configure suas permissões em <strong>/administrativo → Usuários</strong>
-              </span>
-            )}
+            Você não tem permissão para acessar esta funcionalidade.
+            <span className="block mt-2 text-sm">
+              Configure suas permissões em <strong>/administrativo → Usuários</strong>
+            </span>
           </p>
           <button
             onClick={() => navigate('/')}

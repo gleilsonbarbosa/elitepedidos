@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Package, MapPin, Clock, Users, LogOut, ShoppingBag, Settings, Calculator, DollarSign, Truck, BarChart3, FileText, Gift, Zap } from 'lucide-react';
+import { Package, MapPin, Clock, Users, LogOut, ShoppingBag, Settings, Calculator, DollarSign, Truck, BarChart3, FileText, Gift, Zap, Sparkles } from 'lucide-react';
 import ProductsPanel from './ProductsPanel';
 import NeighborhoodsPanel from './NeighborhoodsPanel';
 import StoreHoursPanel from './StoreHoursPanel';
 import PromotionsPanel from './PromotionsPanel';
+import AnnouncementsPanel from './AnnouncementsPanel';
 import UnifiedAttendancePage from '../UnifiedAttendancePage';
 import AttendanceUsersPanel from './AttendanceUsersPanel';
 import AttendantPanel from '../Orders/AttendantPanel';
@@ -26,7 +27,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'neighborhoods' | 'hours' | 'users' | 'order-settings' | 'whatsapp-contacts' | 'promotions' | 'advanced-reports'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'neighborhoods' | 'hours' | 'users' | 'order-settings' | 'whatsapp-contacts' | 'promotions' | 'announcements' | 'advanced-reports'>('products');
   const scale = useScale();
   const { storeSettings } = useStoreHours();
 
@@ -37,7 +38,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
       case 'neighborhoods':
         return <NeighborhoodsPanel />;
       case 'hours':
-        return <StoreHoursPanel />; 
+        return <StoreHoursPanel />;
       case 'users':
         return <AttendanceUsersPanel />;
       case 'order-settings':
@@ -46,6 +47,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
         return <WhatsAppContactsPanel />;
       case 'promotions':
         return <PromotionsPanel />;
+      case 'announcements':
+        return <AnnouncementsPanel />;
       case 'advanced-reports':
         return <AdvancedReportsPanel />;
       default:
@@ -161,6 +164,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
             >
               <Zap size={20} />
               <span className="text-sm">Promoções</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('announcements')}
+              className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
+                activeTab === 'announcements'
+                  ? 'bg-purple-600 text-white shadow-lg'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Sparkles size={20} />
+              <span className="text-sm">Anúncios</span>
             </button>
             <button
               onClick={() => setActiveTab('advanced-reports')}

@@ -37,7 +37,7 @@ interface CashRegisterMenuProps {
 }
 
 const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin = false, operator }) => {
-  const { hasPermission } = usePermissions();
+  const { hasPermission } = usePermissions(operator);
   const { session } = useAttendance();
   const {
     isOpen,
@@ -65,6 +65,7 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin = false, op
   const [entryPaymentMethod, setEntryPaymentMethod] = useState('dinheiro');
   const [showCloseConfirmation, setShowCloseConfirmation] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [showPrintView, setShowPrintView] = useState(false);
   const [editingEntry, setEditingEntry] = useState<any>(null);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -88,6 +89,23 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin = false, op
   const canDeleteEntries = isAdmin || 
                           (currentUser && currentUser.permissions?.can_delete_cash_entries) ||
                           hasPermission('can_delete_cash_entries');
+
+  // Debug das permissões
+  useEffect(() => {
+    console.log('🔍 CashRegisterMenu - Operador e permissões:', {
+      operatorName: operator?.name,
+      operatorCode: operator?.code,
+      canViewCashBalance: hasPermission('can_view_cash_balance'),
+      canViewExpectedBalance: hasPermission('can_view_expected_balance'),
+      allPermissions: operator?.permissions ? Object.entries(operator.permissions)
+        .filter(([_, value]) => value)
+        .map(([key, _]) => key) : 'No permissions'
+    });
+  }, [operator, hasPermission]);
+
+  // Verificar permissões específicas
+  const canViewCashBalance = hasPermission('can_view_cash_balance');
+  const canViewExpectedBalance = hasPermission('can_view_expected_balance');
 
   console.log('🔍 CashRegisterMenu - Verificação de permissões:', {
     operator: operator ? { name: operator.name, code: operator.code } : 'No operator',
@@ -150,8 +168,22 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin = false, op
     }, 0);
   };
 
+  const formatPrice = (price: number) => {
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(price);
+  };
+
+  const formatSensitiveValue = (value: number, hasPermission: boolean) => {
+    return hasPermission ? formatPrice(value) : '••••••';
+  };
+
   const handleOpenRegister = async () => {
-    if (!openingAmount) return;
+    if (!openingAmount || openingAmount <= 0) {
+      alert('Digite um valor válido para abertura do caixa');
+      return;
+    }
     
     console.log('🚀 Abrindo caixa com valor:', parseFloat(openingAmount));
     try {
@@ -424,6 +456,17 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin = false, op
                 Fechar Caixa
               </button>
             )}
+            
+            {/* Ver Detalhes Button - Always visible */}
+            <button
+              onClick={() => setShowDetails(true)}
+              className="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Ver Detalhes
+            </button>
           </div>
         </div>
 
@@ -470,7 +513,7 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin = false, op
                   <div>
                     <p className="text-sm font-medium text-gray-600">Saldo Atual</p>
                     <p className="text-lg font-semibold text-purple-600" title="Saldo esperado em dinheiro">
-                      {formatPrice(summary.expected_balance)}
+                      {formatSensitiveValue(summary.expected_balance, canViewCashBalance)}
                     </p>
                   </div>
                   <div className="p-2 rounded-full bg-purple-100">
@@ -562,7 +605,7 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin = false, op
         {/* Cash Register Details */}
         {currentRegister && (
           <>
-            <CashRegisterDetails register={currentRegister} summary={summary} onRefresh={refreshData} />
+            <CashRegisterDetails register={currentRegister} summary={summary} onRefresh={refreshData} operator={operator} />
             
             {/* Histórico de Movimentações */}
             <div className="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -790,8 +833,7 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin = false, op
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       <div className="text-sm text-blue-700">
-                        <p className="font-medium">Permissão Limitada</p>
-                        <p>Como atendente, você pode editar apenas a forma de pagamento desta movimentação.</p>
+                        <p><strong>Permissões limitadas:</strong> Como operador, você pode editar apenas a forma de pagamento das movimentações.</p>
                       </div>
                     </div>
                   </div>
@@ -1078,6 +1120,17 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin = false, op
           </div>
         )}
       </div>
+
+      {/* Cash Register Details Modal */}
+      {showDetails && currentRegister && (
+        <CashRegisterDetails
+          isOpen={showDetails}
+          onClose={() => setShowDetails(false)}
+          register={currentRegister}
+          summary={summary}
+          operator={operator}
+        />
+      )}
     </PermissionGuard>
   );
 };

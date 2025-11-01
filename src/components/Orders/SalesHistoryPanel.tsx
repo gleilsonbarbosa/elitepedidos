@@ -945,13 +945,15 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => setSelectedSale(sale)}
-                          className="text-emerald-600 hover:text-emerald-900 font-medium"
-                          title="Ver detalhes"
-                        >
-                          <Eye size={16} />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteSale(sale)}
+                            className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                            title="Excluir venda"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                         {(isAdmin || hasPermission('can_edit_sales')) && (
                           <button
                             onClick={() => {
