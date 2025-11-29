@@ -91,7 +91,7 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ operator }) => {
   // Auto refresh every 30 seconds
   useEffect(() => {
     const interval = setInterval(() => {
-      refetch();
+      refetch(true); // Skip cleanup on auto-refresh to prevent loops
       setLastUpdate(new Date());
     }, 30000);
 
@@ -326,7 +326,7 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ operator }) => {
         onClose={() => setShowManualOrderForm(false)}
         onOrderCreated={(order) => {
           console.log('✅ Pedido manual criado:', order);
-          refetch(); // Refresh orders list
+          refetch(true); // Refresh orders list (skip cleanup)
           setShowManualOrderForm(false);
         }}
       />
@@ -389,7 +389,7 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ operator }) => {
               <ManualOrderForm
                 onOrderCreated={() => {
                   setShowManualOrder(false);
-                  refetch();
+                  refetch(true); // Skip cleanup on manual refresh
                 }}
                 onCancel={() => setShowManualOrder(false)}
                 operator={operator}

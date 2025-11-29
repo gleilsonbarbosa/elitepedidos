@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Upload, X, Save, Package, Image as ImageIcon, GripVertical, RefreshCw, Wrench, Bug, AlertCircle, Calendar, Eye, EyeOff, Settings } from 'lucide-react';
+import { Plus, Edit, Trash2, Upload, X, Save, Package, Image as ImageIcon, GripVertical, RefreshCw, Wrench, Bug, AlertCircle, Calendar, Eye, EyeOff, Settings, ChevronUp, ChevronDown } from 'lucide-react';
 import { usePDVProducts } from '../../hooks/usePDV';
 import { useDeliveryProducts, DeliveryProduct } from '../../hooks/useDeliveryProducts';
 import { useImageUpload } from '../../hooks/useImageUpload';
@@ -199,7 +199,7 @@ const DEFAULT_COMPLEMENT_GROUPS: ComplementGroup[] = [
 
 const ProductsPanel: React.FC = () => {
   const { products: pdvProducts, loading: productsLoading, createProduct, updateProduct, deleteProduct, searchProducts } = usePDVProducts();
-  const { products: deliveryProducts, loading, createProduct: createDeliveryProduct, updateProduct: updateDeliveryProduct, deleteProduct: deleteDeliveryProduct } = useDeliveryProducts();
+  const { products: deliveryProducts, loading, createProduct: createDeliveryProduct, updateProduct: updateDeliveryProduct, deleteProduct: deleteDeliveryProduct, refetch } = useDeliveryProducts();
   const { uploadImage, uploading, getProductImage } = useImageUpload();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -802,6 +802,55 @@ const ProductsPanel: React.FC = () => {
     setShowImageModal(false);
   };
 
+  const handleMoveProduct = async (product: DeliveryProduct, direction: 'up' | 'down') => {
+    try {
+      const currentIndex = filteredProducts.findIndex(p => p.id === product.id);
+      if (currentIndex === -1) return;
+
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      if (targetIndex < 0 || targetIndex >= filteredProducts.length) return;
+
+      const currentProduct = filteredProducts[currentIndex];
+      const targetProduct = filteredProducts[targetIndex];
+
+      console.log('Movendo produto:', {
+        direction,
+        currentIndex,
+        targetIndex,
+        currentProduct: currentProduct.name,
+        targetProduct: targetProduct.name,
+        currentOrder: currentProduct.display_order,
+        targetOrder: targetProduct.display_order
+      });
+
+      const currentOrder = currentProduct.display_order ?? (currentIndex * 10);
+      const targetOrder = targetProduct.display_order ?? (targetIndex * 10);
+
+      console.log('Trocando orders:', { currentOrder, targetOrder });
+
+      await updateDeliveryProduct(currentProduct.id, { display_order: targetOrder });
+      await updateDeliveryProduct(targetProduct.id, { display_order: currentOrder });
+
+      console.log('Atualizações concluídas, fazendo refetch...');
+      await refetch();
+      console.log('Refetch concluído');
+
+      const successMessage = document.createElement('div');
+      successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      successMessage.textContent = 'Ordem atualizada!';
+      document.body.appendChild(successMessage);
+
+      setTimeout(() => {
+        if (document.body.contains(successMessage)) {
+          document.body.removeChild(successMessage);
+        }
+      }, 2000);
+    } catch (error) {
+      console.error('Erro ao mover produto:', error);
+      alert('Erro ao mudar ordem do produto: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+    }
+  };
+
   const handleDelete = async (product: any) => {
     if (!confirm(`Tem certeza que deseja excluir o produto "${product.name}"?`)) {
       return;
@@ -809,7 +858,7 @@ const ProductsPanel: React.FC = () => {
 
     try {
       await deleteDeliveryProduct(product.id);
-      
+
       // Mostrar feedback de sucesso
       const successMessage = document.createElement('div');
       successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
@@ -820,13 +869,13 @@ const ProductsPanel: React.FC = () => {
         Produto excluído com sucesso!
       `;
       document.body.appendChild(successMessage);
-      
+
       setTimeout(() => {
         if (document.body.contains(successMessage)) {
           document.body.removeChild(successMessage);
         }
       }, 3000);
-      
+
     } catch (error) {
       console.error('Erro ao excluir produto:', error);
       alert('Erro ao excluir produto. Tente novamente.');
@@ -1290,6 +1339,24 @@ const ProductsPanel: React.FC = () => {
 
                     {/* Action Buttons */}
                     <div className="flex gap-2">
+                      <div className="flex flex-col gap-1">
+                        <button
+                          onClick={() => handleMoveProduct(product, 'up')}
+                          disabled={filteredProducts.findIndex(p => p.id === product.id) === 0}
+                          className="bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-2 py-1 rounded text-xs transition-colors flex items-center justify-center"
+                          title="Mover para cima"
+                        >
+                          <ChevronUp size={12} />
+                        </button>
+                        <button
+                          onClick={() => handleMoveProduct(product, 'down')}
+                          disabled={filteredProducts.findIndex(p => p.id === product.id) === filteredProducts.length - 1}
+                          className="bg-gray-500 hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-2 py-1 rounded text-xs transition-colors flex items-center justify-center"
+                          title="Mover para baixo"
+                        >
+                          <ChevronDown size={12} />
+                        </button>
+                      </div>
                       <button
                         onClick={() => handleEdit(product)}
                         className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1"

@@ -19,6 +19,7 @@ export interface DeliveryProduct {
   sizes?: any;
   scheduled_days?: any;
   availability_type?: string;
+  display_order?: number;
   created_at: string;
   updated_at: string;
 }
@@ -79,7 +80,8 @@ export const useDeliveryProducts = () => {
       const fetchPromise = supabase
         .from('delivery_products')
         .select('*')
-        .order('name');
+        .order('display_order', { ascending: true })
+        .order('name', { ascending: true });
       
       const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
 

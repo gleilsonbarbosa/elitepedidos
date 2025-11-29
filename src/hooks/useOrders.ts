@@ -16,40 +16,92 @@ export const useOrders = (onNewOrder?: (order: Order) => void) => {
     onNewOrderRef.current = onNewOrder;
   }, [onNewOrder]);
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (skipCleanup = false) => {
     try {
       setLoading(true);
-      console.log('🔄 Buscando pedidos...');
-      
+      console.log('🔄 Buscando pedidos...', { skipCleanup });
+
       let query = supabase
         .from('orders')
         .select('*');
-      
+
       if (currentRegister) {
         // If there's an open register, show orders linked to it OR orders without register
         query = query.or(`cash_register_id.eq.${currentRegister.id},cash_register_id.is.null`);
       } else {
-        // If no register is open, show only orders without register
-        query = query.is('cash_register_id', null);
+        // If no register is open, show ALL orders (including orphaned ones from closed registers)
+        // This ensures attendants can see and manage all orders
+        console.log('⚠️ Sem caixa aberto - mostrando TODOS os pedidos');
       }
-      
+
       const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
-      
+
+      // Clean up orders linked to closed registers (orphaned orders)
+      // Only run cleanup once during initial load to avoid refresh loops
+      if (!skipCleanup && data && data.length > 0) {
+        const ordersWithRegister = data.filter(order => order.cash_register_id);
+
+        if (ordersWithRegister.length > 0) {
+          console.log(`🔍 Verificando ${ordersWithRegister.length} pedidos com caixa vinculado`);
+
+          // Check which registers are closed
+          const registerIds = [...new Set(ordersWithRegister.map(o => o.cash_register_id))];
+          const { data: registers } = await supabase
+            .from('pdv_cash_registers')
+            .select('id, closed_at')
+            .in('id', registerIds);
+
+          if (registers) {
+            const closedRegisterIds = registers
+              .filter(reg => reg.closed_at !== null)
+              .map(reg => reg.id);
+
+            if (closedRegisterIds.length > 0) {
+              const orphanedOrders = data.filter(
+                order => order.cash_register_id && closedRegisterIds.includes(order.cash_register_id)
+              );
+
+              if (orphanedOrders.length > 0) {
+                console.log(`🧹 Limpando ${orphanedOrders.length} pedidos órfãos de caixas fechados`);
+
+                // Unlink orders from closed registers
+                const { error: unlinkError } = await supabase
+                  .from('orders')
+                  .update({ cash_register_id: null })
+                  .in('id', orphanedOrders.map(o => o.id));
+
+                if (unlinkError) {
+                  console.warn('⚠️ Erro ao desvincular pedidos órfãos:', unlinkError);
+                } else {
+                  console.log('✅ Pedidos órfãos desvinculados com sucesso');
+                  // Update local data
+                  data.forEach(order => {
+                    if (orphanedOrders.find(o => o.id === order.id)) {
+                      order.cash_register_id = null;
+                    }
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+
       // If there's an open register, automatically link orders without register to it
-      if (currentRegister && data) {
+      if (!skipCleanup && currentRegister && data) {
         const ordersWithoutRegister = data.filter(order => !order.cash_register_id);
-        
+
         if (ordersWithoutRegister.length > 0) {
           console.log(`🔗 Vinculando ${ordersWithoutRegister.length} pedidos ao caixa aberto`);
-          
+
           // Update orders to link them to current register
           const { error: updateError } = await supabase
             .from('orders')
             .update({ cash_register_id: currentRegister.id })
             .in('id', ordersWithoutRegister.map(o => o.id));
-          
+
           if (updateError) {
             console.warn('⚠️ Erro ao vincular pedidos ao caixa:', updateError);
           } else {
@@ -63,7 +115,7 @@ export const useOrders = (onNewOrder?: (order: Order) => void) => {
           }
         }
       }
-      
+
       setOrders(data || []);
       console.log(`✅ ${data?.length || 0} pedidos carregados`);
     } catch (err) {

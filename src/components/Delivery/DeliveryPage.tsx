@@ -12,6 +12,7 @@ import RepeatOrderButton from './RepeatOrderButton';
 import PromotionBanner from './PromotionBanner';
 import PromotionCountdown from './PromotionCountdown';
 import PushNotificationBanner from './PushNotificationBanner';
+import BlackFridayCountdown from './BlackFridayCountdown';
 import { categoryNames } from '../../data/products';
 import { Product } from '../../types/product';
 import { CartItem } from '../../types/cart';
@@ -191,6 +192,7 @@ const DeliveryPage: React.FC = () => {
   // Verificar se hoje tem promoções especiais
   const hasSpecialToday = hasTodaySpecialPromotions(activeProducts);
   const isThursdayElite = isQuintaElite();
+  const isSaturday = new Date().getDay() === 6;
   
   // Validar programação de produtos (apenas em desenvolvimento)
   React.useEffect(() => {
@@ -305,11 +307,18 @@ const DeliveryPage: React.FC = () => {
           <div className="mb-6">
             <PushNotificationBanner />
           </div>
-          
+
+          {/* Black Friday Countdown - Exibir sempre aos sábados ou quando estiver próximo */}
+          {(new Date().getDay() === 6 || (new Date().getDay() >= 4 && new Date().getDay() < 6)) && (
+            <div className="mb-6">
+              <BlackFridayCountdown />
+            </div>
+          )}
+
           {/* Promotion Banners */}
           {activePromotions.length > 0 && (
             <div className="mb-6">
-              <PromotionBanner 
+              <PromotionBanner
                 onPromotionClick={(promotion) => {
                   // Find the product and open its modal
                   const product = products.find(p => p.id === promotion.product_id);
@@ -320,7 +329,7 @@ const DeliveryPage: React.FC = () => {
               />
             </div>
           )}
-          
+
           <StoreStatusBanner />
           
           {/* Connection Warning */}
@@ -347,8 +356,8 @@ const DeliveryPage: React.FC = () => {
       {/* Banner de Promoção do Dia */}
       {hasSpecialToday && selectedCategory === 'today' && (
         <section className={`py-8 text-white relative overflow-hidden ${
-          isThursdayElite 
-            ? 'bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500' 
+          isThursdayElite
+            ? 'bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500'
             : 'bg-gradient-to-r from-orange-500 to-red-500'
         }`}>
           <div className="absolute inset-0 bg-black/10"></div>
