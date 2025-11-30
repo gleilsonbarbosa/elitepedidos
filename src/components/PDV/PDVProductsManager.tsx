@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, Plus, Edit3, Trash2, Search, Eye, EyeOff, Scale, Image as ImageIcon, Save, X, Upload, AlertCircle } from 'lucide-react';
+import { Package, Plus, Edit3, Trash2, Search, Eye, EyeOff, Scale, Image as ImageIcon, Save, X, Upload, AlertCircle, ChevronUp, ChevronDown } from 'lucide-react';
 import { usePDVProducts } from '../../hooks/usePDV';
 import { useImageUpload } from '../../hooks/useImageUpload';
 import ImageUploadModal from '../Admin/ImageUploadModal';
@@ -18,15 +18,15 @@ const PDVProductsManager: React.FC = () => {
   const { getProductImage, saveImageToProduct } = useImageUpload();
 
   const filteredProducts = React.useMemo(() => {
-    let result = searchTerm 
+    let result = searchTerm
       ? searchProducts(searchTerm)
       : products;
-    
+
     if (selectedCategory !== 'all') {
       result = result.filter(p => p.category === selectedCategory);
     }
-    
-    return result;
+
+    return result.sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
   }, [products, searchProducts, searchTerm, selectedCategory]);
 
   const categories = [
@@ -179,6 +179,76 @@ const PDVProductsManager: React.FC = () => {
     }
   };
 
+  const handleMoveUp = async (product: PDVProduct, index: number) => {
+    if (index === 0) return;
+
+    const previousProduct = filteredProducts[index - 1];
+    const currentOrder = product.display_order || index;
+    const previousOrder = previousProduct.display_order || (index - 1);
+
+    console.log('🔼 Movendo para cima:', {
+      product: product.name,
+      currentOrder,
+      previousProduct: previousProduct.name,
+      previousOrder,
+      swapping: `${previousProduct.name} (${previousOrder}) ↔ ${product.name} (${currentOrder})`
+    });
+
+    try {
+      // Swap display_order values - update both at once
+      await updateProduct(previousProduct.id, {
+        display_order: currentOrder
+      });
+
+      await updateProduct(product.id, {
+        display_order: previousOrder
+      });
+
+      console.log('✅ Reordenação concluída');
+
+      // Force a small delay to ensure state updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (error) {
+      console.error('❌ Erro ao reordenar produtos:', error);
+      alert('Erro ao reordenar produtos');
+    }
+  };
+
+  const handleMoveDown = async (product: PDVProduct, index: number) => {
+    if (index === filteredProducts.length - 1) return;
+
+    const nextProduct = filteredProducts[index + 1];
+    const currentOrder = product.display_order || index;
+    const nextOrder = nextProduct.display_order || (index + 1);
+
+    console.log('🔽 Movendo para baixo:', {
+      product: product.name,
+      currentOrder,
+      nextProduct: nextProduct.name,
+      nextOrder,
+      swapping: `${product.name} (${currentOrder}) ↔ ${nextProduct.name} (${nextOrder})`
+    });
+
+    try {
+      // Swap display_order values - update both at once
+      await updateProduct(nextProduct.id, {
+        display_order: currentOrder
+      });
+
+      await updateProduct(product.id, {
+        display_order: nextOrder
+      });
+
+      console.log('✅ Reordenação concluída');
+
+      // Force a small delay to ensure state updates
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (error) {
+      console.error('❌ Erro ao reordenar produtos:', error);
+      alert('Erro ao reordenar produtos');
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -244,6 +314,7 @@ const PDVProductsManager: React.FC = () => {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="text-left py-3 px-4 font-medium text-gray-700">Ordem</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Produto</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Código</th>
                 <th className="text-left py-3 px-4 font-medium text-gray-700">Categoria</th>
@@ -254,8 +325,36 @@ const PDVProductsManager: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredProducts.map((product) => (
+              {filteredProducts.map((product, index) => (
                 <tr key={product.id} className="hover:bg-gray-50">
+                  <td className="py-4 px-4">
+                    <div className="flex flex-col gap-1">
+                      <button
+                        onClick={() => handleMoveUp(product, index)}
+                        disabled={index === 0}
+                        className={`p-1 rounded transition-colors ${
+                          index === 0
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : 'text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                        }`}
+                        title="Mover para cima"
+                      >
+                        <ChevronUp size={18} />
+                      </button>
+                      <button
+                        onClick={() => handleMoveDown(product, index)}
+                        disabled={index === filteredProducts.length - 1}
+                        className={`p-1 rounded transition-colors ${
+                          index === filteredProducts.length - 1
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : 'text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+                        }`}
+                        title="Mover para baixo"
+                      >
+                        <ChevronDown size={18} />
+                      </button>
+                    </div>
+                  </td>
                   <td className="py-4 px-4">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">

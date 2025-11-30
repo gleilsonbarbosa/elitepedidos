@@ -12,7 +12,6 @@ import RepeatOrderButton from './RepeatOrderButton';
 import PromotionBanner from './PromotionBanner';
 import PromotionCountdown from './PromotionCountdown';
 import PushNotificationBanner from './PushNotificationBanner';
-import BlackFridayCountdown from './BlackFridayCountdown';
 import { categoryNames } from '../../data/products';
 import { Product } from '../../types/product';
 import { CartItem } from '../../types/cart';
@@ -307,13 +306,6 @@ const DeliveryPage: React.FC = () => {
           <div className="mb-6">
             <PushNotificationBanner />
           </div>
-
-          {/* Black Friday Countdown - Exibir sempre aos sábados ou quando estiver próximo */}
-          {(new Date().getDay() === 6 || (new Date().getDay() >= 4 && new Date().getDay() < 6)) && (
-            <div className="mb-6">
-              <BlackFridayCountdown />
-            </div>
-          )}
 
           {/* Promotion Banners */}
           {activePromotions.length > 0 && (

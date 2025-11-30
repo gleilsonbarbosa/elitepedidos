@@ -98,26 +98,38 @@ const AttendantPanel: React.FC<AttendantPanelProps> = ({ operator }) => {
     return () => clearInterval(interval);
   }, [refetch]);
 
+  const isTodayOrder = (order: Order) => {
+    const orderDate = new Date(order.created_at);
+    const today = new Date();
+    return (
+      orderDate.getDate() === today.getDate() &&
+      orderDate.getMonth() === today.getMonth() &&
+      orderDate.getFullYear() === today.getFullYear()
+    );
+  };
+
+  const todayOrders = orders.filter(isTodayOrder);
+
   const getStatusCounts = () => {
     return {
-      all: orders.length,
-      pending: orders.filter(o => o.status === 'pending').length,
-      confirmed: orders.filter(o => o.status === 'confirmed').length,
-      preparing: orders.filter(o => o.status === 'preparing').length,
-      out_for_delivery: orders.filter(o => o.status === 'out_for_delivery').length,
-      ready_for_pickup: orders.filter(o => o.status === 'ready_for_pickup').length,
-      delivered: orders.filter(o => o.status === 'delivered').length,
-      cancelled: orders.filter(o => o.status === 'cancelled').length
+      all: todayOrders.length,
+      pending: todayOrders.filter(o => o.status === 'pending').length,
+      confirmed: todayOrders.filter(o => o.status === 'confirmed').length,
+      preparing: todayOrders.filter(o => o.status === 'preparing').length,
+      out_for_delivery: todayOrders.filter(o => o.status === 'out_for_delivery').length,
+      ready_for_pickup: todayOrders.filter(o => o.status === 'ready_for_pickup').length,
+      delivered: todayOrders.filter(o => o.status === 'delivered').length,
+      cancelled: todayOrders.filter(o => o.status === 'cancelled').length
     };
   };
 
-  const filteredOrders = orders.filter(order => {
+  const filteredOrders = todayOrders.filter(order => {
     const matchesStatus = selectedStatus === 'all' || order.status === selectedStatus;
-    const matchesSearch = !searchTerm || 
+    const matchesSearch = !searchTerm ||
       order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.customer_phone.includes(searchTerm) ||
       order.id.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     return matchesStatus && matchesSearch;
   });
 
