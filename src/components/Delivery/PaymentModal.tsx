@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
-import { X, CreditCard, Banknote, QrCode, AlertCircle } from 'lucide-react';
+import { X, CreditCard, Banknote, QrCode, AlertCircle, Layers } from 'lucide-react';
 
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (method: 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito' | 'voucher' | 'misto', changeFor?: number) => void;
+  onConfirm: (method: 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito' | 'voucher' | 'misto', changeFor?: number, mixedPayments?: MixedPayment[]) => void;
   totalAmount: number;
   disableConfirm?: boolean;
+}
+
+interface MixedPayment {
+  method: 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito';
+  amount: number;
 }
 
 const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -18,6 +23,9 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
 }) => {
   const [paymentMethod, setPaymentMethod] = useState<'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito' | 'voucher' | 'misto'>('dinheiro');
   const [changeFor, setChangeFor] = useState<number | undefined>(undefined);
+  const [mixedPayments, setMixedPayments] = useState<MixedPayment[]>([
+    { method: 'dinheiro', amount: 0 }
+  ]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -27,12 +35,69 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
   };
 
   const handleConfirm = () => {
-    onConfirm(paymentMethod, changeFor);
+    onConfirm(paymentMethod, changeFor, paymentMethod === 'misto' ? mixedPayments : undefined);
   };
 
   const isFormValid = () => {
-    // Always return true if a payment method is selected
+    if (paymentMethod === 'misto') {
+      const total = mixedPayments.reduce((sum, p) => sum + p.amount, 0);
+      return total >= totalAmount && mixedPayments.every(p => p.amount > 0);
+    }
     return !!paymentMethod;
+  };
+
+  const addMixedPayment = () => {
+    setMixedPayments([...mixedPayments, { method: 'dinheiro', amount: 0 }]);
+  };
+
+  const removeMixedPayment = (index: number) => {
+    if (mixedPayments.length > 1) {
+      setMixedPayments(mixedPayments.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateMixedPayment = (index: number, field: 'method' | 'amount', value: any) => {
+    const updated = [...mixedPayments];
+    updated[index] = { ...updated[index], [field]: value };
+    setMixedPayments(updated);
+  };
+
+  const getMixedPaymentTotal = () => {
+    return mixedPayments.reduce((sum, p) => sum + p.amount, 0);
+  };
+
+  const getMixedPaymentRemaining = () => {
+    return Math.max(0, totalAmount - getMixedPaymentTotal());
+  };
+
+  const getPaymentMethodIcon = (method: string) => {
+    switch (method) {
+      case 'dinheiro':
+        return <Banknote size={20} className="text-green-600" />;
+      case 'pix':
+        return <QrCode size={20} className="text-blue-600" />;
+      case 'cartao_credito':
+        return <CreditCard size={20} className="text-purple-600" />;
+      case 'cartao_debito':
+        return <CreditCard size={20} className="text-orange-600" />;
+      default:
+        return <CreditCard size={20} />;
+    }
+  };
+
+  const getPaymentMethodName = (method: string) => {
+    switch (method) {
+      case 'dinheiro':
+        return 'Dinheiro';
+      case 'pix':
+        return 'PIX';
+      case 'cartao_credito':
+        return 'Cartão de Crédito';
+      case 'cartao_debito':
+        return 'Cartão de Débito';
+      default:
+        return method;
+    }
   };
 
   if (!isOpen) return null;
@@ -206,14 +271,125 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           )}
 
           {paymentMethod === 'misto' && (
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-              <div className="flex items-start gap-2">
-                <AlertCircle size={20} className="text-gray-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-gray-800">Pagamento Misto</p>
-                  <p className="text-sm text-gray-700">
-                    Configure as formas de pagamento na finalização da venda.
-                  </p>
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <div className="flex items-start gap-2">
+                  <AlertCircle size={20} className="text-blue-600 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-blue-800">Pagamento Misto</p>
+                    <p className="text-sm text-blue-700">
+                      Divida o pagamento entre diferentes formas. O total deve ser igual ou maior que {formatPrice(totalAmount)}.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {mixedPayments.map((payment, index) => (
+                  <div key={index} className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Layers size={18} className="text-gray-600" />
+                      <span className="text-sm font-medium text-gray-700">
+                        Pagamento {index + 1}
+                      </span>
+                      {mixedPayments.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeMixedPayment(index)}
+                          className="ml-auto text-red-600 hover:text-red-700 text-sm"
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Forma de Pagamento
+                        </label>
+                        <select
+                          value={payment.method}
+                          onChange={(e) => updateMixedPayment(index, 'method', e.target.value)}
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                        >
+                          <option value="dinheiro">Dinheiro</option>
+                          <option value="pix">PIX</option>
+                          <option value="cartao_credito">Cartão de Crédito</option>
+                          <option value="cartao_debito">Cartão de Débito</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 mb-1">
+                          Valor
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={payment.amount || ''}
+                          onChange={(e) => updateMixedPayment(index, 'amount', parseFloat(e.target.value) || 0)}
+                          className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-2 text-sm">
+                      {getPaymentMethodIcon(payment.method)}
+                      <span className="text-gray-600">
+                        {getPaymentMethodName(payment.method)}: {formatPrice(payment.amount)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={addMixedPayment}
+                  className="w-full py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors text-sm font-medium"
+                >
+                  + Adicionar outra forma de pagamento
+                </button>
+              </div>
+
+              <div className={`border rounded-xl p-4 ${
+                getMixedPaymentRemaining() > 0
+                  ? 'bg-red-50 border-red-200'
+                  : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+              }`}>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-700">Total a pagar:</span>
+                    <span className="font-semibold text-gray-800">{formatPrice(totalAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-700">Total configurado:</span>
+                    <span className={`font-semibold ${getMixedPaymentTotal() >= totalAmount ? 'text-green-600' : 'text-red-600'}`}>
+                      {formatPrice(getMixedPaymentTotal())}
+                    </span>
+                  </div>
+                  {getMixedPaymentRemaining() > 0 && (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-red-700">Falta configurar:</span>
+                        <span className="font-semibold text-red-600">{formatPrice(getMixedPaymentRemaining())}</span>
+                      </div>
+                      <div className="flex items-start gap-2 mt-3 pt-3 border-t border-red-200">
+                        <AlertCircle size={16} className="text-red-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-red-700">
+                          <strong>Atenção:</strong> O valor total configurado é menor que o valor do pedido. Adicione mais {formatPrice(getMixedPaymentRemaining())} para completar o pagamento.
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  {getMixedPaymentTotal() > totalAmount && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-green-700">Troco:</span>
+                      <span className="font-semibold text-green-600">{formatPrice(getMixedPaymentTotal() - totalAmount)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -230,8 +406,8 @@ const PaymentModal: React.FC<PaymentModalProps> = ({
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!paymentMethod}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+            disabled={!isFormValid()}
+            className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white px-4 py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
           >
             <CreditCard size={16} />
             Confirmar Pagamento

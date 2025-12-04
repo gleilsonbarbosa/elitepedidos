@@ -764,9 +764,9 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
         {/* Mixed Payment Modal */}
         {showMixedPaymentModal && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full shadow-xl">
+            <div className="bg-white rounded-2xl max-w-md w-full max-h-[90vh] flex flex-col shadow-xl">
               {/* Header */}
-              <div className="p-6 border-b border-gray-200">
+              <div className="p-6 border-b border-gray-200 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                     <CreditCard size={24} className="text-purple-600" />
@@ -785,7 +785,7 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
               </div>
 
               {/* Content */}
-              <div className="p-6 space-y-4">
+              <div className="p-6 space-y-4 overflow-y-auto flex-1">
                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
                   <p className="text-purple-800 font-medium">
                     Total a pagar: {formatPrice(getTotal())}
@@ -879,7 +879,7 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
               </div>
 
               {/* Footer */}
-              <div className="p-6 border-t border-gray-200 flex gap-3">
+              <div className="p-6 border-t border-gray-200 flex gap-3 flex-shrink-0">
                 <button
                   onClick={() => {
                     setShowMixedPaymentModal(false);
@@ -892,7 +892,7 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
                 <button
                   onClick={handleMixedPaymentConfirm}
                   disabled={
-                    mixedPayments.length === 0 || 
+                    mixedPayments.length === 0 ||
                     Math.abs(mixedPayments.reduce((sum, p) => sum + p.amount, 0) - getTotal()) > 0.01
                   }
                   className="flex-1 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 text-white px-4 py-3 rounded-lg transition-colors flex items-center justify-center gap-2"

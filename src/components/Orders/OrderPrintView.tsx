@@ -9,12 +9,27 @@ interface OrderPrintViewProps {
 
 const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, onClose }) => {
   const formatPrice = (price: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
-  const getPaymentMethodLabel = (method: string) => method === 'money' ? 'Dinheiro' : method === 'pix' ? 'PIX' : method === 'card' ? 'Cartão' : method;
+  const getPaymentMethodLabel = (method: string) => {
+    if (method === 'money') return 'Dinheiro';
+    if (method === 'pix') return 'PIX';
+    if (method === 'card') return 'Cartão';
+    if (method === 'mixed') return 'Pagamento Misto';
+    return method;
+  };
   const getStatusLabel = (status: string) => ({
     pending: 'Pendente', confirmed: 'Confirmado', preparing: 'Em Preparo',
     out_for_delivery: 'Saiu para Entrega', ready_for_pickup: 'Pronto para Retirada',
     delivered: 'Entregue', cancelled: 'Cancelado'
   })[status] || status;
+
+  const getMixedPaymentDetails = () => {
+    if (!order.mixed_payment_details) return null;
+    try {
+      return JSON.parse(order.mixed_payment_details);
+    } catch {
+      return null;
+    }
+  };
 
   const handlePrint = () => {
     // Criar uma nova janela com conteúdo específico para impressão térmica
@@ -212,7 +227,17 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
         <div class="mb-3 separator">
           <div class="section-title mb-1">PAGAMENTO:</div>
           <div class="item-details">Forma: ${getPaymentMethodLabel(order.payment_method)}</div>
-          ${order.change_for ? `<div class="item-details">Troco para: ${formatPrice(order.change_for)}</div>` : ''}
+          ${order.payment_method === 'mixed' && order.mixed_payment_details ? (() => {
+            try {
+              const mixedDetails = JSON.parse(order.mixed_payment_details);
+              return mixedDetails.map((detail, idx) => `
+                <div class="item-details ml-2">• ${detail.method_display}: ${formatPrice(detail.amount)}</div>
+              `).join('');
+            } catch {
+              return '';
+            }
+          })() : ''}
+          ${order.change_for ? `<div class="item-details">Troco para: ${formatPrice(order.change_for)}${order.change_for > (order.total_price || 0) ? ` (Troco: ${formatPrice(order.change_for - (order.total_price || 0))})` : ''}</div>` : ''}
           ${(order.payment_method === 'pix' || order.payment_method === 'pix_online') ? `
           <div class="mt-2">
             <div class="item-details">⚠️ IMPORTANTE:</div>
@@ -313,8 +338,22 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
     
     message += `💳 *PAGAMENTO:*\n`;
     message += `Forma: ${getPaymentMethodLabel(order.payment_method)}\n`;
+    if (order.payment_method === 'mixed' && order.mixed_payment_details) {
+      try {
+        const mixedDetails = JSON.parse(order.mixed_payment_details);
+        mixedDetails.forEach((detail: any) => {
+          message += `  • ${detail.method_display}: ${formatPrice(detail.amount)}\n`;
+        });
+      } catch {
+        // ignore parse error
+      }
+    }
     if (order.change_for) {
-      message += `Troco para: ${formatPrice(order.change_for)}\n`;
+      message += `Troco para: ${formatPrice(order.change_for)}`;
+      if (order.change_for > order.total_price) {
+        message += ` (Troco: ${formatPrice(order.change_for - order.total_price)})`;
+      }
+      message += `\n`;
     }
     if (order.payment_method === 'pix') {
       message += `\n📱 *DADOS PIX:*\n`;
@@ -484,7 +523,19 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
               <div className="mb-3">
                 <p className="font-black text-base">PAGAMENTO:</p>
                 <p className="font-bold">Forma: {getPaymentMethodLabel(order.payment_method)}</p>
-                {order.change_for && <p className="font-bold">Troco para: {formatPrice(order.change_for)}</p>}
+                {order.payment_method === 'mixed' && getMixedPaymentDetails() && (
+                  <div className="ml-2 mt-1">
+                    {getMixedPaymentDetails().map((detail: any, idx: number) => (
+                      <p key={idx} className="font-semibold">• {detail.method_display}: {formatPrice(detail.amount)}</p>
+                    ))}
+                  </div>
+                )}
+                {order.change_for && (
+                  <p className="font-bold">
+                    Troco para: {formatPrice(order.change_for)}
+                    {order.change_for > order.total_price && ` (Troco: ${formatPrice(order.change_for - order.total_price)})`}
+                  </p>
+                )}
                 {order.payment_method === 'pix' && (
                   <div className="mt-2">
                     <p className="font-bold text-red-600">⚠️ IMPORTANTE:</p>
@@ -612,7 +663,19 @@ const OrderPrintView: React.FC<OrderPrintViewProps> = ({ order, storeSettings, o
           <div style={{ borderBottom: '1px dashed black', paddingBottom: '10px', marginBottom: '15px', color: 'black', background: 'white' }}>
             <p style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '5px' }}>PAGAMENTO:</p>
             <p style={{ fontSize: '12px', margin: '2px 0' }}>Forma: {getPaymentMethodLabel(order.payment_method)}</p>
-            {order.change_for && <p style={{ fontSize: '12px', margin: '2px 0' }}>Troco para: {formatPrice(order.change_for)}</p>}
+            {order.payment_method === 'mixed' && getMixedPaymentDetails() && (
+              <div style={{ marginLeft: '8px', marginTop: '5px' }}>
+                {getMixedPaymentDetails().map((detail: any, idx: number) => (
+                  <p key={idx} style={{ fontSize: '12px', margin: '2px 0' }}>• {detail.method_display}: {formatPrice(detail.amount)}</p>
+                ))}
+              </div>
+            )}
+            {order.change_for && (
+              <p style={{ fontSize: '12px', margin: '2px 0' }}>
+                Troco para: {formatPrice(order.change_for)}
+                {order.change_for > order.total_price && ` (Troco: ${formatPrice(order.change_for - order.total_price)})`}
+              </p>
+            )}
             {(order.payment_method === 'pix' || order.payment_method === 'pix_online') && (
               <div style={{ marginTop: '5px' }}>
                 <p style={{ fontSize: '12px', margin: '2px 0' }}>⚠️ IMPORTANTE:</p>

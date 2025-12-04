@@ -269,18 +269,32 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
           </div>
         </div>
 
+        <!-- Justificativa Obrigatória -->
+        ${register.closing_amount !== null ? `
+        <div class="mb-3 separator">
+          <div class="section-title mb-2">JUSTIFICATIVA OBRIGATÓRIA:</div>
+          <div class="text" style="line-height: 1.5;">
+            ${Math.abs((register.closing_amount || 0) - (summary?.expected_balance || 0)) < 0.01 ? `
+              <p>Caixa fechado sem diferenças. Todas as movimentações foram devidamente registradas e conferidas. Saldo esperado de ${formatPrice(summary?.expected_balance || 0)} confere com o saldo informado de ${formatPrice(register.closing_amount || 0)}.</p>
+            ` : `
+              <p>Diferença de ${formatPrice(Math.abs((register.closing_amount || 0) - (summary?.expected_balance || 0)))} (${((register.closing_amount || 0) - (summary?.expected_balance || 0)) > 0 ? 'sobra' : 'falta'}) identificada no fechamento. Saldo esperado: ${formatPrice(summary?.expected_balance || 0)}. Saldo informado: ${formatPrice(register.closing_amount || 0)}. Esta diferença requer investigação e justificativa conforme procedimentos internos.</p>
+            `}
+          </div>
+        </div>
+        ` : ''}
+
         <!-- Rodapé -->
         <div class="center" style="border-top: 3px solid black; padding-top: 8px; color: black !important;">
           <div class="mb-2">
             <div class="section-title">RELATÓRIO DE CAIXA</div>
             <div class="subtitle">Elite Açaí - Sistema PDV</div>
           </div>
-          
+
           <div class="mb-2">
             <div class="text">Operador: <span class="value">Sistema</span></div>
             <div class="text">Impresso: <span class="value">${new Date().toLocaleString('pt-BR')}</span></div>
           </div>
-          
+
 
           <div style="margin-top: 10px; padding-top: 6px; border-top: 2px solid black;">
             <div class="small">Elite Açaí - CNPJ: 38.130.139/0001-22</div>
@@ -493,7 +507,30 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
                 </div>
                 <p className="text-xs">--------------------------</p>
               </div>
-              
+
+              {register.closing_amount !== null && (
+                <div className="mb-3">
+                  <p className="text-sm font-bold text-gray-900">JUSTIFICATIVA OBRIGATÓRIA:</p>
+                  <div className="text-xs text-gray-700 mt-2 leading-relaxed">
+                    {Math.abs((register.closing_amount || 0) - (summary?.expected_balance || 0)) < 0.01 ? (
+                      <p>
+                        Caixa fechado sem diferenças. Todas as movimentações foram devidamente registradas e conferidas.
+                        Saldo esperado de {formatPrice(summary?.expected_balance || 0)} confere com o saldo informado de {formatPrice(register.closing_amount || 0)}.
+                      </p>
+                    ) : (
+                      <p>
+                        Diferença de {formatPrice(Math.abs((register.closing_amount || 0) - (summary?.expected_balance || 0)))}
+                        ({((register.closing_amount || 0) - (summary?.expected_balance || 0)) > 0 ? 'sobra' : 'falta'}) identificada no fechamento.
+                        Saldo esperado: {formatPrice(summary?.expected_balance || 0)}.
+                        Saldo informado: {formatPrice(register.closing_amount || 0)}.
+                        Esta diferença requer investigação e justificativa conforme procedimentos internos.
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-xs">--------------------------</p>
+                </div>
+              )}
+
               <div className="text-center text-xs">
                 <p className="font-bold text-gray-900 text-sm">RELATÓRIO DE CAIXA</p>
                 <p className="text-gray-800">Elite Açaí - Sistema PDV</p>
@@ -503,71 +540,6 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
                   <p className="text-gray-600">Elite Açaí - CNPJ: 38.130.139/0001-22</p>
                   <p className="text-gray-600">Este é um relatório interno</p>
                   <p className="text-gray-600">Não é um documento fiscal</p>
-                </div>
-              </div>
-              
-              {/* Observações */}
-              <div className="mb-4">
-                <div className="text-sm font-bold mb-2 text-center">OBSERVAÇÕES</div>
-                <div className="text-xs space-y-1">
-                  <div className="font-bold">DESCRIÇÃO DAS MOVIMENTAÇÕES:</div>
-                  <div className="space-y-1">
-                    {entries.filter(entry => entry.type === 'income').length > 0 && (
-                      <div>
-                        <div className="font-bold">ENTRADAS:</div>
-                        {entries.filter(entry => entry.type === 'income').map((entry, index) => (
-                          <div key={index} className="ml-2">
-                            • {entry.description} - {formatPrice(entry.amount)}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {entries.filter(entry => entry.type === 'expense').length > 0 && (
-                      <div>
-                        <div className="font-bold">SAÍDAS:</div>
-                        {entries.filter(entry => entry.type === 'expense').map((entry, index) => (
-                          <div key={index} className="ml-2">
-                            • {entry.description} - {formatPrice(entry.amount)}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="mt-3 pt-2 border-t border-gray-300">
-                    <div className="text-xs leading-relaxed">
-                      <p className="font-bold mb-2">📋 JUSTIFICATIVA OBRIGATÓRIA:</p>
-                      {Math.abs(register.difference || 0) < 0.01 ? (
-                        <p>
-                          Caixa fechado sem diferenças. Todas as movimentações foram 
-                          devidamente registradas e conferidas. Saldo esperado de {formatPrice(summary.expected_balance)} 
-                          confere com o saldo informado de {formatPrice(register.closing_amount || 0)}.
-                        </p>
-                      ) : (
-                        <p>
-                          Diferença de {formatPrice(Math.abs(register.difference || 0))} 
-                          ({(register.difference || 0) > 0 ? 'sobra' : 'falta'}) identificada no fechamento. 
-                          Saldo esperado: {formatPrice(summary.expected_balance)}. 
-                          Saldo informado: {formatPrice(register.closing_amount || 0)}. 
-                          Esta diferença requer investigação e justificativa conforme procedimentos internos.
-                        </p>
-                      )}
-                      <p className="mt-2">
-                        Responsável pelo fechamento: {register.operator?.name || 'Sistema'}<br/>
-                        Data/Hora: {new Date(register.closed_at || '').toLocaleString('pt-BR')}
-                      </p>
-                    </div>
-                    
-                    <div className="mt-2">
-                      <div className="font-bold">RESPONSÁVEL PELO FECHAMENTO:</div>
-                      <div>{register.operator?.name || 'Sistema'}</div>
-                    </div>
-                    
-                    <div className="mt-2">
-                      <div className="font-bold">DATA/HORA DO FECHAMENTO:</div>
-                      <div>{new Date(register.closed_at || new Date()).toLocaleString('pt-BR')}</div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -677,6 +649,29 @@ const CashRegisterPrintView: React.FC<CashRegisterPrintViewProps> = ({
               })}
             </div>
           </div>
+
+          {/* Justificativa Obrigatória */}
+          {register.closing_amount !== null && (
+            <div style={{ borderBottom: '1px dashed black', paddingBottom: '5px', marginBottom: '10px', color: 'black', background: 'white' }}>
+              <p style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '3px' }}>JUSTIFICATIVA OBRIGATÓRIA:</p>
+              <div style={{ fontSize: '11px', lineHeight: '1.5' }}>
+                {Math.abs((register.closing_amount || 0) - (summary?.expected_balance || 0)) < 0.01 ? (
+                  <p style={{ margin: '2px 0' }}>
+                    Caixa fechado sem diferenças. Todas as movimentações foram devidamente registradas e conferidas.
+                    Saldo esperado de {formatPrice(summary?.expected_balance || 0)} confere com o saldo informado de {formatPrice(register.closing_amount || 0)}.
+                  </p>
+                ) : (
+                  <p style={{ margin: '2px 0' }}>
+                    Diferença de {formatPrice(Math.abs((register.closing_amount || 0) - (summary?.expected_balance || 0)))}
+                    ({((register.closing_amount || 0) - (summary?.expected_balance || 0)) > 0 ? 'sobra' : 'falta'}) identificada no fechamento.
+                    Saldo esperado: {formatPrice(summary?.expected_balance || 0)}.
+                    Saldo informado: {formatPrice(register.closing_amount || 0)}.
+                    Esta diferença requer investigação e justificativa conforme procedimentos internos.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Footer */}
           <div style={{ textAlign: 'center', fontSize: '12px', borderTop: '1px dashed black', paddingTop: '5px', color: 'black', background: 'white' }}>
