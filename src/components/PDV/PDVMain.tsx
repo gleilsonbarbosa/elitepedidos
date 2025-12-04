@@ -366,7 +366,7 @@ const PDVMain: React.FC<PDVMainProps> = ({ onBack, operator }) => {
       case 'orders':
         return <AttendantPanel />;
       case 'cash_menu':
-        return <CashRegisterMenu />;
+        return <CashRegisterMenu operator={operator} />;
       case 'sales_report':
         return <PDVSalesReport />;
       case 'cash_report':

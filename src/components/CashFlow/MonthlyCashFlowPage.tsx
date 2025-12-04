@@ -22,6 +22,7 @@ import { supabase } from '../../lib/supabase';
 import MonthlyCashFlowChart from './MonthlyCashFlowChart';
 import MonthlyCashFlowTable from './MonthlyCashFlowTable';
 import AddCashFlowEntryModal from './AddCashFlowEntryModal';
+import CashFlowHistory from './CashFlowHistory';
 
 interface MonthlyCashFlowData {
   ano: number;
@@ -68,7 +69,7 @@ const MonthlyCashFlowPage: React.FC = () => {
     return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}`;
   });
   const [selectedStore, setSelectedStore] = useState('loja1');
-  const [viewMode, setViewMode] = useState<'table' | 'chart'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'chart' | 'history'>('table');
   const [showAddEntry, setShowAddEntry] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [supabaseConfigured, setSupabaseConfigured] = useState(true);
@@ -511,6 +512,17 @@ const MonthlyCashFlowPage: React.FC = () => {
                   <BarChart3 size={16} />
                   Gráfico
                 </button>
+                <button
+                  onClick={() => setViewMode('history')}
+                  className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
+                    viewMode === 'history'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <Filter size={16} />
+                  Histórico
+                </button>
               </div>
             </div>
             
@@ -583,8 +595,10 @@ const MonthlyCashFlowPage: React.FC = () => {
           <>
             {viewMode === 'table' ? (
               <MonthlyCashFlowTable data={monthlyData} />
-            ) : (
+            ) : viewMode === 'chart' ? (
               <MonthlyCashFlowChart data={monthlyData} />
+            ) : (
+              <CashFlowHistory selectedStore={selectedStore} />
             )}
           </>
         )}

@@ -719,7 +719,7 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
   const activeSales = filteredSales.filter(sale => !sale.is_cancelled);
   const cancelledSales = filteredSales.filter(sale => sale.is_cancelled);
 
-  if (!hasPermission('can_view_sales')) {
+  if (!isAdmin && !hasPermission('can_view_sales')) {
     return (
       <div className="bg-white rounded-xl shadow-sm p-8 text-center">
         <div className="bg-red-100 rounded-full p-3 w-16 h-16 mx-auto mb-4">
@@ -945,21 +945,12 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       <div className="flex items-center gap-2">
-                        {isAdmin && (
-                          <button
-                            onClick={() => handleDeleteSale(sale)}
-                            className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                            title="Excluir venda"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
                         {(isAdmin || hasPermission('can_edit_sales')) && (
                           <button
                             onClick={() => {
                               setEditingSale(sale);
                             }}
-                            className="text-blue-600 hover:text-blue-900 font-medium"
+                            className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
                             title="Editar venda"
                           >
                             <Edit3 size={16} />
@@ -972,12 +963,19 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
                                 handleCancelSale(sale);
                               }
                             }}
-                            className="text-red-600 hover:text-red-900 font-medium"
+                            className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
                             title="Cancelar venda"
                           >
                             <Trash2 size={16} />
                           </button>
                         )}
+                        <button
+                          onClick={() => handlePrintReceipt(sale)}
+                          className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          title="Imprimir comprovante"
+                        >
+                          <Printer size={16} />
+                        </button>
                       </div>
                     </td>
                   </tr>

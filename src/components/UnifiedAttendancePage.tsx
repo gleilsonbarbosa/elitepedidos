@@ -345,7 +345,7 @@ const UnifiedAttendancePage: React.FC<UnifiedAttendancePageProps> = ({ operator,
       case 'history':
         return (
           <PermissionGuard hasPermission={hasPermission('can_view_history')} showMessage={true}>
-            <SalesHistoryPanel />
+            <SalesHistoryPanel storeId={1} operator={operator} />
           </PermissionGuard>
         );
       case 'reports':

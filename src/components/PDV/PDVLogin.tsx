@@ -27,13 +27,14 @@ const PDVLogin: React.FC<PDVLoginProps> = ({ onLogin }) => {
 
     try {
       // Check for hardcoded admin credentials for demo purposes
-      if (code.toUpperCase() === 'ADMIN' && password === 'elite2024') {
+      const upperCode = code.toUpperCase();
+      if (upperCode === 'ADMIN' && password === 'elite2024') {
         // Handle admin login separately
         try {
           const { data, error } = await supabase
             .from('pdv_operators')
             .select('*')
-            .eq('code', 'ADMIN')
+            .ilike('code', 'ADMIN')
             .single();
           
           if (data) {
@@ -65,7 +66,11 @@ const PDVLogin: React.FC<PDVLoginProps> = ({ onLogin }) => {
                   can_view_reports: true,
                   can_view_sales_report: true,
                   can_view_cash_report: true,
-                  can_view_operators: true
+                  can_view_operators: true,
+                  can_edit_cash_entries: true,
+                  can_delete_cash_entries: true,
+                  can_manage_settings: true,
+                  can_view_attendance: true
                 }
               }])
               .select()
@@ -93,7 +98,7 @@ const PDVLogin: React.FC<PDVLoginProps> = ({ onLogin }) => {
       const { data, error: fetchError } = await supabase
         .from('pdv_operators')
         .select('*')
-        .eq('code', code.trim())
+        .ilike('code', code.trim())
         .eq('is_active', true)
         .single();
 

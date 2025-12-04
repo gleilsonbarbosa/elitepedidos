@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Package, MapPin, Clock, Users, LogOut, ShoppingBag, Settings, Calculator, DollarSign, Truck, BarChart3, FileText, Gift, Zap, Sparkles } from 'lucide-react';
+import { Package, MapPin, Clock, Users, LogOut, ShoppingBag, Settings, Calculator, DollarSign, Truck, BarChart3, FileText, Gift, Zap, Sparkles, History } from 'lucide-react';
 import ProductsPanel from './ProductsPanel';
 import NeighborhoodsPanel from './NeighborhoodsPanel';
 import StoreHoursPanel from './StoreHoursPanel';
@@ -27,7 +27,7 @@ interface AdminPanelProps {
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'products' | 'neighborhoods' | 'hours' | 'users' | 'order-settings' | 'whatsapp-contacts' | 'promotions' | 'announcements' | 'advanced-reports'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'neighborhoods' | 'hours' | 'users' | 'order-settings' | 'whatsapp-contacts' | 'promotions' | 'announcements' | 'advanced-reports' | 'history'>('products');
   const scale = useScale();
   const { storeSettings } = useStoreHours();
 
@@ -51,6 +51,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
         return <AnnouncementsPanel />;
       case 'advanced-reports':
         return <AdvancedReportsPanel />;
+      case 'history':
+        return <SalesHistoryPanel storeId={1} isAdmin={true} />;
       default:
         return <ProductsPanel />;
     }
@@ -85,7 +87,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Tabs */}
         <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-9 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-10 gap-3">
             <button
               onClick={() => setActiveTab('products')}
               className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
@@ -186,6 +188,17 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
             >
               <BarChart3 size={20} />
               <span className="text-sm">Relatórios</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`p-3 rounded-lg font-medium transition-colors flex flex-col items-center gap-2 text-center ${
+                activeTab === 'history'
+                  ? 'bg-emerald-600 text-white shadow-lg'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <History size={20} />
+              <span className="text-sm">Histórico</span>
             </button>
           </div>
         </div>

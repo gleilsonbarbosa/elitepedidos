@@ -4,6 +4,8 @@ import { useDeliveryProducts } from '../../hooks/useDeliveryProducts';
 import { useNeighborhoods } from '../../hooks/useNeighborhoods';
 import { useOrders } from '../../hooks/useOrders';
 import { Order } from '../../types/order';
+import DeliveryTypeSelector from '../Delivery/DeliveryTypeSelector';
+import PickupScheduler from '../Delivery/PickupScheduler';
 
 interface ManualOrderFormProps {
   isOpen: boolean;
@@ -34,11 +36,14 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
   const { neighborhoods } = useNeighborhoods();
   const { createOrder } = useOrders();
 
+  const [deliveryType, setDeliveryType] = useState<'delivery' | 'pickup'>('delivery');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [customerNeighborhood, setCustomerNeighborhood] = useState('');
   const [customerComplement, setCustomerComplement] = useState('');
+  const [scheduledPickupDate, setScheduledPickupDate] = useState('');
+  const [scheduledPickupTime, setScheduledPickupTime] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'money' | 'pix' | 'card'>('money');
   const [changeFor, setChangeFor] = useState<number | undefined>(undefined);
   const [items, setItems] = useState<OrderItem[]>([]);
@@ -250,12 +255,14 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
 
   const getTotalPrice = () => {
     const subtotal = items.reduce((sum, item) => sum + item.total_price, 0);
+    if (deliveryType === 'pickup') return subtotal;
     const neighborhood = neighborhoods.find(n => n.name === customerNeighborhood);
     const deliveryFee = neighborhood ? neighborhood.delivery_fee : 5.00;
     return subtotal + deliveryFee;
   };
 
   const getDeliveryFee = () => {
+    if (deliveryType === 'pickup') return 0;
     const neighborhood = neighborhoods.find(n => n.name === customerNeighborhood);
     return neighborhood ? neighborhood.delivery_fee : 5.00;
   };
@@ -271,14 +278,28 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
       return false;
     }
 
-    if (!customerAddress.trim()) {
-      setError('Endereço é obrigatório');
-      return false;
+    if (deliveryType === 'delivery') {
+      if (!customerAddress.trim()) {
+        setError('Endereço é obrigatório para entrega');
+        return false;
+      }
+
+      if (!customerNeighborhood.trim()) {
+        setError('Bairro é obrigatório para entrega');
+        return false;
+      }
     }
 
-    if (!customerNeighborhood.trim()) {
-      setError('Bairro é obrigatório');
-      return false;
+    if (deliveryType === 'pickup') {
+      if (!scheduledPickupDate) {
+        setError('Data de retirada é obrigatória');
+        return false;
+      }
+
+      if (!scheduledPickupTime) {
+        setError('Horário de retirada é obrigatório');
+        return false;
+      }
     }
 
     if (items.length === 0) {
@@ -308,14 +329,17 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
       const orderData = {
         customer_name: customerName,
         customer_phone: customerPhone.replace(/\D/g, ''),
-        customer_address: customerAddress,
-        customer_neighborhood: customerNeighborhood,
-        customer_complement: customerComplement,
+        customer_address: deliveryType === 'delivery' ? customerAddress : '',
+        customer_neighborhood: deliveryType === 'delivery' ? customerNeighborhood : '',
+        customer_complement: deliveryType === 'delivery' ? customerComplement : '',
         payment_method: paymentMethod,
         change_for: changeFor,
-        neighborhood_id: neighborhood?.id,
+        delivery_type: deliveryType,
+        scheduled_pickup_date: deliveryType === 'pickup' ? scheduledPickupDate : undefined,
+        scheduled_pickup_time: deliveryType === 'pickup' ? scheduledPickupTime : undefined,
+        neighborhood_id: deliveryType === 'delivery' ? neighborhood?.id : undefined,
         delivery_fee: getDeliveryFee(),
-        estimated_delivery_minutes: neighborhood?.delivery_time || 35,
+        estimated_delivery_minutes: deliveryType === 'delivery' ? (neighborhood?.delivery_time || 35) : 0,
         items: items,
         total_price: getTotalPrice(),
         status: 'confirmed' as const,
@@ -370,6 +394,12 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          {/* Delivery Type Selection */}
+          <DeliveryTypeSelector
+            selectedType={deliveryType}
+            onTypeChange={setDeliveryType}
+          />
+
           {/* Customer Information */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">Dados do Cliente</h3>
@@ -409,56 +439,73 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
                 </div>
               </div>
             </div>
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Bairro *
-              </label>
-              <div className="relative">
-                <MapPin size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <select
-                  value={customerNeighborhood}
-                  onChange={(e) => setCustomerNeighborhood(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                >
-                  <option value="">Selecione o bairro</option>
-                  {neighborhoods.map(neighborhood => (
-                    <option key={neighborhood.id} value={neighborhood.name}>
-                      {neighborhood.name} - {formatPrice(neighborhood.delivery_fee)} ({neighborhood.delivery_time}min)
-                    </option>
-                  ))}
-                </select>
+          {/* Delivery Address (only for delivery) */}
+          {deliveryType === 'delivery' && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Endereço de Entrega</h3>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bairro *
+                </label>
+                <div className="relative">
+                  <MapPin size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <select
+                    value={customerNeighborhood}
+                    onChange={(e) => setCustomerNeighborhood(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required={deliveryType === 'delivery'}
+                  >
+                    <option value="">Selecione o bairro</option>
+                    {neighborhoods.map(neighborhood => (
+                      <option key={neighborhood.id} value={neighborhood.name}>
+                        {neighborhood.name} - {formatPrice(neighborhood.delivery_fee)} ({neighborhood.delivery_time}min)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Endereço Completo *
+                </label>
+                <input
+                  type="text"
+                  value={customerAddress}
+                  onChange={(e) => setCustomerAddress(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Rua, número, casa/apartamento"
+                  required={deliveryType === 'delivery'}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Complemento (opcional)
+                </label>
+                <input
+                  type="text"
+                  value={customerComplement}
+                  onChange={(e) => setCustomerComplement(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Apartamento, bloco, referência..."
+                />
               </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Endereço Completo *
-              </label>
-              <input
-                type="text"
-                value={customerAddress}
-                onChange={(e) => setCustomerAddress(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Rua, número, casa/apartamento"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Complemento (opcional)
-              </label>
-              <input
-                type="text"
-                value={customerComplement}
-                onChange={(e) => setCustomerComplement(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Apartamento, bloco, referência..."
-              />
-            </div>
-          </div>
+          {/* Pickup Scheduler (only for pickup) */}
+          {deliveryType === 'pickup' && (
+            <PickupScheduler
+              selectedDate={scheduledPickupDate}
+              selectedTime={scheduledPickupTime}
+              onDateChange={setScheduledPickupDate}
+              onTimeChange={setScheduledPickupTime}
+            />
+          )}
 
           {/* Add Items */}
           <div className="space-y-4">
@@ -872,12 +919,22 @@ const ManualOrderForm: React.FC<ManualOrderFormProps> = ({
                     {formatPrice(items.reduce((sum, item) => sum + item.total_price, 0))}
                   </span>
                 </div>
-                
+
                 <div className="flex justify-between text-sm">
                   <span className="text-green-700">Taxa de entrega:</span>
-                  <span className="font-medium text-green-800">{formatPrice(getDeliveryFee())}</span>
+                  {deliveryType === 'pickup' ? (
+                    <span className="font-medium text-green-600">Grátis (retirada)</span>
+                  ) : (
+                    <span className="font-medium text-green-800">{formatPrice(getDeliveryFee())}</span>
+                  )}
                 </div>
-                
+
+                {deliveryType === 'pickup' && scheduledPickupDate && scheduledPickupTime && (
+                  <div className="text-xs text-green-700 bg-green-100 p-2 rounded">
+                    <strong>Retirada agendada:</strong> {new Date(scheduledPickupDate).toLocaleDateString('pt-BR')} às {scheduledPickupTime}
+                  </div>
+                )}
+
                 <div className="border-t border-green-200 pt-3">
                   <div className="flex justify-between">
                     <span className="text-lg font-semibold text-green-800">Total:</span>

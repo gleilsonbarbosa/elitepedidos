@@ -1,19 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useStore2PDVCashRegister } from '../../hooks/useStore2PDVCashRegister';
-import { 
-  DollarSign, 
-  ArrowDownCircle, 
-  ArrowUpCircle, 
-  Plus, 
-  Clock, 
+import {
+  DollarSign,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  Plus,
+  Clock,
   RefreshCw,
   AlertCircle,
   X,
-  Minus
+  Minus,
+  Edit3,
+  Trash2
 } from 'lucide-react';
 import Store2CashRegisterDetails from './Store2CashRegisterDetails';
 import Store2CashRegisterCloseConfirmation from './Store2CashRegisterCloseConfirmation';
 import Store2CashRegisterPrintView from './Store2CashRegisterPrintView';
+import { supabase } from '../../lib/supabase';
 
 const Store2CashRegisterMenu: React.FC = () => {
   const {
@@ -29,6 +32,8 @@ const Store2CashRegisterMenu: React.FC = () => {
     refreshData
   } = useStore2PDVCashRegister();
 
+  const [allDailyEntries, setAllDailyEntries] = useState<any[]>([]);
+  const [loadingDailyEntries, setLoadingDailyEntries] = useState(false);
   const [supabaseConfigured, setSupabaseConfigured] = useState(true);
   const [showOpenRegister, setShowOpenRegister] = useState(false);
   const [showCloseRegister, setShowCloseRegister] = useState(false);
@@ -44,18 +49,70 @@ const Store2CashRegisterMenu: React.FC = () => {
   const [closedRegister, setClosedRegister] = useState<any>(null);
   const [isClosing, setIsClosing] = useState(false);
   
+  // Carregar TODAS as movimentações do dia da Loja 2
+  const loadAllDailyEntries = React.useCallback(async () => {
+    if (!supabaseConfigured) return;
+
+    setLoadingDailyEntries(true);
+    try {
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+      const { data: allEntries, error: entriesError } = await supabase
+        .from('financeiro_fluxo')
+        .select('*')
+        .eq('loja', 'loja2')
+        .gte('criado_em', startOfDay.toISOString())
+        .lte('criado_em', endOfDay.toISOString())
+        .order('criado_em', { ascending: false });
+
+      if (entriesError) throw entriesError;
+
+      setAllDailyEntries(allEntries || []);
+      console.log(`✅ Loja 2: Carregadas ${allEntries?.length || 0} movimentações do fluxo financeiro do dia (${startOfDay.toLocaleString('pt-BR')} até ${endOfDay.toLocaleString('pt-BR')})`);
+    } catch (err) {
+      console.error('Erro ao carregar movimentações do dia (Loja 2):', err);
+      setAllDailyEntries([]);
+    } finally {
+      setLoadingDailyEntries(false);
+    }
+  }, [supabaseConfigured]);
+
   // Check Supabase configuration on mount
   React.useEffect(() => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    const isConfigured = supabaseUrl && supabaseKey && 
-                        supabaseUrl !== 'your_supabase_url_here' && 
+
+    const isConfigured = supabaseUrl && supabaseKey &&
+                        supabaseUrl !== 'your_supabase_url_here' &&
                         supabaseKey !== 'your_supabase_anon_key_here' &&
                         !supabaseUrl.includes('placeholder');
-    
+
     setSupabaseConfigured(isConfigured);
-  }, []);
+    loadAllDailyEntries();
+
+    const channel = supabase
+      .channel('store2-cash-flow-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'financeiro_fluxo',
+          filter: 'loja=eq.loja2'
+        },
+        (payload) => {
+          console.log('💰 Nova movimentação detectada na Loja 2:', payload);
+          loadAllDailyEntries();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadAllDailyEntries]);
 
   const [billCounts, setBillCounts] = useState({
     '200': 0,
@@ -169,6 +226,49 @@ const Store2CashRegisterMenu: React.FC = () => {
     }
   };
 
+  const handleDeleteCashFlowEntry = async (entryId: string, description: string) => {
+    if (confirm(`Tem certeza que deseja excluir a movimentação "${description}"?`)) {
+      try {
+        if (!supabaseConfigured) {
+          alert('Funcionalidade requer configuração do Supabase');
+          return;
+        }
+
+        const { error } = await supabase
+          .from('financeiro_fluxo')
+          .delete()
+          .eq('id', entryId);
+
+        if (error) throw error;
+
+        loadAllDailyEntries();
+
+        const successMessage = document.createElement('div');
+        successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
+        successMessage.innerHTML = `
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+          Movimentação excluída com sucesso!
+        `;
+        document.body.appendChild(successMessage);
+
+        setTimeout(() => {
+          if (document.body.contains(successMessage)) {
+            document.body.removeChild(successMessage);
+          }
+        }, 3000);
+      } catch (error) {
+        console.error('Erro ao excluir movimentação:', error);
+        alert('Erro ao excluir movimentação');
+      }
+    }
+  };
+
+  const handleEditCashFlowEntry = (entry: any) => {
+    alert('Funcionalidade de edição em desenvolvimento');
+  };
+
   const updateBillCount = (value: string, increment: boolean) => {
     setBillCounts(prev => ({
       ...prev,
@@ -265,7 +365,10 @@ const Store2CashRegisterMenu: React.FC = () => {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={refreshData}
+            onClick={() => {
+              refreshData();
+              loadAllDailyEntries();
+            }}
             className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg transition-colors text-sm"
           >
             <RefreshCw size={16} />
@@ -400,70 +503,125 @@ const Store2CashRegisterMenu: React.FC = () => {
       {currentRegister && (
         <>
           <Store2CashRegisterDetails register={currentRegister} summary={summary} onRefresh={refreshData} />
-          
-          {/* Histórico de Movimentações */}
+
+          {/* Histórico de Movimentações - TODAS DO DIA - LOJA 2 */}
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
             <div className="p-4 border-b border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800">Histórico de Movimentações - Loja 2</h3>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">Histórico de Movimentações do Dia - Loja 2</h3>
+                  <p className="text-sm text-gray-500">Todas as movimentações de todos os caixas de hoje</p>
+                </div>
+                <div className="bg-blue-50 px-3 py-1 rounded-lg">
+                  <span className="text-sm font-medium text-blue-700">
+                    {allDailyEntries.length} movimentações
+                  </span>
+                </div>
+              </div>
             </div>
-            
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">Data/Hora</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">Tipo</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">Descrição</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">Forma</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">Valor</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {entries.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-gray-50">
-                      <td className="py-4 px-4">
-                        <span className="text-sm text-gray-600">{new Date(entry.created_at).toLocaleString('pt-BR')}</span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex items-center gap-2">
-                          {entry.type === 'income' ? (
-                            <ArrowDownCircle size={16} className="text-green-600" />
-                          ) : (
-                            <ArrowUpCircle size={16} className="text-red-600" />
-                          )}
-                          <span className={`text-sm font-medium ${
-                            entry.type === 'income' ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {entry.type === 'income' ? 'Entrada' : 'Saída'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="text-sm text-gray-800">
-                          <div className="font-medium">{entry.description}</div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className="text-sm text-gray-600">{getPaymentMethodName(entry.payment_method)}</span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <span className={`font-semibold ${
-                          entry.type === 'income' ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {entry.type === 'income' ? '+' : '-'}
-                          {formatPrice(entry.amount)}
-                        </span>
-                      </td>
+
+            {loadingDailyEntries ? (
+              <div className="p-8 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600">Carregando movimentações...</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Data/Hora</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Tipo</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Descrição</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Forma</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Valor</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">Ações</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            
-            {entries.length === 0 && (
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {allDailyEntries.map((entry) => {
+                      const isIncome = ['sistema_entrada', 'receita', 'transferencia_entrada', 'entrada'].includes(entry.tipo);
+                      const isManualEntry = !['sistema_entrada', 'sistema_saida'].includes(entry.tipo);
+                      const getPaymentMethodDisplay = (method: string) => {
+                        const methods: { [key: string]: string } = {
+                          'dinheiro': 'Dinheiro',
+                          'cartao_credito': 'Cartão Crédito',
+                          'cartao_debito': 'Cartão Débito',
+                          'pix': 'PIX',
+                          'voucher': 'Voucher',
+                          'misto': 'Misto'
+                        };
+                        return methods[method] || method || 'Dinheiro';
+                      };
+
+                      return (
+                        <tr key={entry.id} className="hover:bg-gray-50">
+                          <td className="py-4 px-4">
+                            <span className="text-sm text-gray-600">{new Date(entry.criado_em).toLocaleString('pt-BR')}</span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-2">
+                              {isIncome ? (
+                                <ArrowDownCircle size={16} className="text-green-600" />
+                              ) : (
+                                <ArrowUpCircle size={16} className="text-red-600" />
+                              )}
+                              <span className={`text-sm font-medium ${
+                                isIncome ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {isIncome ? 'Entrada' : 'Saída'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="text-sm text-gray-800">
+                              <div className="font-medium">{entry.descricao}</div>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className="text-sm text-gray-600">{getPaymentMethodDisplay(entry.forma_pagamento)}</span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className={`font-semibold ${
+                              isIncome ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {isIncome ? '+' : '-'}
+                              {formatPrice(Number(entry.valor))}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleEditCashFlowEntry(entry)}
+                                className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                                title="Editar movimentação"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteCashFlowEntry(entry.id, entry.descricao)}
+                                className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                title="Excluir movimentação"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                              {!isManualEntry && (
+                                <span className="text-xs text-gray-500">Sistema</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {!loadingDailyEntries && allDailyEntries.length === 0 && (
               <div className="text-center py-12">
                 <DollarSign size={48} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-500">Nenhuma movimentação registrada</p>
+                <p className="text-gray-500">Nenhuma movimentação registrada hoje</p>
               </div>
             )}
           </div>
