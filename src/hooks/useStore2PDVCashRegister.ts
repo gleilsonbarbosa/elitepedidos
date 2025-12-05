@@ -323,6 +323,50 @@ export const useStore2PDVCashRegister = () => {
 
   useEffect(() => {
     fetchCashRegisterStatus();
+
+    const cashEntriesChannel = supabase
+      .channel('store2_pdv_cash_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pdv2_cash_entries'
+        },
+        (payload) => {
+          console.log('💰 Mudança detectada em pdv2_cash_entries (Loja 2):', payload);
+          setTimeout(() => {
+            console.log('🔄 Atualizando status do caixa Loja 2 após mudança em entries...');
+            fetchCashRegisterStatus();
+          }, 800);
+        }
+      )
+      .subscribe();
+
+    const salesChannel = supabase
+      .channel('store2_sales_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'store2_pdv_sales',
+          filter: 'is_cancelled=eq.true'
+        },
+        (payload) => {
+          console.log('🚫 Venda Loja 2 cancelada detectada:', payload);
+          setTimeout(() => {
+            console.log('🔄 Aguardando estorno Loja 2 ser processado e atualizando...');
+            fetchCashRegisterStatus();
+          }, 1000);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(cashEntriesChannel);
+      supabase.removeChannel(salesChannel);
+    };
   }, [fetchCashRegisterStatus]);
 
   return {

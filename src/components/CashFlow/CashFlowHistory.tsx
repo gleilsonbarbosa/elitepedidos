@@ -132,7 +132,7 @@ const CashFlowHistory: React.FC<CashFlowHistoryProps> = ({ selectedStore = 'loja
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedStore]);
+  }, [selectedStore, startDate, endDate]);
 
   useEffect(() => {
     let filtered = [...entries];
@@ -395,7 +395,28 @@ const CashFlowHistory: React.FC<CashFlowHistoryProps> = ({ selectedStore = 'loja
                         </div>
                       </td>
                       <td className="py-4 px-4">
-                        <div className="text-sm text-gray-900">{entry.descricao}</div>
+                        <div className="text-sm text-gray-900">
+                          <div>{entry.descricao}</div>
+                          {entry.forma_pagamento === 'misto' && entry.metadata_pagamento?.formas && (
+                            <div className="mt-1 text-xs text-gray-600">
+                              {entry.metadata_pagamento.formas.map((forma: any, idx: number) => {
+                                const methodNames: { [key: string]: string } = {
+                                  'dinheiro': 'Dinheiro',
+                                  'cartao_credito': 'Cartão Crédito',
+                                  'cartao_debito': 'Cartão Débito',
+                                  'pix': 'PIX',
+                                  'voucher': 'Voucher'
+                                };
+                                return (
+                                  <div key={idx} className="flex items-center gap-1">
+                                    <span className="text-gray-500">•</span>
+                                    <span>{methodNames[forma.metodo] || forma.metodo}: {formatPrice(forma.valor)}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="py-4 px-4 text-right">
                         <span className={`font-bold ${isIncome ? 'text-green-600' : 'text-red-600'}`}>

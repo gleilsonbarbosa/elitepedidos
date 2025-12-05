@@ -106,21 +106,19 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
     setLoadingDailyEntries(true);
     try {
       const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      const todayDate = now.toISOString().split('T')[0];
 
       const { data: allEntries, error: entriesError } = await supabase
         .from('financeiro_fluxo')
         .select('*')
         .eq('loja', 'loja1')
-        .gte('criado_em', startOfDay.toISOString())
-        .lte('criado_em', endOfDay.toISOString())
+        .eq('data', todayDate)
         .order('criado_em', { ascending: false });
 
       if (entriesError) throw entriesError;
 
       setAllDailyEntries(allEntries || []);
-      console.log(`✅ Carregadas ${allEntries?.length || 0} movimentações do fluxo financeiro do dia (${startOfDay.toLocaleString('pt-BR')} até ${endOfDay.toLocaleString('pt-BR')})`);
+      console.log(`✅ Carregadas ${allEntries?.length || 0} movimentações do fluxo financeiro do dia (${todayDate})`);
     } catch (err) {
       console.error('Erro ao carregar movimentações do dia:', err);
       setAllDailyEntries([]);
@@ -158,6 +156,7 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
         (payload) => {
           console.log('💰 Nova movimentação detectada no PDV:', payload);
           loadAllDailyEntries();
+          refreshData();
         }
       )
       .subscribe();
@@ -382,6 +381,7 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
         if (error) throw error;
 
         loadAllDailyEntries();
+        refreshData();
 
         const successMessage = document.createElement('div');
         successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
@@ -430,6 +430,11 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
       const isFluxoEntry = editingEntry.tipo !== undefined;
 
       if (isFluxoEntry) {
+        if (!isAdmin) {
+          alert('Apenas administradores podem editar movimentações do fluxo financeiro');
+          return;
+        }
+
         const { error } = await supabase
           .from('financeiro_fluxo')
           .update({
@@ -442,11 +447,19 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
         if (error) throw error;
         loadAllDailyEntries();
       } else {
+        const updateData: any = {
+          payment_method: editingEntry.payment_method
+        };
+
+        if (isAdmin) {
+          updateData.type = editingEntry.type;
+          updateData.amount = editingEntry.amount;
+          updateData.description = editingEntry.description;
+        }
+
         const { error } = await supabase
           .from('pdv_cash_entries')
-          .update({
-            payment_method: editingEntry.payment_method
-          })
+          .update(updateData)
           .eq('id', editingEntry.id);
 
         if (error) throw error;
@@ -809,6 +822,25 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
                             <td className="py-4 px-4">
                               <div className="text-sm text-gray-800">
                                 <div className="font-medium">{entry.descricao}</div>
+                                {entry.forma_pagamento === 'misto' && entry.metadata_pagamento?.formas && (
+                                  <div className="mt-1 text-xs text-gray-600">
+                                    {entry.metadata_pagamento.formas.map((forma: any, idx: number) => {
+                                      const methodNames: { [key: string]: string } = {
+                                        'dinheiro': 'Dinheiro',
+                                        'cartao_credito': 'Cartão Crédito',
+                                        'cartao_debito': 'Cartão Débito',
+                                        'pix': 'PIX',
+                                        'voucher': 'Voucher'
+                                      };
+                                      return (
+                                        <div key={idx} className="flex items-center gap-1">
+                                          <span className="text-gray-500">•</span>
+                                          <span>{methodNames[forma.metodo] || forma.metodo}: {formatPrice(forma.valor)}</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
                             </td>
                             <td className="py-4 px-4">
@@ -825,15 +857,13 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
                             <td className="py-4 px-4">
                               {isManualEntry || isAdmin ? (
                                 <div className="flex items-center gap-2">
-                                  {(isAdmin || canEditEntries) && (
-                                    <button
-                                      onClick={() => handleEditCashFlowEntry(entry)}
-                                      className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                                      title="Editar movimentação"
-                                    >
-                                      <Edit3 size={16} />
-                                    </button>
-                                  )}
+                                  <button
+                                    onClick={() => handleEditCashFlowEntry(entry)}
+                                    className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                                    title={isAdmin ? "Editar movimentação" : "Editar forma de pagamento"}
+                                  >
+                                    <Edit3 size={16} />
+                                  </button>
                                   {(isAdmin || canDeleteEntries) && (
                                     <button
                                       onClick={() => handleDeleteCashFlowEntry(entry.id, entry.descricao)}
@@ -1022,7 +1052,7 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
                 </button>
                 <button
                   onClick={handleEditEntry}
-                  disabled={savingEntry || !canEditEntries}
+                  disabled={savingEntry}
                   className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
                   {savingEntry ? (

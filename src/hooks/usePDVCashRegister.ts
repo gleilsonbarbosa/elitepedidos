@@ -22,10 +22,11 @@ export const usePDVCashRegister = () => {
   const [currentRegister, setCurrentRegister] = useState<PDVCashRegister | null>(null);
   const [entries, setEntries] = useState<PDVCashRegisterEntry[]>([]);
   const [operators, setOperators] = useState<PDVOperator[]>([]);
+  const [updateTrigger, setUpdateTrigger] = useState(0);
   const [summary, setSummary] = useState<PDVCashRegisterSummary>({
     opening_amount: 0,
     sales_total: 0,
-    total_income: 0, 
+    total_income: 0,
     other_income_total: 0,
     total_expense: 0,
     expected_balance: 0,
@@ -716,7 +717,7 @@ export const usePDVCashRegister = () => {
   useEffect(() => {
     fetchCashRegisterStatus();
     fetchOperators();
-    
+
     // Verificar se existem registros nas tabelas
     const checkTables = async () => {
       try {
@@ -724,16 +725,16 @@ export const usePDVCashRegister = () => {
         const { count: registerCount, error: registerError } = await supabase
           .from('pdv_cash_registers')
           .select('*', { count: 'exact', head: true });
-        
+
         if (registerError) throw registerError;
-        
+
         // Verificar registros na tabela pdv_cash_entries
         const { count: entriesCount, error: entriesError } = await supabase
           .from('pdv_cash_entries')
           .select('*', { count: 'exact', head: true });
-        
+
         if (entriesError) throw entriesError;
-        
+
         console.log('🔍 Verificação de tabelas:', {
           pdv_cash_registers: registerCount,
           pdv_cash_entries: entriesCount
@@ -742,8 +743,98 @@ export const usePDVCashRegister = () => {
         console.error('Erro ao verificar tabelas:', err);
       }
     };
-    
+
     checkTables();
+
+    const cashEntriesChannel = supabase
+      .channel('pdv_cash_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pdv_cash_entries'
+        },
+        (payload) => {
+          console.log('💰 Mudança detectada em pdv_cash_entries:', payload);
+          setTimeout(() => {
+            console.log('🔄 Atualizando status do caixa após mudança em entries...');
+            setUpdateTrigger(prev => prev + 1);
+            fetchCashRegisterStatus();
+          }, 800);
+        }
+      )
+      .subscribe();
+
+    const salesChannel = supabase
+      .channel('pdv_sales_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'pdv_sales',
+          filter: 'is_cancelled=eq.true'
+        },
+        (payload) => {
+          console.log('🚫 Venda PDV cancelada detectada:', payload);
+          setTimeout(() => {
+            console.log('🔄 Aguardando estorno ser processado e atualizando...');
+            setUpdateTrigger(prev => prev + 1);
+            fetchCashRegisterStatus();
+          }, 1000);
+        }
+      )
+      .subscribe();
+
+    const ordersChannel = supabase
+      .channel('orders_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: 'status=eq.cancelled'
+        },
+        (payload) => {
+          console.log('🚫 Pedido delivery cancelado detectado:', payload);
+          setTimeout(() => {
+            console.log('🔄 Aguardando estorno ser processado e atualizando...');
+            setUpdateTrigger(prev => prev + 1);
+            fetchCashRegisterStatus();
+          }, 1000);
+        }
+      )
+      .subscribe();
+
+    const store2SalesChannel = supabase
+      .channel('store2_sales_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'store2_pdv_sales',
+          filter: 'is_cancelled=eq.true'
+        },
+        (payload) => {
+          console.log('🚫 Venda Loja 2 cancelada detectada:', payload);
+          setTimeout(() => {
+            console.log('🔄 Aguardando estorno ser processado e atualizando...');
+            setUpdateTrigger(prev => prev + 1);
+            fetchCashRegisterStatus();
+          }, 1000);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(cashEntriesChannel);
+      supabase.removeChannel(salesChannel);
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(store2SalesChannel);
+    };
   }, [fetchCashRegisterStatus, fetchOperators]);
 
   return {

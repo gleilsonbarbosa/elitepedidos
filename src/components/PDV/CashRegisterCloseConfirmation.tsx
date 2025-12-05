@@ -376,9 +376,9 @@ const CashRegisterCloseConfirmation: React.FC<CashRegisterCloseConfirmationProps
                   difference > 0 ? 'bg-yellow-50 border-yellow-200' : 'bg-red-50 border-red-200'
                 }`}>
                   <div className="flex items-start gap-3">
-                    <AlertTriangle size={20} className={
+                    <AlertTriangle size={20} className={`mt-1 flex-shrink-0 ${
                       difference > 0 ? 'text-yellow-600' : 'text-red-600'
-                    } className="mt-1 flex-shrink-0" />
+                    }`} />
                     <div className="w-full">
                       <h4 className={`font-medium mb-2 ${
                         difference > 0 ? 'text-yellow-800' : 'text-red-800'

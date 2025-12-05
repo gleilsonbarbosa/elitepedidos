@@ -56,21 +56,19 @@ const Store2CashRegisterMenu: React.FC = () => {
     setLoadingDailyEntries(true);
     try {
       const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-      const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+      const todayDate = now.toISOString().split('T')[0];
 
       const { data: allEntries, error: entriesError } = await supabase
         .from('financeiro_fluxo')
         .select('*')
         .eq('loja', 'loja2')
-        .gte('criado_em', startOfDay.toISOString())
-        .lte('criado_em', endOfDay.toISOString())
+        .eq('data', todayDate)
         .order('criado_em', { ascending: false });
 
       if (entriesError) throw entriesError;
 
       setAllDailyEntries(allEntries || []);
-      console.log(`✅ Loja 2: Carregadas ${allEntries?.length || 0} movimentações do fluxo financeiro do dia (${startOfDay.toLocaleString('pt-BR')} até ${endOfDay.toLocaleString('pt-BR')})`);
+      console.log(`✅ Loja 2: Carregadas ${allEntries?.length || 0} movimentações do fluxo financeiro do dia (${todayDate})`);
     } catch (err) {
       console.error('Erro ao carregar movimentações do dia (Loja 2):', err);
       setAllDailyEntries([]);
@@ -105,6 +103,7 @@ const Store2CashRegisterMenu: React.FC = () => {
         (payload) => {
           console.log('💰 Nova movimentação detectada na Loja 2:', payload);
           loadAllDailyEntries();
+          refreshData();
         }
       )
       .subscribe();
@@ -242,6 +241,7 @@ const Store2CashRegisterMenu: React.FC = () => {
         if (error) throw error;
 
         loadAllDailyEntries();
+        refreshData();
 
         const successMessage = document.createElement('div');
         successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 flex items-center gap-2';
@@ -576,6 +576,25 @@ const Store2CashRegisterMenu: React.FC = () => {
                           <td className="py-4 px-4">
                             <div className="text-sm text-gray-800">
                               <div className="font-medium">{entry.descricao}</div>
+                              {entry.forma_pagamento === 'misto' && entry.metadata_pagamento?.formas && (
+                                <div className="mt-1 text-xs text-gray-600">
+                                  {entry.metadata_pagamento.formas.map((forma: any, idx: number) => {
+                                    const methodNames: { [key: string]: string } = {
+                                      'dinheiro': 'Dinheiro',
+                                      'cartao_credito': 'Cartão Crédito',
+                                      'cartao_debito': 'Cartão Débito',
+                                      'pix': 'PIX',
+                                      'voucher': 'Voucher'
+                                    };
+                                    return (
+                                      <div key={idx} className="flex items-center gap-1">
+                                        <span className="text-gray-500">•</span>
+                                        <span>{methodNames[forma.metodo] || forma.metodo}: {formatPrice(forma.valor)}</span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
                             </div>
                           </td>
                           <td className="py-4 px-4">

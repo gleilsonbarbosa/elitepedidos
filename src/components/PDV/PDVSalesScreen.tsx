@@ -137,9 +137,24 @@ const PDVSalesScreen: React.FC<PDVSalesScreenProps> = ({ operator, scaleHook, st
     }
   };
 
-  const handlePayment = (method: 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito' | 'voucher' | 'misto', changeFor?: number) => {
+  const handlePayment = (
+    method: 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito' | 'voucher' | 'misto',
+    changeFor?: number,
+    mixedPaymentsFromModal?: Array<{method: 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito'; amount: number}>
+  ) => {
     if (method === 'misto') {
-      setShowMixedPaymentModal(true);
+      if (mixedPaymentsFromModal && mixedPaymentsFromModal.length > 0) {
+        updatePaymentInfo({
+          method,
+          mixedPayments: mixedPaymentsFromModal as Array<{
+            method: 'dinheiro' | 'pix' | 'cartao_credito' | 'cartao_debito' | 'voucher';
+            amount: number;
+          }>
+        });
+        setShowPaymentModal(false);
+      } else {
+        setShowMixedPaymentModal(true);
+      }
     } else {
       updatePaymentInfo({ method, changeFor });
       setShowPaymentModal(false);
