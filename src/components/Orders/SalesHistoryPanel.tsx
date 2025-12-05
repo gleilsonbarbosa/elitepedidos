@@ -541,6 +541,7 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
         `)
         .gte('created_at', startDate)
         .lt('created_at', endDate)
+        .eq('is_cancelled', false)
         .order('created_at', { ascending: false });
       
       if (pdvError) {
@@ -577,6 +578,7 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
         `)
         .gte('created_at', startDate)
         .lt('created_at', endDate)
+        .neq('status', 'cancelled')
         .order('created_at', { ascending: false });
       
       if (tableError) {
