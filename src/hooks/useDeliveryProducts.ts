@@ -14,6 +14,7 @@ export interface DeliveryProduct {
   is_active: boolean;
   is_weighable: boolean;
   is_new?: boolean;
+  is_most_ordered?: boolean;
   price_per_gram?: number;
   complement_groups?: any;
   sizes?: any;

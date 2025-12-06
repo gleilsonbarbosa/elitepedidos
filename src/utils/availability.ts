@@ -371,7 +371,7 @@ export const getTodaySpecialMessage = (): string => {
     case 5: // Sexta
       return `🔥 Sexta de Promoções`;
     case 6: // Sábado
-      return `🔥 Aproveite a nossa Black`;
+      return `🔥 Sábado de Promoções`;
     case 0: // Domingo
       return `🔥 Domingo de Ofertas`;
     default:
@@ -387,7 +387,7 @@ export const getTodaySpecialDescription = (): string => {
     case 4: // Quinta-feira
       return 'Aproveite as promoções exclusivas da Quinta Elite! Ofertas especiais que só acontecem às quintas-feiras.';
     case 6: // Sábado
-      return 'Black Friday o ano todo! Ofertas especiais que você não pode perder!';
+      return 'Sábado é dia de promoções! Ofertas especiais para aproveitar o fim de semana.';
     case 0: // Domingo
       return 'Domingo é dia de relaxar com açaí! Ofertas especiais para fechar a semana com chave de ouro.';
     default:

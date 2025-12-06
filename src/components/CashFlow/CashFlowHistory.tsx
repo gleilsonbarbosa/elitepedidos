@@ -12,6 +12,12 @@ interface CashFlowEntry {
   criado_em: string;
   criado_por: string;
   forma_pagamento?: string;
+  metadata_pagamento?: {
+    formas?: Array<{
+      metodo: string;
+      valor: number;
+    }>;
+  };
 }
 
 interface CashFlowHistoryProps {
@@ -161,6 +167,31 @@ const CashFlowHistory: React.FC<CashFlowHistoryProps> = ({ selectedStore = 'loja
     .reduce((sum, e) => sum + Number(e.valor), 0);
 
   const saldo = totalEntradas - totalSaidas;
+
+  const totalByPaymentMethod = filteredEntries
+    .filter(e => ['sistema_entrada', 'receita'].includes(e.tipo))
+    .reduce((acc, entry) => {
+      const valor = Number(entry.valor);
+
+      if (entry.forma_pagamento === 'misto' && entry.metadata_pagamento?.formas) {
+        entry.metadata_pagamento.formas.forEach((forma: any) => {
+          const method = forma.metodo;
+          acc[method] = (acc[method] || 0) + Number(forma.valor);
+        });
+      } else if (entry.forma_pagamento) {
+        const method = entry.forma_pagamento;
+        acc[method] = (acc[method] || 0) + valor;
+      }
+
+      return acc;
+    }, {} as Record<string, number>);
+
+  const totalDinheiro = totalByPaymentMethod['dinheiro'] || 0;
+  const totalPix = totalByPaymentMethod['pix'] || 0;
+  const totalDebito = totalByPaymentMethod['cartao_debito'] || 0;
+  const totalCredito = totalByPaymentMethod['cartao_credito'] || 0;
+  const totalVoucher = totalByPaymentMethod['voucher'] || 0;
+  const totalVendas = totalDinheiro + totalPix + totalDebito + totalCredito + totalVoucher;
 
   const handlePrint = () => {
     window.print();
@@ -335,6 +366,46 @@ const CashFlowHistory: React.FC<CashFlowHistoryProps> = ({ selectedStore = 'loja
               </p>
             </div>
             <DollarSign className="w-8 h-8 text-blue-500" />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Vendas por Forma de Pagamento</h3>
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+            <p className="text-sm font-medium text-green-700 mb-1">Dinheiro</p>
+            <p className="text-xl font-bold text-green-800">
+              {formatPrice(totalDinheiro)}
+            </p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+            <p className="text-sm font-medium text-blue-700 mb-1">PIX</p>
+            <p className="text-xl font-bold text-blue-800">
+              {formatPrice(totalPix)}
+            </p>
+          </div>
+
+          <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 text-center">
+            <p className="text-sm font-medium text-indigo-700 mb-1">Débito</p>
+            <p className="text-xl font-bold text-indigo-800">
+              {formatPrice(totalDebito)}
+            </p>
+          </div>
+
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 text-center">
+            <p className="text-sm font-medium text-purple-700 mb-1">Crédito</p>
+            <p className="text-xl font-bold text-purple-800">
+              {formatPrice(totalCredito)}
+            </p>
+          </div>
+
+          <div className="bg-gray-50 border-2 border-gray-400 rounded-lg p-4 text-center">
+            <p className="text-sm font-medium text-gray-700 mb-1">Total de Vendas</p>
+            <p className="text-2xl font-bold text-gray-900">
+              {formatPrice(totalVendas)}
+            </p>
           </div>
         </div>
       </div>

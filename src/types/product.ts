@@ -15,6 +15,7 @@ export interface Product {
   scheduledDays?: ScheduledDays;
   is_weighable?: boolean;
   isNew?: boolean;
+  is_most_ordered?: boolean;
 }
 
 export interface ProductSize {

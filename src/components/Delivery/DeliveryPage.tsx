@@ -96,6 +96,7 @@ const DeliveryPage: React.FC = () => {
       isActive: dbProduct.is_active,
       is_weighable: dbProduct.is_weighable,
       isNew: dbProduct.is_new,
+      is_most_ordered: dbProduct.is_most_ordered,
       complementGroups: Array.isArray(dbProduct.complement_groups) 
         ? dbProduct.complement_groups.map(group => ({
             id: group.id || `group-${Math.random()}`,
@@ -256,14 +257,13 @@ const DeliveryPage: React.FC = () => {
 
   // Categorias disponíveis (incluindo "Promoção do Dia" se houver)
   const availableCategories = [
-    ...(hasSpecialToday ? [{ 
-      id: 'today' as const, 
+    ...(hasSpecialToday ? [{
+      id: 'today' as const,
       label: isThursdayElite ? '⚡ QUINTA ELITE' : '🔥 Promoção do Dia',
       count: getPromotionsOfTheDay(activeProducts).length
     }] : []),
-    { id: 'all' as const, label: 'Todos', count: activeProducts.length },
-    ...Object.entries(categoryNames).map(([key, label]) => ({ 
-      id: key as keyof typeof categoryNames, 
+    ...Object.entries(categoryNames).map(([key, label]) => ({
+      id: key as keyof typeof categoryNames,
       label,
       count: activeProducts.filter(p => p.category === key).length
     })).filter(category => {

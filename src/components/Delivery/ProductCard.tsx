@@ -147,6 +147,12 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onOpenModal, isSpeci
           </div>
         )}
 
+        {product.is_most_ordered && (
+          <div className="absolute top-2 left-2 bg-gradient-to-r from-yellow-500 to-amber-600 text-white px-3 py-1 rounded-full shadow-lg flex items-center gap-1">
+            <span className="text-xs font-bold">🔥 Mais Pedido</span>
+          </div>
+        )}
+
         {!isAvailable && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
             <div className="bg-white rounded-full px-3 py-1 flex items-center gap-2">
