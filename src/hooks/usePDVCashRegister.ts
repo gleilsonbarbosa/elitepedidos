@@ -757,11 +757,33 @@ export const usePDVCashRegister = () => {
         },
         (payload) => {
           console.log('💰 Mudança detectada em pdv_cash_entries:', payload);
+
+          const isPaymentMethodChange = payload.eventType === 'UPDATE' &&
+            payload.old?.payment_method !== payload.new?.payment_method;
+
+          const isDelete = payload.eventType === 'DELETE';
+
+          if (isPaymentMethodChange) {
+            console.log('💳 MUDANÇA DE FORMA DE PAGAMENTO detectada:', {
+              de: payload.old?.payment_method,
+              para: payload.new?.payment_method,
+              entrada: payload.new?.description
+            });
+          }
+
+          if (isDelete) {
+            console.log('🗑️ EXCLUSÃO DE ENTRADA detectada:', {
+              descrição: payload.old?.description,
+              valor: payload.old?.amount,
+              método: payload.old?.payment_method
+            });
+          }
+
           setTimeout(() => {
             console.log('🔄 Atualizando status do caixa após mudança em entries...');
             setUpdateTrigger(prev => prev + 1);
             fetchCashRegisterStatus();
-          }, 800);
+          }, (isPaymentMethodChange || isDelete) ? 1000 : 800);
         }
       )
       .subscribe();

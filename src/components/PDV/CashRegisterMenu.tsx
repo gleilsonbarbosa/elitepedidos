@@ -408,9 +408,11 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
   const handleEditCashFlowEntry = (entry: any) => {
     setEditingEntry({
       ...entry,
-      type: entry.tipo === 'entrada' || entry.tipo === 'receita' || entry.tipo === 'transferencia_entrada' ? 'income' : 'expense',
+      type: entry.tipo === 'receita' || entry.tipo === 'transferencia_entrada' || entry.tipo === 'sistema_entrada' || entry.tipo === 'saldo_inicial' ? 'income' : 'expense',
       amount: Number(entry.valor),
-      description: entry.descricao
+      description: entry.descricao,
+      payment_method: entry.forma_pagamento || 'dinheiro',
+      original_tipo: entry.tipo
     });
   };
 
@@ -435,16 +437,29 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
           return;
         }
 
+        const updateData = {
+          descricao: editingEntry.description,
+          valor: Number(editingEntry.amount),
+          forma_pagamento: editingEntry.payment_method || 'dinheiro'
+        };
+
+        console.log('📝 Atualizando financeiro_fluxo:', {
+          id: editingEntry.id,
+          dados: updateData,
+          tipo_original: editingEntry.original_tipo || editingEntry.tipo
+        });
+
         const { error } = await supabase
           .from('financeiro_fluxo')
-          .update({
-            tipo: editingEntry.type === 'income' ? 'entrada' : 'saida',
-            descricao: editingEntry.description,
-            valor: editingEntry.amount
-          })
+          .update(updateData)
           .eq('id', editingEntry.id);
 
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Erro no update financeiro_fluxo:', error);
+          throw error;
+        }
+
+        console.log('✅ Update financeiro_fluxo bem-sucedido');
         loadAllDailyEntries();
       } else {
         const updateData: any = {
@@ -463,7 +478,13 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
           .eq('id', editingEntry.id);
 
         if (error) throw error;
-        refreshData();
+
+        console.log('✅ Entrada de caixa atualizada, aguardando triggers processarem...');
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        console.log('🔄 Forçando atualização completa dos dados do caixa...');
+        await refreshData();
       }
 
       console.log('✅ Movimentação editada com sucesso');
@@ -484,9 +505,17 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
           document.body.removeChild(successMessage);
         }
       }, 3000);
-    } catch (error) {
-      console.error('Erro ao editar movimentação:', error);
-      alert('Erro ao editar movimentação');
+    } catch (error: any) {
+      console.error('❌ Erro ao editar movimentação:', error);
+      const errorMessage = error?.message || 'Erro desconhecido';
+      const errorDetails = error?.details || '';
+      const errorHint = error?.hint || '';
+
+      let fullMessage = `Erro ao editar movimentação: ${errorMessage}`;
+      if (errorDetails) fullMessage += `\nDetalhes: ${errorDetails}`;
+      if (errorHint) fullMessage += `\nDica: ${errorHint}`;
+
+      alert(fullMessage);
     } finally {
       setSavingEntry(false);
     }
@@ -920,32 +949,45 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
               </div>
 
               <div className="p-6 space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tipo *
-                  </label>
-                  {isAdmin ? (
-                    <select
-                      value={editingEntry.type}
-                      onChange={(e) => setEditingEntry({
-                        ...editingEntry,
-                        type: e.target.value as 'income' | 'expense'
-                      })}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="income">Entrada</option>
-                      <option value="expense">Saída</option>
-                    </select>
-                  ) : (
-                    <div className="w-full p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-600">
-                      {editingEntry.type === 'income' ? 'Entrada' : 'Saída'}
-                      <p className="text-xs text-gray-500 mt-1">
-                        Apenas administradores podem alterar o tipo
-                      </p>
-                    </div>
-                  )}
-                </div>
+                {editingEntry.tipo && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                    <p className="text-sm text-blue-800">
+                      <strong>Tipo:</strong> {editingEntry.tipo}
+                    </p>
+                    <p className="text-xs text-blue-600 mt-1">
+                      O tipo não pode ser alterado em movimentações do histórico
+                    </p>
+                  </div>
+                )}
+
+                {!editingEntry.tipo && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tipo *
+                    </label>
+                    {isAdmin ? (
+                      <select
+                        value={editingEntry.type}
+                        onChange={(e) => setEditingEntry({
+                          ...editingEntry,
+                          type: e.target.value as 'income' | 'expense'
+                        })}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="income">Entrada</option>
+                        <option value="expense">Saída</option>
+                      </select>
+                    ) : (
+                      <div className="w-full p-3 border border-gray-200 rounded-lg bg-gray-50 text-gray-600">
+                        {editingEntry.type === 'income' ? 'Entrada' : 'Saída'}
+                        <p className="text-xs text-gray-500 mt-1">
+                          Apenas administradores podem alterar o tipo
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
