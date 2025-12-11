@@ -35,25 +35,44 @@ const PDVLogin: React.FC<PDVLoginProps> = ({ onLogin }) => {
             .from('pdv_operators')
             .select('*')
             .ilike('code', 'ADMIN')
-            .single();
-          
+            .eq('is_active', true)
+            .maybeSingle();
+
           if (data) {
             // Login successful with hardcoded credentials
             await supabase
               .from('pdv_operators')
               .update({ last_login: new Date().toISOString() })
               .eq('id', data.id);
-            
+
             onLogin(data);
             return true;
-          } else {
+          } else if (!error || error.code === 'PGRST116') {
             // Try to create admin user if it doesn't exist
+            const { data: existingAdmin } = await supabase
+              .from('pdv_operators')
+              .select('*')
+              .ilike('code', 'ADMIN')
+              .eq('is_active', true)
+              .limit(1);
+
+            if (existingAdmin && existingAdmin.length > 0) {
+              const admin = existingAdmin[0];
+              await supabase
+                .from('pdv_operators')
+                .update({ last_login: new Date().toISOString() })
+                .eq('id', admin.id);
+
+              onLogin(admin);
+              return true;
+            }
+
             const { data: newAdmin, error: createError } = await supabase
               .from('pdv_operators')
               .insert([{
                 name: 'Administrador',
                 code: 'ADMIN',
-                password_hash: 'elite2024', // Will be hashed by the trigger
+                password_hash: 'elite2024',
                 is_active: true,
                 permissions: {
                   can_discount: true,
@@ -74,14 +93,14 @@ const PDVLogin: React.FC<PDVLoginProps> = ({ onLogin }) => {
                 }
               }])
               .select()
-              .single();
-              
-            if (createError) {
+              .maybeSingle();
+
+            if (createError && createError.code !== '23505') {
               console.error('Error creating admin user:', createError);
               setError('Erro ao criar usuário administrador');
               return false;
             }
-            
+
             if (newAdmin) {
               onLogin(newAdmin);
               return true;
@@ -100,7 +119,7 @@ const PDVLogin: React.FC<PDVLoginProps> = ({ onLogin }) => {
         .select('*')
         .ilike('code', code.trim())
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
       if (fetchError || !data) {
         setError('Operador não encontrado ou inativo');

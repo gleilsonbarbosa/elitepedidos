@@ -1228,6 +1228,7 @@ const ProductsPanel: React.FC = () => {
               <option value="combo">Combos</option>
               <option value="milkshake">Milkshakes</option>
               <option value="vitamina">Vitaminas</option>
+              <option value="salgados">Salgados</option>
               <option value="sorvetes">Sorvetes</option>
               <option value="bebidas">Bebidas</option>
               <option value="complementos">Complementos</option>
@@ -1440,6 +1441,7 @@ const ProductsPanel: React.FC = () => {
                     <option value="combo">Combos</option>
                     <option value="milkshake">Milkshakes</option>
                     <option value="vitamina">Vitaminas</option>
+                    <option value="salgados">Salgados</option>
                     <option value="sorvetes">Sorvetes</option>
                     <option value="bebidas">Bebidas</option>
                     <option value="complementos">Complementos</option>

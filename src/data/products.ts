@@ -125,6 +125,7 @@ export const categoryNames = {
   combo: 'Combos',
   milkshake: 'Milkshakes',
   vitamina: 'Vitaminas',
+  salgados: 'Salgados',
   sorvetes: 'Sorvetes',
   bebidas: 'Bebidas',
   complementos: 'Complementos',

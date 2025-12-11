@@ -1,7 +1,7 @@
 export interface Product {
   id: string;
   name: string;
-  category: 'acai' | 'combo' | 'milkshake' | 'vitamina';
+  category: 'acai' | 'combo' | 'milkshake' | 'vitamina' | 'salgados' | 'sorvetes' | 'bebidas';
   price: number;
   originalPrice?: number;
   pricePerGram?: number;
