@@ -316,8 +316,33 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
     }
   };
 
-  const handlePrintReceipt = (sale: Sale) => {
-    // Criar uma nova janela com conteúdo específico para impressão térmica
+  const handlePrintReceipt = async (sale: Sale) => {
+    // Se for um pedido de delivery, buscar os dados completos
+    if (sale.channel === 'delivery') {
+      try {
+        const { data: order, error } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', sale.id)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (!order) {
+          alert('Pedido não encontrado');
+          return;
+        }
+
+        // Imprimir usando formato de pedido delivery completo
+        printDeliveryOrder(order);
+        return;
+      } catch (error) {
+        console.error('Erro ao buscar pedido para impressão:', error);
+        alert('Erro ao buscar dados do pedido');
+        return;
+      }
+    }
+
+    // Para PDV e Mesa, usar formato simples
     const printWindow = window.open('', '_blank', 'width=300,height=600');
     if (!printWindow) {
       alert('Por favor, permita pop-ups para imprimir');
@@ -335,7 +360,7 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
             size: 80mm auto;
             margin: 0;
           }
-          
+
           * {
             margin: 0;
             padding: 0;
@@ -343,7 +368,7 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
             color: black !important;
             background: white !important;
           }
-          
+
           body {
             font-family: 'Courier New', monospace;
             font-size: 12px;
@@ -353,18 +378,18 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
             padding: 2mm;
             width: 76mm;
           }
-          
+
           .center { text-align: center; }
           .bold { font-weight: bold; }
           .small { font-size: 10px; }
-          .separator { 
-            border-bottom: 1px dashed black; 
-            margin: 5px 0; 
-            padding-bottom: 5px; 
+          .separator {
+            border-bottom: 1px dashed black;
+            margin: 5px 0;
+            padding-bottom: 5px;
           }
-          .flex-between { 
-            display: flex; 
-            justify-content: space-between; 
+          .flex-between {
+            display: flex;
+            justify-content: space-between;
             align-items: center;
           }
           .mb-1 { margin-bottom: 2px; }
@@ -383,7 +408,7 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
           <div class="small">Tel: (85) 98904-1010</div>
           <div class="small">CNPJ: 38.130.139/0001-22</div>
         </div>
-        
+
         <!-- Dados da Venda -->
         <div class="mb-3 separator">
           <div class="bold center mb-2">=== COMPROVANTE DE VENDA ===</div>
@@ -394,7 +419,7 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
           ${sale.customer_name ? `<div class="small">Cliente: ${sale.customer_name}</div>` : ''}
           <div class="small">Canal: ${sale.channel === 'pdv' ? 'PDV' : sale.channel === 'delivery' ? 'Delivery' : sale.channel === 'mesa' ? 'Mesa' : 'PDV'}</div>
         </div>
-        
+
         <!-- Resumo -->
         <div class="mb-3 separator">
           <div class="bold mb-1">RESUMO:</div>
@@ -413,7 +438,7 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
           </div>
           ` : ''}
         </div>
-        
+
         <!-- Rodapé -->
         <div class="center small">
           <div class="bold mb-2">Obrigado pela preferência!</div>
@@ -432,7 +457,238 @@ export const SalesHistoryPanel: React.FC<SalesHistoryPanelProps> = ({ storeId, o
 
     printWindow.document.write(printContent);
     printWindow.document.close();
-    
+
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.print();
+        printWindow.close();
+      }, 500);
+    };
+  };
+
+  const printDeliveryOrder = (order: any) => {
+    const printWindow = window.open('', '_blank', 'width=300,height=600');
+    if (!printWindow) {
+      alert('Por favor, permita pop-ups para imprimir');
+      return;
+    }
+
+    const getPaymentMethodLabel = (method: string) => {
+      if (method === 'money') return 'Dinheiro';
+      if (method === 'pix') return 'PIX';
+      if (method === 'card') return 'Cartão';
+      if (method === 'mixed') return 'Pagamento Misto';
+      return method;
+    };
+
+    const getStatusLabel = (status: string) => ({
+      pending: 'Pendente', confirmed: 'Confirmado', preparing: 'Em Preparo',
+      out_for_delivery: 'Saiu para Entrega', ready_for_pickup: 'Pronto para Retirada',
+      delivered: 'Entregue', cancelled: 'Cancelado'
+    })[status] || status;
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Pedido #${(order.id || '').slice(-8)}</title>
+        <style>
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            color: black !important;
+            background: white !important;
+          }
+
+          body {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+            color: black;
+            background: white;
+            padding: 2mm;
+            width: 76mm;
+          }
+
+          .center { text-align: center; }
+          .bold { font-weight: 900 !important; }
+          .small { font-size: 12px; font-weight: bold !important; }
+          .medium { font-size: 14px; font-weight: bold !important; }
+          .large { font-size: 16px; font-weight: 900 !important; }
+          .separator {
+            border-bottom: 2px solid black;
+            margin: 6px 0;
+            padding-bottom: 6px;
+          }
+          .flex-between {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+          }
+          .mb-1 { margin-bottom: 3px; }
+          .mb-2 { margin-bottom: 6px; }
+          .mb-3 { margin-bottom: 9px; }
+          .mt-1 { margin-top: 2px; }
+          .mt-2 { margin-top: 5px; }
+          .ml-2 { margin-left: 8px; }
+
+          .header-title {
+            font-size: 18px;
+            font-weight: 900 !important;
+            color: black !important;
+            margin-bottom: 4px;
+          }
+          .section-title {
+            font-size: 15px;
+            font-weight: 900 !important;
+            color: black !important;
+            text-transform: uppercase;
+          }
+          .item-name {
+            font-size: 14px;
+            font-weight: 900 !important;
+            color: black !important;
+          }
+          .item-details {
+            font-size: 12px;
+            font-weight: bold !important;
+            color: black !important;
+          }
+          .price-value {
+            font-size: 14px;
+            font-weight: 900 !important;
+            color: black !important;
+          }
+          .total-value {
+            font-size: 16px;
+            font-weight: 900 !important;
+            color: black !important;
+          }
+        </style>
+      </head>
+      <body>
+        <!-- Cabeçalho -->
+        <div class="center mb-3 separator">
+          <div class="header-title">ELITE AÇAÍ</div>
+          <div class="medium">DELIVERY PREMIUM</div>
+          <div class="small">Rua Um, 1614-C</div>
+          <div class="small">Residencial 1 - Cágado</div>
+          <div class="small">Tel: (85) 98904-1010</div>
+          <div class="small">CNPJ: 38.130.139/0001-22</div>
+        </div>
+
+        <!-- Dados do Pedido -->
+        <div class="mb-3 separator">
+          <div class="section-title center mb-2">=== PEDIDO #${(order.id || '').slice(-8).toUpperCase()} ===</div>
+          <div class="medium">ID: ${(order.id || '').slice(-8)}</div>
+          <div class="item-details">Data: ${new Date(order.created_at).toLocaleDateString('pt-BR')}</div>
+          <div class="item-details">Hora: ${new Date(order.created_at).toLocaleTimeString('pt-BR')}</div>
+          <div class="item-details">Status: ${getStatusLabel(order.status)}</div>
+        </div>
+
+        <!-- Cliente -->
+        <div class="mb-3 separator">
+          <div class="section-title mb-1">DADOS DO CLIENTE:</div>
+          <div class="item-details">Nome: ${order.customer_name}</div>
+          <div class="item-details">Telefone: ${order.customer_phone}</div>
+          ${order.delivery_type === 'pickup' ? `
+          <div class="bold" style="font-size: 14px; font-weight: 900;">*** RETIRADA NA LOJA ***</div>
+          <div class="bold" style="font-size: 12px; font-weight: 900;">RUA UM, 1614-C - RESIDENCIAL 1 - CÁGADO</div>
+          ` : `
+          <div class="item-details">Endereço: ${order.customer_address}</div>
+          <div class="item-details">Bairro: ${order.customer_neighborhood}</div>
+          `}
+          ${order.customer_complement ? `<div class="item-details">Complemento: ${order.customer_complement}</div>` : ''}
+        </div>
+
+        <!-- Itens -->
+        <div class="mb-3 separator">
+          <div class="section-title mb-1">ITENS DO PEDIDO:</div>
+          ${order.items.map((item: any) => `
+            <div class="mb-2">
+              <div class="item-name">${item.product_name}</div>
+              ${item.selected_size ? `<div class="item-details">Tamanho: ${item.selected_size}</div>` : ''}
+              <div class="flex-between">
+                <span class="item-details">${item.quantity}x ${formatCurrency(item.unit_price)}</span>
+                <span class="price-value">${formatCurrency(item.total_price)}</span>
+              </div>
+              ${item.complements && item.complements.length > 0 ? `
+                <div class="ml-2 mt-1">
+                  <div class="item-details">Complementos:</div>
+                  ${item.complements.map((comp: any) => `
+                    <div class="item-details ml-2">• ${comp.name}${comp.price > 0 ? ` (+${formatCurrency(comp.price)})` : ''}</div>
+                  `).join('')}
+                </div>
+              ` : ''}
+              ${item.observations ? `<div class="item-details ml-2 mt-1">⚠️ OBS: ${item.observations}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Resumo -->
+        <div class="mb-3 separator">
+          <div class="section-title mb-1">RESUMO:</div>
+          <div class="flex-between">
+            <span class="item-details">Subtotal:</span>
+            <span class="price-value">${formatCurrency(Math.max(0, (order.total_price || 0) - (order.delivery_fee || 0)))}</span>
+          </div>
+          ${order.delivery_fee && order.delivery_fee > 0 ? `
+          <div class="flex-between">
+            <span class="item-details">Taxa de Entrega:</span>
+            <span class="price-value">${formatCurrency(order.delivery_fee)}</span>
+          </div>
+          ` : ''}
+          <div style="border-top: 2px solid black; padding-top: 5px; margin-top: 5px;">
+            <div class="flex-between bold">
+              <span class="section-title">TOTAL:</span>
+              <span class="total-value">${formatCurrency(order.total_price || 0)}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pagamento -->
+        <div class="mb-3 separator">
+          <div class="section-title mb-1">PAGAMENTO:</div>
+          <div class="item-details">Forma: ${getPaymentMethodLabel(order.payment_method)}</div>
+          ${order.payment_method === 'mixed' && order.mixed_payment_details ? (() => {
+            try {
+              const mixedDetails = JSON.parse(order.mixed_payment_details);
+              return mixedDetails.map((detail: any) => `
+                <div class="item-details ml-2">• ${detail.method_display}: ${formatCurrency(detail.amount)}</div>
+              `).join('');
+            } catch {
+              return '';
+            }
+          })() : ''}
+          ${order.change_for ? `<div class="item-details">Troco para: ${formatCurrency(order.change_for)}${order.change_for > (order.total_price || 0) ? ` (Troco: ${formatCurrency(order.change_for - (order.total_price || 0))})` : ''}</div>` : ''}
+        </div>
+
+        <!-- Rodapé -->
+        <div class="center item-details">
+          <div class="section-title mb-2">Obrigado pela preferência!</div>
+          <div class="item-details">Elite Açaí - O melhor açaí da cidade!</div>
+          <div class="item-details">@eliteacai</div>
+          <div class="item-details">⭐⭐⭐⭐⭐ Avalie-nos no Google</div>
+          <div style="margin-top: 10px; padding-top: 6px; border-top: 2px solid black;">
+            <div class="small">Elite Açaí - CNPJ: 38.130.139/0001-22</div>
+            <div class="small">Impresso: ${new Date().toLocaleString('pt-BR')}</div>
+            <div class="small">Este não é um documento fiscal</div>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+
     printWindow.onload = () => {
       setTimeout(() => {
         printWindow.print();

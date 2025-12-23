@@ -106,7 +106,11 @@ const CashRegisterMenu: React.FC<CashRegisterMenuProps> = ({ isAdmin: isAdminPro
     setLoadingDailyEntries(true);
     try {
       const now = new Date();
-      const todayDate = now.toISOString().split('T')[0];
+      const saoPauloOffset = -3 * 60;
+      const localOffset = now.getTimezoneOffset();
+      const offsetDiff = localOffset + saoPauloOffset;
+      const saoPauloTime = new Date(now.getTime() + offsetDiff * 60 * 1000);
+      const todayDate = saoPauloTime.toISOString().split('T')[0];
 
       const { data: allEntries, error: entriesError } = await supabase
         .from('financeiro_fluxo')
